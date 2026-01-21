@@ -1,116 +1,97 @@
 # synterr
 
-Reproducible error generation for Grammatical Error Correction (GEC).
+Generate synthetic grammatical errors for training GEC models.
 
-## Features
+synterr corrupts clean text with realistic learner-like errors, outputting GECToR-compatible training data with error type labels.
 
-- Language-agnostic core with pluggable language modules
-- Russian language support with stanza-based contextual morphological analysis
-- Multiple error types: spelling, morphological, lexical, structural
-- GECToR-compatible output format with detection labels
-- CLI for batch processing
+## Why
 
-## Installation
+Training GEC models requires parallel data (incorrect → correct). Real learner corpora are small and expensive to annotate. synterr generates unlimited synthetic training data from any clean corpus, with error distributions matching real learner errors.
+
+## Install
 
 ```bash
-# Basic installation
-pip install synterr
+pip install synterr[russian]  # includes stanza, pymorphy3
+```
 
-# With Russian language support
-pip install synterr[russian]
-
-# Development installation
+Or from source:
+```bash
+git clone https://github.com/mechanicpanic/synterr
+cd synterr
 uv sync --all-extras
 ```
 
-## Quick Start
+## Usage
 
 ```bash
-# List available languages
-synterr list-languages
+# Generate errors with RULEC-GEC distribution
+synterr generate -l ru -i clean.txt -o train.edits --preset rulec
 
-# List error types for Russian
-synterr list-errors --lang ru
+# Use faster backend for large corpora
+synterr generate -l ru -i corpus.txt -o out.edits --backend natasha
 
-# Generate synthetic errors
-synterr generate --lang ru --input corpus.txt --output errors.edits
-
-# With specific error types
-synterr generate --lang ru --input corpus.txt --output errors.edits --errors spelling,noun_case
+# Specific error types only
+synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case
 ```
 
-## Output Format
-
-The output uses GECToR edit format with detection labels:
-
+Output format (GECToR `.edits`):
 ```
-$STARTSEPL|||SEPR$KEEP:CORRECT wordSEPL|||SEPR$REPLACE_original:SPELL ...
+$STARTSEPL|||SEPR$KEEP:CORRECT ОнSEPL|||SEPR$REPLACE_читает:MORPH читаетSEPL|||SEPR$KEEP:CORRECT книгу
 ```
 
-Detection classes:
-- `CORRECT` - No error
-- `SPELL` - Orthographic errors
-- `MORPH` - Morphological errors (case, number, gender, tense)
-- `PUNCT` - Punctuation errors
-- `OTHER` - Lexical/structural errors
+## Error Types (Russian)
 
-## Architecture
+| Type | Example | Label |
+|------|---------|-------|
+| Spelling | *ищо* → ещё | SPELL |
+| Noun case | *к дому* → к дом | MORPH |
+| Adj agreement | *новый книга* → новая книга | MORPH |
+| Verb conjugation | *они читает* → они читают | MORPH |
+| Paronyms | *одеть* ↔ надеть | OTHER |
 
-The package uses a two-stage morphological processing pipeline:
+Full list: `synterr list-errors -l ru`
 
-1. **Analysis** (stanza): Contextual POS tagging, lemmatization, and morphological feature extraction
-2. **Inflection** (pymorphy3 for Russian): Generating corrupted word forms
+## Backends
 
-This enables realistic error generation that respects morphological context.
+| Backend | Speed | Accuracy | Install |
+|---------|-------|----------|---------|
+| stanza (default) | ~90 sent/s | Best | `pip install synterr[russian]` |
+| natasha | ~500 sent/s | Good | `pip install synterr[natasha]` |
+| spacy | ~300 sent/s | Good | `pip install synterr[spacy]` |
 
-## Supported Error Types (Russian)
+## Presets
 
-### Morphological
-- Noun case/number errors
-- Adjective case/number/gender errors
-- Verb person/number/tense errors
+Error weights derived from real learner corpora:
 
-### Spelling
-- Vowel reduction (unstressed vowel confusion)
-- тся/ться confusion
-- Consonant devoicing
-- Keyboard typos
+- `rulec` — RULEC-GEC L2/heritage learner distribution
+- `gera` — GERA German-Russian learner distribution
+- `balanced` — Equal weights for all error types
 
-### Lexical
-- Preposition/conjunction/pronoun substitution
-- Paronym confusion
-
-### Structural
-- Function word deletion (fix: $APPEND)
-- Filler word insertion (fix: $DELETE)
-
-## Adding New Languages
-
-Languages are registered via entry points. Create a module that implements the `LanguageModule` protocol:
-
-```python
-from synterr.core.protocol import LanguageModule, ErrorHandler
-
-class MyLanguage(LanguageModule):
-    code = "xx"
-    name = "My Language"
-
-    def get_analyzer(self, use_depparse=False):
-        return MyAnalyzer(use_depparse)
-
-    def get_error_handlers(self) -> list[ErrorHandler]:
-        return [...]
-
-    def get_error_distribution(self) -> dict[str, float]:
-        return {"spelling": 0.15, "noun_case": 0.10, ...}
+```bash
+synterr list-presets -l ru
 ```
 
-Register in pyproject.toml:
+## How It Works
 
-```toml
-[project.entry-points."synterr.languages"]
-my_language = "my_package:MyLanguage"
-```
+1. **Analyze** clean sentence (stanza/natasha/spacy)
+2. **Sample** error type from distribution
+3. **Apply** corruption via rule inversion (pymorphy3)
+4. **Output** with fix tag + detection label
+
+The "rule inversion" approach: look up what's grammatically correct, then generate something that violates it.
+
+## Status
+
+**v0.0.1-alpha** — Russian morphological + spelling errors working. Lexical and structural errors in progress.
+
+See [VERSIONING.md](VERSIONING.md) for roadmap.
+
+## References
+
+Based on error taxonomies from:
+- [RLC](https://aclanthology.org/2024.lrec-main.1241/) — Russian Learner Corpus (38 error tags)
+- [RULEC-GEC](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00251) — Rozovskaya & Roth 2019
+- [RuBLiMP](https://github.com/RussianNLP/RuBLiMP) — Minimal pairs benchmark (borrowed aspect pairs)
 
 ## License
 
