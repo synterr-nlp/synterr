@@ -38,7 +38,14 @@ Good question — you want taxonomies grounded in actual linguistic research, no
 
 ---
 
-### 4. **ReLCo**
+### 4. **RuERRANT**
+- ERRANT (Error Annotation Toolkit) extended for Russian
+- Uses spaCy ru_core_news_lg for Russian support
+- Outputs M2 format with error type classification
+
+**Repo:** https://github.com/Askinkaty/errant
+
+### 5. **ReLCo**
 - Semi-automatically annotated learner corpus from Revita language-learning platform
 - Errors collected automatically during L2 learner exercises
 

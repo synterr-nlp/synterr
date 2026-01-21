@@ -168,6 +168,10 @@ Literature and resources used in synterr development.
 
 ## Related Work (Not Directly Used)
 
+- **RuERRANT** — ERRANT extended for Russian error annotation
+  - Fork of Cambridge ERRANT with Russian support via spaCy ru_core_news_lg
+  - Repo: https://github.com/Askinkaty/errant
+  - Cloned to: `/Users/aleph/Projects/research/ruerrant`
 - **ReLCo** — Semi-automatically annotated learner corpus from Revita platform
   - Paper: Katinskaia et al. (2022) https://aclanthology.org/2022.lrec-1.88/
   - Repo: https://github.com/Askinkaty/Russian_learner_corpus_ReLCo
