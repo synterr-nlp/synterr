@@ -37,6 +37,7 @@ class GenerationConfig:
         use_depparse: Enable dependency parsing for agreement errors
         label_format: Output label format ('original', 'binary', 'multiclass')
         enabled_errors: Set of error handler names to use (None = all)
+        error_weights: Custom weights for error types (overrides language default)
     """
 
     seed: int = 42
@@ -45,6 +46,59 @@ class GenerationConfig:
     use_depparse: bool = False
     label_format: str = "multiclass"
     enabled_errors: set[str] | None = None
+    error_weights: dict[str, float] | None = None
+
+    @classmethod
+    def from_preset(cls, language: str, preset: str, **overrides) -> GenerationConfig:
+        """Create config from a preset.
+
+        Args:
+            language: Language code (e.g., 'ru')
+            preset: Preset name (e.g., 'rulec', 'gera', 'balanced')
+            **overrides: Override specific config values
+
+        Returns:
+            GenerationConfig instance
+        """
+        from synterr.configs import load_preset
+
+        config_data = load_preset(language, preset)
+        return cls._from_dict(config_data, **overrides)
+
+    @classmethod
+    def from_file(cls, path: str, **overrides) -> GenerationConfig:
+        """Create config from a YAML file.
+
+        Args:
+            path: Path to YAML config file
+            **overrides: Override specific config values
+
+        Returns:
+            GenerationConfig instance
+        """
+        from synterr.configs import load_config
+
+        config_data = load_config(path)
+        return cls._from_dict(config_data, **overrides)
+
+    @classmethod
+    def _from_dict(cls, data: dict, **overrides) -> GenerationConfig:
+        """Create config from dict."""
+        config = cls(
+            seed=data.get("seed", 42),
+            max_errors_per_sentence=data.get("max_errors_per_sentence", 3),
+            error_probability=data.get("error_probability", 0.7),
+            use_depparse=data.get("use_depparse", False),
+            label_format=data.get("label_format", "multiclass"),
+            error_weights=data.get("weights"),
+        )
+
+        # Apply overrides
+        for key, value in overrides.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+
+        return config
 
 
 @dataclass
@@ -108,15 +162,22 @@ class ErrorPipeline:
 
     @property
     def distribution(self) -> dict[str, float]:
-        """Get error distribution weights."""
+        """Get error distribution weights.
+
+        Priority: config.error_weights > language default
+        """
         if self._distribution is None:
-            dist = self.language.get_error_distribution()
-            if self.config.enabled_errors is not None:
-                self._distribution = {
-                    k: v for k, v in dist.items() if k in self.config.enabled_errors
-                }
+            # Use config weights if provided, otherwise language default
+            if self.config.error_weights is not None:
+                dist = self.config.error_weights.copy()
             else:
-                self._distribution = dist
+                dist = self.language.get_error_distribution()
+
+            # Filter to enabled errors if specified
+            if self.config.enabled_errors is not None:
+                dist = {k: v for k, v in dist.items() if k in self.config.enabled_errors}
+
+            self._distribution = dist
         return self._distribution
 
     def _sample_error_type(self) -> ErrorHandler | None:

@@ -1,0 +1,28 @@
+# Balanced error distribution for general use
+# Hand-tuned to provide diverse error coverage
+
+name: balanced
+description: "Balanced distribution for general synthetic data generation"
+source: "Hand-tuned based on corpus analysis"
+
+# Pipeline settings
+error_probability: 0.7
+max_errors_per_sentence: 3
+
+# Error weights - balanced across all implemented handlers
+weights:
+  # Spelling: ~25%
+  spelling: 0.25
+
+  # Morphological - Nouns: ~25%
+  noun_case: 0.18
+  noun_number: 0.07
+
+  # Morphological - Adjectives: ~25%
+  adj_case: 0.12
+  adj_number: 0.07
+  adj_gender: 0.06
+
+  # Morphological - Verbs: ~25%
+  verb_person_number: 0.13
+  verb_tense: 0.12

@@ -36,30 +36,26 @@ class RussianLanguage:
     def get_error_distribution(self) -> dict[str, float]:
         """Get default error distribution weights for Russian.
 
-        Based on RULEC-GEC error distribution analysis.
+        Loads from the default preset config (rulec.yaml).
         """
-        return {
-            # Spelling errors (15%)
-            "spelling": 0.15,
-            # Morphological errors (40%)
-            "noun_case": 0.10,
-            "noun_number": 0.05,
-            "adj_case": 0.05,
-            "adj_number": 0.03,
-            "adj_gender": 0.02,
-            "verb_person_number": 0.08,
-            "verb_tense": 0.07,
-            # Lexical errors (10%)
-            # "preposition": 0.04,
-            # "conjunction": 0.03,
-            # "pronoun": 0.03,
-            # Structural errors (25%) - TODO: implement
-            # "insert": 0.14,
-            # "delete": 0.11,
-            # Punctuation errors (10%) - TODO: implement
-            # "missing_comma": 0.05,
-            # "extra_comma": 0.05,
-        }
+        from synterr.configs import get_default_preset, load_preset
+
+        try:
+            preset_name = get_default_preset(self.code)
+            config = load_preset(self.code, preset_name)
+            return config.get("weights", {})
+        except FileNotFoundError:
+            # Fallback to hard-coded defaults if config not found
+            return {
+                "spelling": 0.475,
+                "noun_case": 0.280,
+                "noun_number": 0.053,
+                "adj_case": 0.071,
+                "adj_number": 0.019,
+                "adj_gender": 0.027,
+                "verb_person_number": 0.052,
+                "verb_tense": 0.023,
+            }
 
 
 # Export for entry point

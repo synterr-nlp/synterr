@@ -1,0 +1,36 @@
+# GERA derived error distribution
+# Source: 6,681 sentences, 5,988 errors from Russian school texts
+# Analysis: synterr analyze-distribution on GERA.{train,dev,test}.m2
+
+name: gera
+description: "GERA corpus distribution (Russian school texts)"
+source: "GERA (Sorokin et al., 2016)"
+
+# Pipeline settings
+error_probability: 0.7
+max_errors_per_sentence: 3
+
+# Error weights (normalized to implemented handlers)
+# Note: GERA is heavily skewed toward punctuation (42.5%) which we don't implement yet
+weights:
+  # Spelling: 20.3% in corpus (S:ORTH + S:TYPO + S:LETTER:CASE)
+  spelling: 0.712
+
+  # Morphological - Nouns: 6.0% total
+  noun_case: 0.173      # G:NOUN:CASE 5.1%
+  noun_number: 0.031    # G:NOUN:NUM 0.9%
+
+  # Morphological - Adjectives: 2.8% total
+  adj_case: 0.055       # G:ADJ:CASE 1.6%
+  adj_number: 0.020     # G:ADJ:NUM 0.6%
+  adj_gender: 0.000     # Not annotated separately
+
+  # Morphological - Verbs: 2.8% total
+  verb_person_number: 0.000  # Combined in G:VERB:P/N/G
+  verb_tense: 0.009          # G:VERB:TENSE 0.7%
+
+# Major unimplemented types in GERA:
+#
+# punctuation: 42.5%   - Dominant error type in school texts
+# lexical: 11.4%       - L:REP, L:OTHER, L:CONSTR
+# insert: 3.4%         - LACK

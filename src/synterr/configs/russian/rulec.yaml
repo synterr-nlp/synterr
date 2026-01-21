@@ -1,0 +1,42 @@
+# RULEC-GEC derived error distribution
+# Source: 12,480 sentences, 11,847 errors from L2/heritage learner essays
+# Analysis: synterr analyze-distribution on RULEC-GEC_{dev,test,train}_M2.txt
+
+name: rulec
+description: "RULEC-GEC corpus distribution (L2/heritage learners)"
+source: "RULEC-GEC (Rozovskaya & Roth, 2019)"
+
+# Pipeline settings
+error_probability: 0.7
+max_errors_per_sentence: 3
+
+# Error weights (normalized to implemented handlers)
+# Full corpus distribution shown in comments
+weights:
+  # Spelling: 21.8% in corpus -> 47.5% of implemented
+  spelling: 0.475
+
+  # Morphological - Nouns: 15.2% total
+  noun_case: 0.280      # 12.8% in corpus
+  noun_number: 0.053    # 2.4%
+
+  # Morphological - Adjectives: 5.4% total
+  adj_case: 0.071       # 3.3%
+  adj_number: 0.019     # 0.9%
+  adj_gender: 0.027     # 1.2%
+
+  # Morphological - Verbs: 5.3% total
+  verb_person_number: 0.052  # 2.4%
+  verb_tense: 0.023          # 1.0%
+
+# Unimplemented error types (for reference)
+# These are significant in RULEC-GEC but not yet in synterr:
+#
+# insert: 14.6%        - Missing function words
+# lexical: 12.2%       - Word choice errors
+# delete: 8.2%         - Extra words
+# preposition: 3.1%    - Preposition errors
+# verb_aspect: 1.8%    - Aspect confusion
+# verb_voice: 1.1%     - Voice errors (add/remove -ся)
+# pronoun: 0.9%        - Pronoun errors
+# conjunction: 0.7%    - Conjunction errors
