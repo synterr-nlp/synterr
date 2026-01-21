@@ -38,12 +38,12 @@ Good question — you want taxonomies grounded in actual linguistic research, no
 
 ---
 
-### 4. **ReLCo / RuERRANT**
-- Error annotation tool adapted from English ERRANT
-- Tagset based on POS + grammatical category
+### 4. **ReLCo**
+- Semi-automatically annotated learner corpus from Revita language-learning platform
+- Errors collected automatically during L2 learner exercises
 
-**Paper:** Katinskaia et al. (2022) "Semi-automatically annotated learner corpus for Russian"
-**Tool:** https://github.com/Relco/relco.github.io
+**Paper:** Katinskaia et al. (2022) "Semi-automatically annotated learner corpus for Russian" — https://aclanthology.org/2022.lrec-1.88/
+**Repo:** https://github.com/Askinkaty/Russian_learner_corpus_ReLCo
 
 ---
 

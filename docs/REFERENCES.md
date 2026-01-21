@@ -168,6 +168,8 @@ Literature and resources used in synterr development.
 
 ## Related Work (Not Directly Used)
 
-- **ReLCo/RuERRANT** — Error annotation tool adapted from English ERRANT
+- **ReLCo** — Semi-automatically annotated learner corpus from Revita platform
+  - Paper: Katinskaia et al. (2022) https://aclanthology.org/2022.lrec-1.88/
+  - Repo: https://github.com/Askinkaty/Russian_learner_corpus_ReLCo
 - **Nasyrova & Sorokin (2025)** — SOTA Russian GEC with ruRoBERTa-large
 - **DeepPavlov** — Alternative Russian NLP toolkit (not integrated)
