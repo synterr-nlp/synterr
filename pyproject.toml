@@ -14,18 +14,30 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Default Russian backend (stanza - best accuracy)
 russian = [
     "stanza>=1.7",
     "pymorphy3>=2.0",
     "razdel>=0.5",
 ]
+# Alternative backends
+natasha = [
+    "natasha>=1.6",
+    "pymorphy3>=2.0",
+]
+spacy = [
+    "spacy>=3.7",
+    "pymorphy3>=2.0",
+]
+# Development dependencies
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.4",
 ]
+# All backends + dev
 all = [
-    "synterr[russian,dev]",
+    "synterr[russian,natasha,spacy,dev]",
 ]
 
 [project.scripts]

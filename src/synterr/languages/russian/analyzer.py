@@ -1,56 +1,75 @@
-"""Russian language analyzer using stanza and pymorphy3."""
+"""Russian language analyzer with pluggable backends.
+
+Available backends:
+    - stanza: Best accuracy, slower (~92 sent/s)
+    - natasha: Fastest (~500 sent/s), lightweight
+    - spacy: Balanced, good depparse
+
+Usage:
+    from synterr.languages.russian.analyzer import RussianAnalyzer
+
+    # Default backend (stanza)
+    analyzer = RussianAnalyzer()
+
+    # Specific backend
+    analyzer = RussianAnalyzer(backend="natasha")
+
+    # Analyze
+    tokens = analyzer.analyze("Мама мыла раму.")
+"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from synterr.core.protocol import AnalyzedToken
-
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from synterr.core.protocol import AnalyzedToken
+    from synterr.languages.russian.backends.base import AnalyzerBackend
+
 
 class RussianAnalyzer:
-    """Russian text analyzer combining stanza (contextual) and pymorphy3 (inflection).
+    """Russian text analyzer with pluggable NLP backends.
 
-    Uses stanza for contextual morphological analysis (POS, lemma, features, depparse)
-    and pymorphy3 for inflection capabilities.
+    Supports multiple backends for morphological analysis:
+    - stanza: Stanford NLP (default, best accuracy)
+    - natasha: Natasha/Slovnet (fastest, lightweight)
+    - spacy: spaCy with Russian models (balanced)
+
+    All backends use pymorphy3 for inflection capabilities.
     """
 
-    def __init__(self, use_depparse: bool = False, use_gpu: bool = True) -> None:
+    def __init__(
+        self,
+        backend: str | None = None,
+        use_depparse: bool = False,
+        use_gpu: bool = True,
+    ) -> None:
         """Initialize Russian analyzer.
 
         Args:
-            use_depparse: Enable dependency parsing (~40% slower)
-            use_gpu: Use GPU acceleration for stanza
+            backend: Backend name ('stanza', 'natasha', 'spacy') or None for default
+            use_depparse: Enable dependency parsing
+            use_gpu: Use GPU acceleration (if supported by backend)
         """
+        self.backend_name = backend
         self.use_depparse = use_depparse
         self.use_gpu = use_gpu
-        self._nlp = None
-        self._morph = None
+        self._backend: AnalyzerBackend | None = None
 
     @property
-    def nlp(self):
-        """Lazy-initialize stanza pipeline."""
-        if self._nlp is None:
-            import stanza
+    def backend(self) -> AnalyzerBackend:
+        """Get or create backend (lazy initialization)."""
+        if self._backend is None:
+            from synterr.languages.russian.backends import get_backend
 
-            processors = (
-                "tokenize,pos,lemma,depparse" if self.use_depparse else "tokenize,pos,lemma"
+            self._backend = get_backend(
+                name=self.backend_name,
+                use_depparse=self.use_depparse,
+                use_gpu=self.use_gpu,
             )
-            self._nlp = stanza.Pipeline(
-                "ru", processors=processors, verbose=False, use_gpu=self.use_gpu
-            )
-        return self._nlp
-
-    @property
-    def morph(self):
-        """Lazy-initialize pymorphy3 analyzer."""
-        if self._morph is None:
-            import pymorphy3
-
-            self._morph = pymorphy3.MorphAnalyzer()
-        return self._morph
+        return self._backend
 
     def analyze(self, text: str) -> list[AnalyzedToken]:
         """Analyze a single sentence.
@@ -59,22 +78,14 @@ class RussianAnalyzer:
             text: Input sentence text
 
         Returns:
-            List of analyzed tokens
+            List of analyzed tokens with POS, lemma, features
         """
-        doc = self.nlp(text)
-        tokens = []
-
-        for sent in doc.sentences:
-            for word in sent.words:
-                token = self._word_to_token(word, len(tokens))
-                tokens.append(token)
-
-        return tokens
+        return self.backend.analyze(text)
 
     def analyze_batch(self, texts: Sequence[str]) -> list[list[AnalyzedToken]]:
-        """Analyze multiple sentences (batched for efficiency).
+        """Analyze multiple sentences.
 
-        Batching gives ~7x speedup over processing one-at-a-time.
+        Efficiency depends on backend - stanza has native batching (~7x speedup).
 
         Args:
             texts: List of sentence texts
@@ -82,122 +93,4 @@ class RussianAnalyzer:
         Returns:
             List of token lists, one per sentence
         """
-        if not texts:
-            return []
-
-        # Join sentences with double newline (stanza sentence boundary)
-        batch_text = "\n\n".join(texts)
-
-        # Process entire batch at once
-        doc = self.nlp(batch_text)
-
-        # Map stanza sentences back to input sentences
-        results = []
-        stanza_sent_idx = 0
-
-        for orig_text in texts:
-            if stanza_sent_idx >= len(doc.sentences):
-                # Stanza produced fewer sentences than expected
-                tokens = self._fallback_analyze(orig_text)
-            else:
-                stanza_sent = doc.sentences[stanza_sent_idx]
-                tokens = []
-
-                for i, word in enumerate(stanza_sent.words):
-                    token = self._word_to_token(word, i)
-                    tokens.append(token)
-
-                stanza_sent_idx += 1
-
-            results.append(tokens)
-
-        return results
-
-    def _word_to_token(self, word, idx: int) -> AnalyzedToken:
-        """Convert stanza word to AnalyzedToken."""
-        # Parse features
-        features = {}
-        if word.feats:
-            for feat in word.feats.split("|"):
-                if "=" in feat:
-                    k, v = feat.split("=", 1)
-                    features[k] = v
-
-        # Dependency info (head is 1-indexed in stanza, convert to 0-indexed)
-        head_idx = None
-        dep_rel = None
-        if self.use_depparse:
-            if hasattr(word, "head") and word.head is not None and word.head > 0:
-                head_idx = word.head - 1
-            if hasattr(word, "deprel") and word.deprel is not None:
-                dep_rel = word.deprel
-
-        # Get pymorphy parse for inflection
-        parses = self.morph.parse(word.text)
-        pymorphy_parse = None
-
-        # Try to match by lemma first
-        for p in parses:
-            if p.normal_form == word.lemma:
-                pymorphy_parse = p
-                break
-
-        # Fallback to first parse
-        if pymorphy_parse is None and parses:
-            pymorphy_parse = parses[0]
-
-        return AnalyzedToken(
-            text=word.text,
-            lemma=word.lemma,
-            pos=word.upos,
-            features=features,
-            idx=idx,
-            dep_rel=dep_rel,
-            head_idx=head_idx,
-            extra={"pymorphy_parse": pymorphy_parse},
-        )
-
-    def _fallback_analyze(self, text: str) -> list[AnalyzedToken]:
-        """Fallback analysis using pymorphy3 when stanza fails."""
-        from razdel import tokenize
-
-        # Map pymorphy POS to Universal POS
-        pos_map = {
-            "NOUN": "NOUN",
-            "VERB": "VERB",
-            "INFN": "VERB",
-            "ADJF": "ADJ",
-            "ADJS": "ADJ",
-            "ADVB": "ADV",
-            "NPRO": "PRON",
-            "NUMR": "NUM",
-            "PREP": "ADP",
-            "CONJ": "CCONJ",
-            "PRCL": "PART",
-            "INTJ": "INTJ",
-        }
-
-        tokens = []
-        for i, tok in enumerate(tokenize(text)):
-            word = tok.text
-            parses = self.morph.parse(word)
-
-            if parses:
-                parse = parses[0]
-                pos = pos_map.get(parse.tag.POS, "X")
-                lemma = parse.normal_form
-            else:
-                pos = "X"
-                lemma = word
-
-            token = AnalyzedToken(
-                text=word,
-                lemma=lemma,
-                pos=pos,
-                features={},
-                idx=i,
-                extra={"pymorphy_parse": parses[0] if parses else None},
-            )
-            tokens.append(token)
-
-        return tokens
+        return self.backend.analyze_batch(texts)

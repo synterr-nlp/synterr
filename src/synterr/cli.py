@@ -106,11 +106,29 @@ def cmd_list_errors(lang: str, preset: str | None) -> None:
         click.echo()
 
 
+@main.command("list-backends")
+@click.option("--lang", "-l", default="ru", help="Language code (default: ru)")
+def cmd_list_backends(lang: str) -> None:
+    """List available NLP backends."""
+    if lang == "ru":
+        from synterr.languages.russian.backends import BACKENDS, DEFAULT_BACKEND, list_backends
+
+        status = list_backends()
+        click.echo(f"Available backends for {lang}:")
+        for name in BACKENDS:
+            is_default = " (default)" if name == DEFAULT_BACKEND else ""
+            avail = status.get(name, "unknown")
+            click.echo(f"  {name}{is_default}: {avail}")
+    else:
+        click.echo(f"No backend info for language '{lang}'.")
+
+
 @main.command("analyze")
 @click.option("--lang", "-l", required=True, help="Language code")
+@click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--depparse/--no-depparse", default=False, help="Enable dependency parsing")
 @click.argument("text")
-def cmd_analyze(lang: str, depparse: bool, text: str) -> None:
+def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> None:
     """Analyze a sentence (debug mode)."""
     try:
         language = get_language(lang)
@@ -118,7 +136,7 @@ def cmd_analyze(lang: str, depparse: bool, text: str) -> None:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
-    analyzer = language.get_analyzer(use_depparse=depparse)
+    analyzer = language.get_analyzer(use_depparse=depparse, backend=backend)
     tokens = analyzer.analyze(text)
 
     click.echo(f"Tokens ({len(tokens)}):")
@@ -134,6 +152,7 @@ def cmd_analyze(lang: str, depparse: bool, text: str) -> None:
 @click.option("--lang", "-l", required=True, help="Language code")
 @click.option("--input", "-i", "input_path", type=click.Path(exists=True), required=True)
 @click.option("--output", "-o", "output_path", type=click.Path(), required=True)
+@click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--preset", "-p", help="Use preset config (e.g., rulec, gera, balanced)")
 @click.option("--config", "-c", "config_path", type=click.Path(exists=True), help="Custom YAML config")
 @click.option("--errors", "-e", help="Comma-separated error types (default: all)")
@@ -153,6 +172,7 @@ def cmd_generate(
     lang: str,
     input_path: str,
     output_path: str,
+    backend: str | None,
     preset: str | None,
     config_path: str | None,
     errors: str | None,
@@ -210,6 +230,7 @@ def cmd_generate(
             use_depparse=depparse,
             label_format=label_format,
             enabled_errors=enabled_errors,
+            backend=backend,
         )
         click.echo(f"Using config: {config_path}")
     elif preset:
@@ -221,6 +242,7 @@ def cmd_generate(
             use_depparse=depparse,
             label_format=label_format,
             enabled_errors=enabled_errors,
+            backend=backend,
         )
         click.echo(f"Using preset: {preset}")
     else:
@@ -231,6 +253,7 @@ def cmd_generate(
             label_format=label_format,
             enabled_errors=enabled_errors,
             error_weights=error_weights,
+            backend=backend,
         )
 
     # Override error_weights if provided via --weights (takes precedence)

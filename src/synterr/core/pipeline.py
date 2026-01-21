@@ -38,6 +38,7 @@ class GenerationConfig:
         label_format: Output label format ('original', 'binary', 'multiclass')
         enabled_errors: Set of error handler names to use (None = all)
         error_weights: Custom weights for error types (overrides language default)
+        backend: NLP backend to use (None = language default)
     """
 
     seed: int = 42
@@ -47,6 +48,7 @@ class GenerationConfig:
     label_format: str = "multiclass"
     enabled_errors: set[str] | None = None
     error_weights: dict[str, float] | None = None
+    backend: str | None = None
 
     @classmethod
     def from_preset(cls, language: str, preset: str, **overrides) -> GenerationConfig:
@@ -91,6 +93,7 @@ class GenerationConfig:
             use_depparse=data.get("use_depparse", False),
             label_format=data.get("label_format", "multiclass"),
             error_weights=data.get("weights"),
+            backend=data.get("backend"),
         )
 
         # Apply overrides
@@ -146,7 +149,10 @@ class ErrorPipeline:
     def analyzer(self) -> Analyzer:
         """Get or create analyzer (lazy initialization)."""
         if self._analyzer is None:
-            self._analyzer = self.language.get_analyzer(use_depparse=self.config.use_depparse)
+            self._analyzer = self.language.get_analyzer(
+                use_depparse=self.config.use_depparse,
+                backend=self.config.backend,
+            )
         return self._analyzer
 
     @property

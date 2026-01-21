@@ -14,18 +14,28 @@ class RussianLanguage:
     code = "ru"
     name = "Russian"
 
-    def get_analyzer(self, use_depparse: bool = False) -> Analyzer:
-        """Get Russian analyzer with stanza pipeline.
+    def get_analyzer(
+        self,
+        use_depparse: bool = False,
+        backend: str | None = None,
+    ) -> Analyzer:
+        """Get Russian analyzer with configurable backend.
 
         Args:
-            use_depparse: Enable dependency parsing (~40% slower)
+            use_depparse: Enable dependency parsing
+            backend: Backend name ('stanza', 'natasha', 'spacy') or None for default
 
         Returns:
             RussianAnalyzer instance
+
+        Available backends:
+            - stanza: Best accuracy, slower (~92 sent/s) - default
+            - natasha: Fastest (~500 sent/s), lightweight
+            - spacy: Balanced, good dependency parsing
         """
         from synterr.languages.russian.analyzer import RussianAnalyzer
 
-        return RussianAnalyzer(use_depparse=use_depparse)
+        return RussianAnalyzer(backend=backend, use_depparse=use_depparse)
 
     def get_error_handlers(self) -> list[ErrorHandler]:
         """Get all Russian error handlers."""

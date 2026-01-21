@@ -10,20 +10,36 @@ from typing import Any
 
 
 @lru_cache(maxsize=1)
-def get_lexical_confusions() -> dict[str, list[str]]:
-    """Load lexical confusions dictionary.
+def get_paronyms() -> dict[str, list[str]]:
+    """Load paronyms dictionary.
+
+    Sources:
+        - ЕГЭ (Russian standardized exam) paronym list
+        - О.В. Вишнякова "Словарь паронимов русского языка" (1984)
+        - Claude AI generated based on linguistic patterns
 
     Returns:
-        Dict mapping words to their common confusions/paronyms
+        Dict mapping correct words to their common confusions
     """
-    data_path = _get_data_path() / "lexical_confusions.json"
+    data_path = _get_package_data_path() / "paronyms.json"
 
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+            # Remove metadata key
+            return {k: v for k, v in data.items() if not k.startswith("_")}
+
+    # Fallback to external data directory
+    data_path = _get_data_path() / "lexical_confusions.json"
     if data_path.exists():
         with data_path.open(encoding="utf-8") as f:
             return json.load(f)
 
-    # Return empty dict if no data file
     return {}
+
+
+# Alias for backwards compatibility
+get_lexical_confusions = get_paronyms
 
 
 @lru_cache(maxsize=1)
@@ -114,17 +130,25 @@ def get_pronoun_list() -> list[str]:
     ]
 
 
-def _get_data_path() -> Path:
-    """Get path to data directory."""
-    # Try package data first
+def _get_package_data_path() -> Path:
+    """Get path to package data directory (src/synterr/data/russian)."""
+    # Try package resources first (works in installed package)
     try:
-        with resources.files("synterr") as pkg_path:
-            data_path = Path(pkg_path) / "data" / "russian"
-            if data_path.exists():
-                return data_path
-    except (TypeError, FileNotFoundError):
+        pkg_files = resources.files("synterr.data.russian")
+        # Convert to Path if possible
+        if hasattr(pkg_files, "_path"):
+            return Path(pkg_files._path)
+        # For development, find the path relative to this module
+        return Path(__file__).parent.parent / "data" / "russian"
+    except (TypeError, ModuleNotFoundError):
         pass
 
+    # Fall back to relative path (for development)
+    return Path(__file__).parent.parent / "data" / "russian"
+
+
+def _get_data_path() -> Path:
+    """Get path to external data directory (data/russian in project root)."""
     # Fall back to relative path (for development)
     module_dir = Path(__file__).parent.parent.parent.parent.parent
     data_path = module_dir / "data" / "russian"
