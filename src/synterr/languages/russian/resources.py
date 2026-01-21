@@ -43,6 +43,26 @@ get_lexical_confusions = get_paronyms
 
 
 @lru_cache(maxsize=1)
+def get_stress_dict() -> dict[str, int]:
+    """Load stress dictionary for vowel reduction.
+
+    The dictionary maps words to the 0-indexed position of the stressed vowel.
+    Built from 50k frequency list using russtress (Python 3.10 + TensorFlow).
+
+    Returns:
+        Dict mapping word to stress position (-1 if unknown)
+    """
+    data_path = _get_package_data_path() / "stress_dict.json"
+
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            return json.load(f)
+
+    # Return empty dict if not found (vowel reduction will be skipped)
+    return {}
+
+
+@lru_cache(maxsize=1)
 def get_conjunction_list() -> list[str]:
     """Get list of frequent Russian conjunctions."""
     # Frequently used conjunctions from RULEC/corpus analysis
@@ -138,13 +158,14 @@ def _get_package_data_path() -> Path:
         # Convert to Path if possible
         if hasattr(pkg_files, "_path"):
             return Path(pkg_files._path)
-        # For development, find the path relative to this module
-        return Path(__file__).parent.parent / "data" / "russian"
     except (TypeError, ModuleNotFoundError):
         pass
 
     # Fall back to relative path (for development)
-    return Path(__file__).parent.parent / "data" / "russian"
+    # __file__ = src/synterr/languages/russian/resources.py
+    # parent.parent.parent = src/synterr/
+    # + data/russian = src/synterr/data/russian
+    return Path(__file__).parent.parent.parent / "data" / "russian"
 
 
 def _get_data_path() -> Path:
