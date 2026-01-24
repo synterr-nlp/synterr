@@ -1,0 +1,294 @@
+# ERRANT Error Classification Schema (Russian)
+# Based on: RuERRANT - ERRANT fork for Russian
+# https://github.com/Askinkaty/errant
+#
+# Format: {OP}:{CAT}:{SUBCAT}
+#   OP: M (Missing), U (Unnecessary), R (Replacement)
+#   CAT: POS tag or error category
+#   SUBCAT: Inflectional feature (optional)
+
+name: errant
+version: "1.0"
+description: "ERRANT error taxonomy for Russian GEC evaluation"
+
+detection_categories:
+  SPELL: "Spelling errors"
+  MORPH: "Morphological errors"
+  OTHER: "Other errors"
+
+# ============================================================================
+# PRIMARY TAGS (ERRANT categories)
+# ============================================================================
+
+primary_tags:
+  # ---------------------------------------------------------------------------
+  # SPELLING / ORTHOGRAPHY
+  # ---------------------------------------------------------------------------
+  SPELL:
+    description: "Spelling error"
+    detection_category: SPELL
+
+  ORTH:
+    description: "Orthography (whitespace/case)"
+    detection_category: SPELL
+
+  # ---------------------------------------------------------------------------
+  # NOUN INFLECTION
+  # ---------------------------------------------------------------------------
+  NOUN:
+    description: "Noun error (general)"
+    detection_category: MORPH
+
+  NOUN:CASE:
+    description: "Noun case error"
+    detection_category: MORPH
+
+  NOUN:NUM:
+    description: "Noun number error"
+    detection_category: MORPH
+
+  NOUN:INFL:
+    description: "Noun inflection (other)"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # ADJECTIVE INFLECTION
+  # ---------------------------------------------------------------------------
+  ADJ:
+    description: "Adjective error (general)"
+    detection_category: MORPH
+
+  ADJ:CASE:
+    description: "Adjective case error"
+    detection_category: MORPH
+
+  ADJ:NUM:
+    description: "Adjective number error"
+    detection_category: MORPH
+
+  ADJ:GEN:
+    description: "Adjective gender error"
+    detection_category: MORPH
+
+  ADJ:INFL:
+    description: "Adjective inflection (other)"
+    detection_category: MORPH
+
+  ADJ:COMP_FORM:
+    description: "Comparative form error"
+    detection_category: MORPH
+
+  ADJ:FULL/SHORT:
+    description: "Full/short form error"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # VERB INFLECTION
+  # ---------------------------------------------------------------------------
+  VERB:
+    description: "Verb error (general)"
+    detection_category: MORPH
+
+  VERB:TENSE:
+    description: "Verb tense error"
+    detection_category: MORPH
+
+  VERB:ASPECT:
+    description: "Verb aspect error"
+    detection_category: MORPH
+
+  VERB:FORM:
+    description: "Verb form error (infinitive/participle/etc)"
+    detection_category: MORPH
+
+  VERB:NUM:
+    description: "Verb number error"
+    detection_category: MORPH
+
+  VERB:GEN:
+    description: "Verb gender error (past tense)"
+    detection_category: MORPH
+
+  VERB:VOICE:
+    description: "Verb voice error"
+    detection_category: MORPH
+
+  VERB:MOOD:
+    description: "Verb mood error"
+    detection_category: MORPH
+
+  VERB:INFL:
+    description: "Verb inflection (other)"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # OTHER POS
+  # ---------------------------------------------------------------------------
+  PRON:
+    description: "Pronoun error"
+    detection_category: OTHER
+
+  PREP:
+    description: "Preposition error"
+    detection_category: OTHER
+
+  CONJ:
+    description: "Conjunction error"
+    detection_category: OTHER
+
+  DET:
+    description: "Determiner error"
+    detection_category: OTHER
+
+  PART:
+    description: "Particle error"
+    detection_category: OTHER
+
+  ADV:
+    description: "Adverb error"
+    detection_category: OTHER
+
+  PUNCT:
+    description: "Punctuation error"
+    detection_category: OTHER
+
+  # ---------------------------------------------------------------------------
+  # STRUCTURAL
+  # ---------------------------------------------------------------------------
+  WO:
+    description: "Word order error"
+    detection_category: OTHER
+
+  MORPH:
+    description: "Derivational morphology"
+    detection_category: MORPH
+
+  OTHER:
+    description: "Other/unclassified"
+    detection_category: OTHER
+
+# ============================================================================
+# MODIFIERS (ERRANT operations)
+# ============================================================================
+
+modifiers:
+  M:
+    description: "Missing - token should be inserted"
+    aliases: []
+
+  U:
+    description: "Unnecessary - token should be deleted"
+    aliases: []
+
+  R:
+    description: "Replacement - token should be replaced"
+    aliases: []
+
+# ============================================================================
+# MAPPINGS: synterr subtype -> ERRANT tag
+# ============================================================================
+
+mappings:
+  # ---------------------------------------------------------------------------
+  # Spelling handler subtypes
+  # ---------------------------------------------------------------------------
+  vowel_reduction:
+    primary: SPELL
+    modifier: R
+
+  devoicing:
+    primary: SPELL
+    modifier: R
+
+  tsa_confusion:
+    primary: SPELL
+    modifier: R
+
+  cluster:
+    primary: SPELL
+    modifier: R
+
+  double_consonant:
+    primary: SPELL
+    modifier: R
+
+  soft_sign:
+    primary: SPELL
+    modifier: R
+
+  keyboard:
+    primary: SPELL
+    modifier: R
+
+  # ---------------------------------------------------------------------------
+  # Morphological handler subtypes
+  # ---------------------------------------------------------------------------
+  noun_case:
+    primary: NOUN:CASE
+    modifier: R
+
+  noun_number:
+    primary: NOUN:NUM
+    modifier: R
+
+  adj_case:
+    primary: ADJ:CASE
+    modifier: R
+
+  adj_number:
+    primary: ADJ:NUM
+    modifier: R
+
+  adj_gender:
+    primary: ADJ:GEN
+    modifier: R
+
+  verb_person_number:
+    primary: VERB:NUM
+    modifier: R
+
+  verb_tense:
+    primary: VERB:TENSE
+    modifier: R
+
+  # ---------------------------------------------------------------------------
+  # Future handlers (Artem)
+  # ---------------------------------------------------------------------------
+  # paronym:
+  #   primary: OTHER
+  #   modifier: R
+
+  # preposition:
+  #   primary: PREP
+  #   modifier: R
+
+  # conjunction:
+  #   primary: CONJ
+  #   modifier: R
+
+  # word_omission:
+  #   primary: OTHER
+  #   modifier: M
+
+  # word_insertion:
+  #   primary: OTHER
+  #   modifier: U
+
+# ============================================================================
+# REFERENCE: Tag frequency in RULEC-GEC (approximate)
+# ============================================================================
+
+reference_frequencies:
+  R:SPELL: 220
+  R:NOUN:CASE: 150
+  R:OTHER: 140
+  R:VERB:TENSE: 80
+  R:ADJ:CASE: 60
+  R:PREP: 50
+  R:NOUN:NUM: 40
+  R:VERB:ASPECT: 35
+  R:ADJ:NUM: 30
+  R:ADJ:GEN: 25
+  M:PREP: 60
+  M:OTHER: 50
+  U:OTHER: 40
