@@ -309,6 +309,97 @@ class ErrorPipeline:
             return category_upper
         return CATEGORY_OTHER
 
+    def get_handler(self, error_type: str) -> ErrorHandler | None:
+        """Get handler by name or schema tag.
+
+        Args:
+            error_type: Handler name ('noun_case') or schema tag ('Gov')
+
+        Returns:
+            ErrorHandler or None if not found
+        """
+        # Try direct handler name match
+        for handler in self.handlers:
+            if handler.name == error_type:
+                return handler
+
+        # Try schema tag → subtype → handler mapping
+        if self.schema is not None:
+            mapping = self.schema.get_mapping(error_type)
+            if mapping:
+                # error_type is a subtype, find handler with this subtype
+                for handler in self.handlers:
+                    if error_type in handler.subtypes:
+                        return handler
+
+            # Try reverse lookup: schema tag → subtype → handler
+            for subtype, m in self.schema.mappings.items():
+                if m.primary == error_type:
+                    for handler in self.handlers:
+                        if subtype in handler.subtypes:
+                            return handler
+
+        return None
+
+    def apply_error(
+        self,
+        text: str,
+        error_type: str,
+        position: int | None = None,
+    ) -> GeneratedSentence | None:
+        """Apply a specific error type to a sentence.
+
+        Unlike generate(), this applies exactly one error of the specified type.
+        Useful for tagged corruption (à la C4_200M).
+
+        Args:
+            text: Input sentence text
+            error_type: Handler name ('spelling', 'noun_case') or schema tag ('Gov', 'Ortho')
+            position: Optional token index to apply error at (random if None)
+
+        Returns:
+            GeneratedSentence with the error applied, or None if error cannot be applied
+        """
+        handler = self.get_handler(error_type)
+        if handler is None:
+            return None
+
+        tokens = self.analyzer.analyze(text)
+        if not tokens:
+            return None
+
+        # Find applicable positions
+        applicable = self._find_applicable_indices(handler, tokens, set())
+        if not applicable:
+            return None
+
+        # Choose position
+        if position is not None:
+            if position not in applicable:
+                return None
+            idx = position
+        else:
+            idx = self._rng.choice(applicable)
+
+        # Apply error
+        original = [t.text for t in tokens]
+        sentence = original.copy()
+        modified: set[int] = set()
+
+        result = handler.apply(tokens, sentence, idx, modified)
+        if result is None:
+            return None
+
+        errors = [result]
+        formatted = self._format_output(sentence, errors)
+
+        return GeneratedSentence(
+            original_tokens=original,
+            corrupted_tokens=sentence,
+            errors=errors,
+            formatted=formatted,
+        )
+
     def generate(self, text: str) -> GeneratedSentence:
         """Generate errors for a single sentence.
 
