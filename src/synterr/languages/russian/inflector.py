@@ -56,12 +56,33 @@ PYMORPHY_TO_UD_PERSON = {v: k for k, v in UD_TO_PYMORPHY_PERSON.items()}
 PYMORPHY_TO_UD_TENSE = {v: k for k, v in UD_TO_PYMORPHY_TENSE.items()}
 
 
-def inflect_word(parse: Any, grammemes: set[str]) -> str | None:
+def match_capitalization(original: str, new: str) -> str:
+    """Match the capitalization pattern of original to new word.
+
+    Args:
+        original: Original word with capitalization to match
+        new: New word (typically lowercase from pymorphy3)
+
+    Returns:
+        New word with matched capitalization
+    """
+    if not original or not new:
+        return new
+
+    if original.isupper():
+        return new.upper()
+    elif original[0].isupper():
+        return new[0].upper() + new[1:] if len(new) > 1 else new.upper()
+    return new
+
+
+def inflect_word(parse: Any, grammemes: set[str], original: str | None = None) -> str | None:
     """Inflect word using pymorphy3 parse object.
 
     Args:
         parse: pymorphy3 parse object
         grammemes: Set of grammemes to inflect to (pymorphy3 format)
+        original: Original word to match capitalization (optional)
 
     Returns:
         Inflected word or None if inflection failed
@@ -70,7 +91,13 @@ def inflect_word(parse: Any, grammemes: set[str]) -> str | None:
         return None
 
     result = parse.inflect(grammemes)
-    return result.word if result else None
+    if result is None:
+        return None
+
+    word = result.word
+    if original:
+        word = match_capitalization(original, word)
+    return word
 
 
 def get_random_case(current_case: str | None = None) -> str:
