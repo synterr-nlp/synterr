@@ -75,7 +75,7 @@ class NounCaseErrorHandler:
         other_cases = [c for c in CASES if c != current_case]
         target_case = random.choice(other_cases)
 
-        new_word = inflect_word(parse, {target_case})
+        new_word = inflect_word(parse, {target_case}, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -129,7 +129,7 @@ class NounNumberErrorHandler:
 
         # Flip number
         target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
-        new_word = inflect_word(parse, {target_num})
+        new_word = inflect_word(parse, {target_num}, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -184,7 +184,7 @@ class AdjCaseErrorHandler:
         other_cases = [c for c in CASES if c != current_case]
         target_case = random.choice(other_cases)
 
-        new_word = inflect_word(parse, {target_case})
+        new_word = inflect_word(parse, {target_case}, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -236,7 +236,7 @@ class AdjNumberErrorHandler:
             return None
 
         target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
-        new_word = inflect_word(parse, {target_num})
+        new_word = inflect_word(parse, {target_num}, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -296,7 +296,7 @@ class AdjGenderErrorHandler:
         other_genders = [g for g in GENDERS if g != current_gender]
         target_gender = random.choice(other_genders)
 
-        new_word = inflect_word(parse, {target_gender})
+        new_word = inflect_word(parse, {target_gender}, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -355,14 +355,14 @@ class VerbPersonNumberErrorHandler:
         # Randomly choose to change number or person
         if token.has_feature("Number") and random.random() < 0.5:
             target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
-            new_word = inflect_word(parse, {target_num})
+            new_word = inflect_word(parse, {target_num}, word)
             transform_type = "NUMBER"
             original_value = token.get_feature("Number", "Sing")
         elif token.has_feature("Person"):
             current_person = UD_TO_PYMORPHY_PERSON.get(token.get_feature("Person"))
             other_persons = [p for p in PERSONS if p != current_person]
             target_person = random.choice(other_persons)
-            new_word = inflect_word(parse, {target_person})
+            new_word = inflect_word(parse, {target_person}, word)
             transform_type = "PERSON"
             original_value = token.get_feature("Person", "3")
 
@@ -423,7 +423,7 @@ class VerbTenseErrorHandler:
         other_tenses = [t for t in self.TENSES if t != current_tense]
         target_tense = random.choice(other_tenses)
 
-        new_word = inflect_word(parse, {target_tense})
+        new_word = inflect_word(parse, {target_tense}, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
