@@ -1,93 +1,83 @@
 # CLAUDE.md
 
-Project guidance for Claude Code when working with this repository.
-
-## Project Overview
-
-**synterr** - Reproducible error generation for Grammatical Error Correction (GEC).
-
-A language-agnostic framework for generating synthetic training data for GEC models. Russian is the first supported language.
+Synterr: rule-based synthetic error generator for Russian GEC. Corrupts clean text → GECToR training data.
 
 ## Architecture
 
-### Core Module (`src/synterr/core/`)
-
-- `protocol.py` - Key abstractions: `AnalyzedToken`, `ErrorResult`, `ErrorHandler` Protocol, `LanguageModule` Protocol
-- `registry.py` - Language discovery via entry points (`synterr.languages`)
-- `pipeline.py` - `ErrorPipeline` orchestrates error generation with configurable sampling
-
-### Language Modules (`src/synterr/languages/`)
-
-Languages implement the `LanguageModule` protocol and register via entry points in pyproject.toml:
-
-```toml
-[project.entry-points."synterr.languages"]
-russian = "synterr.languages.russian:RussianLanguage"
+```
+src/synterr/
+├── core/           # Pipeline, protocol, registry (language-agnostic)
+├── schemas/        # Taxonomies: RLC (35 tags), synterr (14 tags)
+├── configs/        # Presets: rulec, gera, balanced (weights per handler)
+└── languages/russian/
+    ├── backends/   # stanza (default), natasha, spacy
+    ├── errors/     # spelling.py (7 subtypes), morphological.py (7 handlers)
+    └── inflector.py
 ```
 
-### Russian Module (`src/synterr/languages/russian/`)
+**Key separation**: Handlers = *how* to corrupt. Schemas = *what to call it*. Configs = *how often*.
 
-Two-stage morphological processing:
-1. **stanza** - Contextual analysis (POS, lemma, features, depparse)
-2. **pymorphy3** - Inflection (generating corrupted word forms)
+## Core Types
 
-Error handlers in `errors/`:
-- `spelling.py` - Phonetic errors (vowel reduction, тся/ться, devoicing, keyboard typos)
-- `morphological.py` - Case, number, gender, tense errors for nouns, adjectives, verbs
+```python
+AnalyzedToken(text, lemma, pos, features, extra)  # extra["pymorphy_parse"] for inflection
+ErrorResult(error_type, category, original, corrupted, fix_tag)
+ErrorHandler  # Protocol: name, subtypes, category, changes_length, can_apply(), apply()
+Schema        # primary_tags, modifiers, mappings: subtype → tag
+```
 
-## Common Commands
+## Commands
 
 ```bash
-# Development setup
-uv sync --all-extras
-
-# Lint and format
-uv run ruff check src tests
-uv run ruff format src tests
-
-# Run tests
-uv run pytest -v
-
-# CLI usage
-uv run synterr list-languages
-uv run synterr list-errors --lang ru
-uv run synterr generate --lang ru -i corpus.txt -o errors.edits
-uv run synterr analyze --lang ru "Мама мыла раму"
+uv run pytest                                     # Tests
+uv run synterr coverage --lang ru --schema rlc    # 9/35 tags covered
+uv run synterr corrupt -l ru -e noun_case "Мама"  # Tagged corruption
+uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 ```
+
+## Handlers → RLC Tags
+
+| Handler | Subtypes | RLC Tag | Category |
+|---------|----------|---------|----------|
+| spelling | vowel_reduction, keyboard, devoicing, ... | Ortho, Misspell | SPELL |
+| noun_case | noun_case | Gov | MORPH |
+| adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
+| verb_person_number, verb_tense | (2) | AgrPers, Tense | MORPH |
+
+## Adding a Handler
+
+```python
+class MyHandler:
+    name = "my_handler"
+    subtypes = ["my_subtype"]  # For schema mapping
+    category = "OTHER"
+    changes_length = False     # True if adds/deletes tokens
+
+    def can_apply(self, tokens, idx): ...
+    def apply(self, tokens, sentence, idx, modified): ...
+```
+
+1. Add to `errors/__init__.py`
+2. Add weight to `configs/russian/rulec.yaml`
+3. Add mapping to `schemas/data/rlc.yaml`
+
+## Gotchas
+
+- **Capitalization**: Always `inflect_word(parse, grammemes, original)` — pass original word
+- **Stress dict**: Required for vowel_reduction (`data/russian/stress_dict.json`)
+- **pymorphy_parse**: In `token.extra["pymorphy_parse"]`, needed for inflection
+- **changes_length**: Set `True` for insert/delete handlers (applied last)
 
 ## Output Format
 
-GECToR-compatible edit format with detection labels:
-
 ```
-$STARTSEPL|||SEPR$KEEP:CORRECT wordSEPL|||SEPR$REPLACE_original:SPELL ...
+$STARTSEPL|||SEPR$KEEP:CORRECT МамаSEPL|||SEPR$REPLACE_раму:MORPH раме...
 ```
 
-Detection categories: `CORRECT`, `SPELL`, `MORPH`, `PUNCT`, `OTHER`
+Tags: `$KEEP`, `$REPLACE_x`, `$TRANSFORM_CASE_x`, `$APPEND_x`, `$DELETE`
 
-## Adding New Error Types
+## Current State
 
-1. Create handler class implementing `ErrorHandler` protocol in `errors/`
-2. Add to `get_all_handlers()` in `errors/__init__.py`
-3. Add weight to `get_error_distribution()` in language module
+**v0.1.0**: Schemas, subtypes, `apply_error()` API, stress-based spelling, capitalization fix
 
-## Adding New Languages
-
-1. Create `languages/<lang>/` directory with:
-   - `__init__.py` - `<Lang>Language` class implementing `LanguageModule`
-   - `analyzer.py` - Language-specific analyzer
-   - `errors/` - Error handlers
-2. Register entry point in pyproject.toml
-3. Add optional dependencies for language-specific packages
-
-## Related Projects
-
-- **gector** (`~/Projects/research/gector/`) - Parent project with GECToR training code
-- Original error generation in `gector/code/synthetic_dataset_generation/`
-
-## Key Dependencies
-
-- `click` - CLI framework
-- `stanza` - Neural NLP pipeline (Russian model: SynTagRus)
-- `pymorphy3` - Russian morphological analyzer
-- `razdel` - Russian tokenization
+**Next (Artem)**: paronym, preposition, conjunction, word_omission, word_insertion → 40% RLC coverage
