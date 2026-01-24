@@ -229,6 +229,64 @@ def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> No
         click.echo(f"  {t.idx}: {t.text!r} ({t.pos}) lemma={t.lemma!r} {{{feat_str}}}{dep_str}")
 
 
+@main.command("corrupt")
+@click.option("--lang", "-l", required=True, help="Language code")
+@click.option("--error", "-e", required=True, help="Error type (handler name or schema tag)")
+@click.option("--position", "-p", type=int, help="Token position (0-indexed, random if omitted)")
+@click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
+@click.option("--schema", "-s", help="Schema for tag lookup (e.g., rlc)")
+@click.option("--seed", type=int, default=42, help="Random seed")
+@click.argument("text")
+def cmd_corrupt(
+    lang: str,
+    error: str,
+    position: int | None,
+    backend: str | None,
+    schema: str | None,
+    seed: int,
+    text: str,
+) -> None:
+    """Apply a specific error to a sentence.
+
+    Tagged corruption: apply exactly one error of the specified type.
+
+    Examples:
+
+      synterr corrupt --lang ru --error spelling "Молоко стоит на столе."
+
+      synterr corrupt --lang ru --error Gov --schema rlc "Мама мыла раму."
+
+      synterr corrupt --lang ru --error noun_case --position 3 "Мама мыла раму."
+    """
+    from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+
+    try:
+        language = get_language(lang)
+    except KeyError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    config = GenerationConfig(seed=seed, backend=backend, schema=schema)
+    pipeline = ErrorPipeline(language, config)
+
+    result = pipeline.apply_error(text, error, position)
+
+    if result is None:
+        click.echo(f"Cannot apply error '{error}' to this sentence.", err=True)
+        # Show available handlers and applicable positions
+        click.echo("\nAvailable error types:", err=True)
+        for h in pipeline.handlers:
+            click.echo(f"  {h.name}: {h.subtypes}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Original:  {' '.join(result.original_tokens)}")
+    click.echo(f"Corrupted: {' '.join(result.corrupted_tokens)}")
+    if result.errors:
+        err = result.errors[0]
+        click.echo(f"Error:     {err.error_type} @ position {err.start_idx}")
+        click.echo(f"Fix tag:   {err.fix_tag}")
+
+
 @main.command("generate")
 @click.option("--lang", "-l", required=True, help="Language code")
 @click.option("--input", "-i", "input_path", type=click.Path(exists=True), required=True)
