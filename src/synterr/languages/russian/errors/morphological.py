@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import random
+import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
@@ -19,6 +19,7 @@ from synterr.languages.russian.inflector import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from random import Random
 
     from synterr.core.protocol import AnalyzedToken
 
@@ -61,8 +62,10 @@ class NounCaseErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply noun case error."""
+        rng = rng if rng is not None else random_module
         token = tokens[idx]
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
@@ -73,7 +76,7 @@ class NounCaseErrorHandler:
         # Get current case and pick a different one
         current_case = UD_TO_PYMORPHY_CASE.get(token.get_feature("Case"))
         other_cases = [c for c in CASES if c != current_case]
-        target_case = random.choice(other_cases)
+        target_case = rng.choice(other_cases)
 
         new_word = inflect_word(parse, {target_case}, word)
 
@@ -118,6 +121,7 @@ class NounNumberErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply noun number error."""
         token = tokens[idx]
@@ -171,8 +175,10 @@ class AdjCaseErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply adjective case error."""
+        rng = rng if rng is not None else random_module
         token = tokens[idx]
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
@@ -182,7 +188,7 @@ class AdjCaseErrorHandler:
 
         current_case = UD_TO_PYMORPHY_CASE.get(token.get_feature("Case"))
         other_cases = [c for c in CASES if c != current_case]
-        target_case = random.choice(other_cases)
+        target_case = rng.choice(other_cases)
 
         new_word = inflect_word(parse, {target_case}, word)
 
@@ -226,6 +232,7 @@ class AdjNumberErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply adjective number error."""
         token = tokens[idx]
@@ -283,8 +290,10 @@ class AdjGenderErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply adjective gender error."""
+        rng = rng if rng is not None else random_module
         token = tokens[idx]
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
@@ -294,7 +303,7 @@ class AdjGenderErrorHandler:
 
         current_gender = UD_TO_PYMORPHY_GENDER.get(token.get_feature("Gender"))
         other_genders = [g for g in GENDERS if g != current_gender]
-        target_gender = random.choice(other_genders)
+        target_gender = rng.choice(other_genders)
 
         new_word = inflect_word(parse, {target_gender}, word)
 
@@ -339,8 +348,10 @@ class VerbPersonNumberErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply verb person/number error."""
+        rng = rng if rng is not None else random_module
         token = tokens[idx]
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
@@ -352,16 +363,36 @@ class VerbPersonNumberErrorHandler:
         transform_type = None
         original_value = None
 
-        # Randomly choose to change number or person
-        if token.has_feature("Number") and random.random() < 0.5:
+        has_number = token.has_feature("Number")
+        has_person = token.has_feature("Person")
+
+        # Choose what to change based on available features
+        # Fixed: Previously past tense (Number but no Person) would fail 50% of the time
+        if has_person and has_number:
+            # Both available - randomly choose
+            if rng.random() < 0.5:
+                target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
+                new_word = inflect_word(parse, {target_num}, word)
+                transform_type = "NUMBER"
+                original_value = token.get_feature("Number", "Sing")
+            else:
+                current_person = UD_TO_PYMORPHY_PERSON.get(token.get_feature("Person"))
+                other_persons = [p for p in PERSONS if p != current_person]
+                target_person = rng.choice(other_persons)
+                new_word = inflect_word(parse, {target_person}, word)
+                transform_type = "PERSON"
+                original_value = token.get_feature("Person", "3")
+        elif has_number:
+            # Only number (past tense verbs) - always change number
             target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
             new_word = inflect_word(parse, {target_num}, word)
             transform_type = "NUMBER"
             original_value = token.get_feature("Number", "Sing")
-        elif token.has_feature("Person"):
+        elif has_person:
+            # Only person - change person
             current_person = UD_TO_PYMORPHY_PERSON.get(token.get_feature("Person"))
             other_persons = [p for p in PERSONS if p != current_person]
-            target_person = random.choice(other_persons)
+            target_person = rng.choice(other_persons)
             new_word = inflect_word(parse, {target_person}, word)
             transform_type = "PERSON"
             original_value = token.get_feature("Person", "3")
@@ -407,8 +438,10 @@ class VerbTenseErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply verb tense error."""
+        rng = rng if rng is not None else random_module
         token = tokens[idx]
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
@@ -421,7 +454,7 @@ class VerbTenseErrorHandler:
             return None
 
         other_tenses = [t for t in self.TENSES if t != current_tense]
-        target_tense = random.choice(other_tenses)
+        target_tense = rng.choice(other_tenses)
 
         new_word = inflect_word(parse, {target_tense}, word)
 

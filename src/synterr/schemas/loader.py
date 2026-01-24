@@ -283,8 +283,9 @@ def _parse_mappings(data: dict) -> dict[str, SubtypeMapping]:
         elif isinstance(mapping_info, str):
             # Simple string format
             mappings[subtype] = SubtypeMapping(primary=mapping_info)
-        else:
+        elif mapping_info is not None:
             mappings[subtype] = SubtypeMapping(primary=str(mapping_info))
+        # Skip None values - they indicate unmapped subtypes
 
     return mappings
 

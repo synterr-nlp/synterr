@@ -14,7 +14,7 @@ Error types:
 
 from __future__ import annotations
 
-import random
+import random as random_module
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -22,6 +22,7 @@ from synterr.core.protocol import ErrorResult
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from random import Random
 
     from synterr.core.protocol import AnalyzedToken
 
@@ -230,11 +231,13 @@ class SpellingErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: Random | None = None,
     ) -> ErrorResult | None:
         """Apply spelling error."""
+        rng = rng if rng is not None else random_module
         word = sentence[idx]
 
-        result = self._corrupt(word)
+        result = self._corrupt(word, rng)
         if result is None or result.corrupted == word:
             return None
 
@@ -244,31 +247,33 @@ class SpellingErrorHandler:
             error_type=f"spelling_{result.error_subtype}",
             category=self.category,
             start_idx=idx,
-            end_idx=idx,
+            end_idx=idx + 1,  # Fixed: was idx, should be idx+1 for consistency
             original=word,
             corrupted=result.corrupted,
             fix_tag=f"$REPLACE_{word}",
         )
 
-    def _corrupt(self, word: str) -> PhoneticError | None:
+    def _corrupt(self, word: str, rng: Random | None = None) -> PhoneticError | None:
         """Corrupt a word with a spelling error."""
+        rng = rng if rng is not None else random_module
         methods = list(self.ERROR_WEIGHTS.keys())
 
         # Weighted shuffle - sort by random * weight for probabilistic ordering
-        random.shuffle(methods)
-        methods.sort(key=lambda m: random.random() * self.ERROR_WEIGHTS[m], reverse=True)
+        rng.shuffle(methods)
+        methods.sort(key=lambda m: rng.random() * self.ERROR_WEIGHTS[m], reverse=True)
 
         for method_name in methods:
-            result = self._apply_method(word, method_name)
+            result = self._apply_method(word, method_name, rng)
             if result and result.corrupted != word:
                 return result
 
         return None
 
-    def _apply_method(self, word: str, method: str) -> PhoneticError | None:
+    def _apply_method(self, word: str, method: str, rng: Random | None = None) -> PhoneticError | None:
         """Apply specific error method."""
+        rng = rng if rng is not None else random_module
         if method == 'vowel_reduction':
-            return self._vowel_reduction(word)
+            return self._vowel_reduction(word, rng)
         elif method == 'devoicing':
             return self._devoicing(word)
         elif method == 'tsa_confusion':
@@ -276,18 +281,19 @@ class SpellingErrorHandler:
         elif method == 'cluster':
             return self._cluster(word)
         elif method == 'double_consonant':
-            return self._double_consonant(word)
+            return self._double_consonant(word, rng)
         elif method == 'keyboard':
-            return self._keyboard_typo(word)
+            return self._keyboard_typo(word, rng)
         elif method == 'soft_sign':
             return self._soft_sign(word)
         return None
 
-    def _vowel_reduction(self, word: str) -> PhoneticError | None:
+    def _vowel_reduction(self, word: str, rng: Random | None = None) -> PhoneticError | None:
         """Apply vowel reduction error in unstressed syllables.
 
         Requires stress_dict to know which vowels are unstressed.
         """
+        rng = rng if rng is not None else random_module
         vowel_map = {**VOWEL_REDUCTION, **VOWEL_REDUCTION_UPPER}
 
         # Get stress position
@@ -318,9 +324,9 @@ class SpellingErrorHandler:
         if not positions:
             return None
 
-        pos = random.choice(positions)
+        pos = rng.choice(positions)
         char = word[pos]
-        replacement = random.choice(vowel_map[char])
+        replacement = rng.choice(vowel_map[char])
         corrupted = word[:pos] + replacement + word[pos + 1:]
 
         return PhoneticError(word, corrupted, 'vowel_reduction', pos)
@@ -368,8 +374,11 @@ class SpellingErrorHandler:
         for pattern, replacement in CLUSTER_CONFUSIONS.items():
             if pattern in word_lower:
                 pos = word_lower.find(pattern)
-                # Preserve case of first letter
-                if word[pos].isupper():
+                orig_segment = word[pos:pos + len(pattern)]
+                # Preserve case pattern
+                if orig_segment.isupper():
+                    repl = replacement.upper()
+                elif orig_segment[0].isupper():
                     repl = replacement[0].upper() + replacement[1:] if len(replacement) > 1 else replacement.upper()
                 else:
                     repl = replacement
@@ -377,15 +386,18 @@ class SpellingErrorHandler:
                 return PhoneticError(word, corrupted, 'cluster', pos)
         return None
 
-    def _double_consonant(self, word: str) -> PhoneticError | None:
+    def _double_consonant(self, word: str, rng: Random | None = None) -> PhoneticError | None:
         """Add or remove double consonants."""
+        rng = rng if rng is not None else random_module
         word_lower = word.lower()
 
         # Try to remove double
         for double, single in DOUBLE_CONSONANTS.items():
             if double in word_lower:
                 pos = word_lower.find(double)
-                corrupted = word[:pos] + single + word[pos + 2:]
+                # Preserve case of retained character
+                retained_char = single.upper() if word[pos].isupper() else single
+                corrupted = word[:pos] + retained_char + word[pos + 2:]
                 return PhoneticError(word, corrupted, 'double_consonant', pos)
 
         # Try to add double (only for certain consonants mid-word)
@@ -395,14 +407,17 @@ class SpellingErrorHandler:
                 and word_lower[i - 1] != char
                 and word_lower[i + 1] != char
             )
-            if can_double and random.random() < 0.3:
-                corrupted = word[:i] + char + word[i:]
+            if can_double and rng.random() < 0.3:
+                # Preserve case when inserting double
+                insert_char = char.upper() if word[i].isupper() else char
+                corrupted = word[:i] + insert_char + word[i:]
                 return PhoneticError(word, corrupted, 'double_consonant', i)
 
         return None
 
-    def _keyboard_typo(self, word: str) -> PhoneticError | None:
+    def _keyboard_typo(self, word: str, rng: Random | None = None) -> PhoneticError | None:
         """Generate keyboard adjacency typo."""
+        rng = rng if rng is not None else random_module
         if len(word) < 2:
             return None
 
@@ -414,7 +429,7 @@ class SpellingErrorHandler:
         if not positions:
             return None
 
-        pos = random.choice(positions)
+        pos = rng.choice(positions)
         char = word[pos]
 
         if char in self.keyboard_adjacent:
@@ -428,7 +443,7 @@ class SpellingErrorHandler:
         if not neighbors:
             return None
 
-        replacement = random.choice(neighbors)
+        replacement = rng.choice(neighbors)
         corrupted = word[:pos] + replacement + word[pos + 1:]
 
         return PhoneticError(word, corrupted, 'keyboard', pos)
@@ -436,6 +451,9 @@ class SpellingErrorHandler:
     def _soft_sign(self, word: str) -> PhoneticError | None:
         """Soft sign deletion or ъ→ь confusion."""
         if 'ь' in word:
+            # Don't delete if it would create empty string
+            if len(word) < 2:
+                return None
             pos = word.find('ь')
             corrupted = word[:pos] + word[pos + 1:]
             return PhoneticError(word, corrupted, 'soft_sign', pos)
