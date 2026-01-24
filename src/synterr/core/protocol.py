@@ -84,16 +84,37 @@ class ErrorHandler(Protocol):
     Each error handler is responsible for a specific type of error
     (e.g., noun case, spelling, verb tense). Handlers are registered
     with language modules and called by the pipeline.
+
+    Handlers declare their subtypes - fine-grained error types that
+    can be mapped to schema tags. For example, SpellingErrorHandler
+    has subtypes like 'vowel_reduction', 'keyboard', etc.
     """
 
     @property
     def name(self) -> str:
-        """Error type identifier (e.g., 'noun_case', 'spelling_vowel')."""
+        """Error type identifier (e.g., 'noun_case', 'spelling')."""
+        ...
+
+    @property
+    def subtypes(self) -> list[str]:
+        """Fine-grained error subtypes this handler can produce.
+
+        Examples:
+            - SpellingHandler: ['vowel_reduction', 'keyboard', 'tsa_confusion', ...]
+            - NounCaseHandler: ['noun_case']  # single subtype = handler name
+
+        These subtypes are mapped to schema tags in the schema YAML.
+        """
         ...
 
     @property
     def category(self) -> str:
-        """Detection category: SPELL, MORPH, PUNCT, or OTHER."""
+        """Detection category: SPELL, MORPH, PUNCT, or OTHER.
+
+        Note: When using schemas, the detection category comes from the
+        schema mapping, not this property. This is kept for backward
+        compatibility and as a fallback.
+        """
         ...
 
     @property

@@ -173,6 +173,17 @@ class SpellingErrorHandler:
     category = "SPELL"
     changes_length = False
 
+    # Handler subtypes - mapped to schema tags via schema YAML
+    subtypes = [
+        "vowel_reduction",
+        "devoicing",
+        "tsa_confusion",
+        "cluster",
+        "double_consonant",
+        "keyboard",
+        "soft_sign",
+    ]
+
     # Error type weights (based on corpus analysis)
     ERROR_WEIGHTS = {
         'vowel_reduction': 30,
