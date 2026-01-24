@@ -26,22 +26,40 @@ From our distribution analysis:
 
 ## Version Milestones
 
-### v0.0.1-alpha (Current Release)
+### v0.1.0 (Current Release)
 
-**Status**: Ready for Artem handoff
+**Status**: Schema architecture complete, ready for Artem handoff
+
+**New in v0.1.0**:
+- [x] **Pluggable linguistic schemas** — RLC, synterr (custom schemas via YAML)
+- [x] `--schema` flag for `synterr generate`
+- [x] `synterr coverage` command — shows schema tag coverage
+- [x] `synterr list-schemas` command
+- [x] Handler subtypes — each handler declares what error subtypes it produces
+- [x] Stress-based vowel reduction — proper phonetic spelling errors
+- [x] Clear separation: schemas = taxonomy, configs = runtime weights
+
+**Schemas included**:
+- `synterr` (default) — 14 tags, backward-compatible
+- `rlc` — 35 primary tags + 3 modifiers (Russian Learner Corpus taxonomy)
+
+**Error handlers** (8 total, 12 subtypes):
+- [x] `spelling` (7 subtypes: vowel_reduction, devoicing, tsa_confusion, cluster, double_consonant, soft_sign, keyboard)
+- [x] `noun_case`, `noun_number`
+- [x] `adj_case`, `adj_number`, `adj_gender`
+- [x] `verb_person_number`, `verb_tense`
+
+**RLC coverage**: 9/35 tags (25.7%)
+
+---
+
+### v0.0.1-alpha
 
 **Implemented**:
 - [x] Core architecture (protocol, pipeline, registry)
 - [x] CLI with presets and config system
 - [x] Pluggable backends (stanza/natasha/spacy)
 - [x] GECToR output format
-
-**Error handlers** (8 total):
-- [x] `spelling` — phonetic confusions, keyboard typos
-- [x] `noun_case` — case inflection errors
-- [x] `noun_number` — singular/plural
-- [x] `adj_case`, `adj_number`, `adj_gender`
-- [x] `verb_person_number`, `verb_tense`
 
 **Resources**:
 - [x] Paronym dictionary (paronyms.json)

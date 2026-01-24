@@ -2,17 +2,51 @@
 
 Эти задачи не требуют глубоких лингвистических знаний — следуй существующим паттернам в коде.
 
-## Обзор
+## Что нового в v0.1.0
+
+Перед началом работы ознакомься с новой архитектурой:
+
+### Схемы (schemas)
+
+Теперь synterr поддерживает **лингвистические схемы** — стандартные таксономии ошибок:
+
+```bash
+# Посмотреть доступные схемы
+uv run synterr list-schemas
+
+# Посмотреть покрытие RLC схемы текущими обработчиками
+uv run synterr coverage --lang ru --schema rlc
+```
+
+Схемы определяют **что называть** ошибкой (теги: Ortho, Gov, Lex...), а обработчики определяют **как её генерировать**.
+
+### Подтипы обработчиков (subtypes)
+
+Каждый обработчик теперь объявляет свои **подтипы**:
+
+```python
+class SpellingErrorHandler:
+    name = "spelling"
+    subtypes = ["vowel_reduction", "keyboard", "devoicing", ...]  # НОВОЕ!
+```
+
+Подтипы маппятся на теги схемы в YAML файлах (`schemas/data/rlc.yaml`).
+
+---
+
+## Обзор задач
 
 Тебе нужно реализовать **5 обработчиков ошибок**:
 
-| Обработчик | Сложность | Ресурс |
-|------------|-----------|--------|
-| `paronym` | Легко | paronyms.json ✅ готов |
-| `preposition` | Легко | Создать prepositions.json |
-| `conjunction` | Легко | Создать conjunctions.json |
-| `word_omission` | Средне | — |
-| `word_insertion` | Средне | Создать fillers.json |
+| Обработчик | Сложность | Ресурс | RLC тег |
+|------------|-----------|--------|---------|
+| `paronym` | Легко | paronyms.json ✅ готов | Lex |
+| `preposition` | Легко | Создать prepositions.json | Prep |
+| `conjunction` | Легко | Создать conjunctions.json | Conj |
+| `word_omission` | Средне | — | Syntax+Miss |
+| `word_insertion` | Средне | Создать fillers.json | Syntax+Extra |
+
+После реализации RLC coverage вырастет с 25.7% до ~40%.
 
 ---
 
@@ -31,6 +65,7 @@ from synterr.languages.russian.resources import get_paronyms
 
 class ParonymHandler:
     name = "paronym"
+    subtypes = ["paronym"]  # НОВОЕ: для маппинга на RLC тег Lex
     category = "OTHER"
     changes_length = False
 
@@ -135,6 +170,7 @@ OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ"}
 
 class WordOmissionHandler:
     name = "word_omission"
+    subtypes = ["word_omission"]  # Маппится на Syntax+Miss в RLC
     category = "OTHER"
     changes_length = True  # ВАЖНО!
 
@@ -187,6 +223,7 @@ class WordOmissionHandler:
 ```python
 class WordInsertionHandler:
     name = "word_insertion"
+    subtypes = ["word_insertion"]  # Маппится на Syntax+Extra в RLC
     category = "OTHER"
     changes_length = True  # ВАЖНО!
 
@@ -281,9 +318,44 @@ uv run synterr list-errors --lang ru
 
 ---
 
+## После реализации: обнови маппинги схемы
+
+После добавления обработчиков, добавь их в RLC схему:
+
+**Файл:** `src/synterr/schemas/data/rlc.yaml`
+
+```yaml
+mappings:
+  # ... существующие ...
+
+  # Твои новые обработчики:
+  paronym:
+    primary: Lex
+  preposition:
+    primary: Prep
+  conjunction:
+    primary: Conj
+  word_omission:
+    primary: Syntax
+    modifier: Miss
+  word_insertion:
+    primary: Syntax
+    modifier: Extra
+```
+
+Проверь, что покрытие выросло:
+
+```bash
+uv run synterr coverage --lang ru --schema rlc
+# Должно показать ~40% вместо 25.7%
+```
+
+---
+
 ## Вопросы?
 
 Если что-то непонятно:
 1. Посмотри существующие обработчики в `errors/spelling.py` и `errors/morphological.py`
 2. Прочитай `CONTRIBUTING.ru.md`
-3. Спроси Анну
+3. Посмотри как устроены схемы в `src/synterr/schemas/`
+4. Спроси Анну

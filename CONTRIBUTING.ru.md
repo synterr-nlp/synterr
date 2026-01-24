@@ -69,7 +69,12 @@ synterr/
 │   │   ├── protocol.py       # Протоколы и dataclass'ы
 │   │   ├── registry.py       # Реестр языков
 │   │   └── pipeline.py       # Пайплайн генерации ошибок
-│   ├── configs/              # YAML конфигурации
+│   ├── schemas/              # Лингвистические схемы (НОВОЕ!)
+│   │   ├── loader.py         # Загрузчик схем
+│   │   └── data/
+│   │       ├── synterr.yaml  # Дефолтная схема
+│   │       └── rlc.yaml      # RLC таксономия (35 тегов)
+│   ├── configs/              # YAML конфигурации (веса, параметры)
 │   │   └── russian/          # Пресеты для русского
 │   ├── analysis/             # Анализ бенчмарков
 │   └── languages/            # Поддержка языков
@@ -84,6 +89,11 @@ synterr/
 ├── data/                     # Ресурсы (JSON, etc.)
 └── configs/                  # Пользовательские конфиги
 ```
+
+### Схемы vs Конфиги
+
+- **Схемы** (`schemas/`) — таксономия ошибок (теги, маппинги, категории детекции)
+- **Конфиги** (`configs/`) — параметры генерации (веса, вероятности)
 
 ---
 
@@ -120,6 +130,7 @@ class ErrorResult:
 # ErrorHandler — протокол обработчика ошибок
 class ErrorHandler(Protocol):
     name: str              # Имя: "noun_case"
+    subtypes: list[str]    # Подтипы для маппинга на схему (НОВОЕ!)
     category: str          # Категория: "MORPH"
     changes_length: bool   # Меняет ли длину предложения?
 
@@ -186,6 +197,7 @@ class MyErrorHandler:
 
     # Обязательные атрибуты
     name = "my_error"        # Уникальное имя
+    subtypes = ["my_error"]  # Подтипы для маппинга на схему
     category = "OTHER"       # SPELL, MORPH, PUNCT, или OTHER
     changes_length = False   # True если добавляет/удаляет токены
 
@@ -266,7 +278,22 @@ weights:
   my_error: 0.05  # <-- Добавь вес
 ```
 
-### Шаг 4: Напиши тесты
+### Шаг 4: Добавь маппинг в схему (опционально)
+
+Если хочешь, чтобы твой обработчик маппился на теги RLC схемы:
+
+**Файл:** `src/synterr/schemas/data/rlc.yaml`
+
+```yaml
+mappings:
+  # ... существующие ...
+  my_error:
+    primary: Lex  # Или другой подходящий тег
+```
+
+Проверь покрытие: `uv run synterr coverage --lang ru --schema rlc`
+
+### Шаг 5: Напиши тесты
 
 **Файл:** `tests/test_languages/test_russian/test_my_error.py`
 
