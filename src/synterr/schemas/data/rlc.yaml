@@ -254,11 +254,13 @@ mappings:
   #   modifier: Extra
 
 # ============================================================================
-# WEIGHTS (from RLC-GEC corpus statistics, Table 2 in paper)
+# REFERENCE FREQUENCIES (from RLC-GEC corpus statistics, Table 2 in paper)
+# For documentation only - NOT used by synterr for sampling
+# Actual sampling weights come from configs/ presets
 # Normalized to sum ~1000
 # ============================================================================
 
-weights:
+reference_frequencies:
   Lex: 197
   Ortho: 158
   Syntax: 138

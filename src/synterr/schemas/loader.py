@@ -71,7 +71,6 @@ class Schema:
     primary_tags: dict[str, SchemaTag]
     modifiers: dict[str, SchemaModifier]
     mappings: dict[str, SubtypeMapping]
-    weights: dict[str, int] = field(default_factory=dict)
 
     # For backward compatibility, also expose as 'tags'
     @property
@@ -135,21 +134,6 @@ class Schema:
         if tag_name and tag_name in self.primary_tags:
             return self.primary_tags[tag_name].detection_category
         return "OTHER"
-
-    def get_weight(self, subtype: str, default: int = 100) -> int:
-        """Get sampling weight for a handler subtype.
-
-        Args:
-            subtype: Handler subtype name
-            default: Default weight if not specified
-
-        Returns:
-            Sampling weight for this subtype
-        """
-        tag_name = self.get_tag_for_subtype(subtype)
-        if tag_name and tag_name in self.weights:
-            return self.weights[tag_name]
-        return default
 
     def resolve_modifier_alias(self, alias: str) -> str | None:
         """Resolve a modifier alias to its canonical name.
@@ -354,7 +338,6 @@ def load_schema(name_or_path: str) -> Schema:
         primary_tags=primary_tags,
         modifiers=modifiers,
         mappings=mappings,
-        weights=data.get("weights", {}),
     )
 
 

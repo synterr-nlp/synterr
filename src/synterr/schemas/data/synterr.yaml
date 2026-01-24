@@ -99,9 +99,10 @@ mappings:
   # VerbTenseErrorHandler
   verb_tense: [verb_tense]
 
-# Default weights (from rulec preset, normalized)
-# These can be overridden by config presets
-weights:
+# Reference frequencies (from RULEC-GEC corpus, for documentation only)
+# NOT used by synterr - actual weights come from configs/
+# To use these, copy to a config preset file
+reference_frequencies:
   spelling: 475
   noun_case: 280
   noun_number: 53
