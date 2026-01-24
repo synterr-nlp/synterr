@@ -386,7 +386,7 @@ class ErrorPipeline:
         sentence = original.copy()
         modified: set[int] = set()
 
-        result = handler.apply(tokens, sentence, idx, modified)
+        result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
         if result is None:
             return None
 
@@ -456,7 +456,7 @@ class ErrorPipeline:
                 continue
 
             idx = self._rng.choice(applicable)
-            result = handler.apply(tokens, sentence, idx, modified)
+            result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
 
             if result is not None:
                 errors.append(result)
@@ -469,7 +469,7 @@ class ErrorPipeline:
             applicable = self._find_applicable_indices(handler, tokens, modified)
             if applicable:
                 idx = self._rng.choice(applicable)
-                result = handler.apply(tokens, sentence, idx, modified)
+                result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
                 if result is not None:
                     errors.append(result)
 
@@ -535,7 +535,7 @@ class ErrorPipeline:
                             continue
 
                         idx = self._rng.choice(applicable)
-                        result = handler.apply(tokens, sentence, idx, modified)
+                        result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
 
                         if result is not None:
                             errors.append(result)

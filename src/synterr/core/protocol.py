@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+import random
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -144,6 +146,7 @@ class ErrorHandler(Protocol):
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: random.Random | None = None,
     ) -> ErrorResult | None:
         """Apply error and return result.
 
@@ -152,6 +155,8 @@ class ErrorHandler(Protocol):
             sentence: Mutable sentence token list (to modify)
             idx: Token index to corrupt
             modified: Set of already-modified indices (to avoid double corruption)
+            rng: Random number generator for reproducibility. If None, uses
+                 global random module (not recommended for reproducible results).
 
         Returns:
             ErrorResult with details, or None if error couldn't be applied

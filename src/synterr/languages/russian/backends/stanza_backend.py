@@ -86,27 +86,37 @@ class StanzaBackend:
         if not texts:
             return []
 
-        # Join with double newline (stanza sentence boundary)
-        batch_text = "\n\n".join(texts)
+        # Track non-empty texts and their original indices
+        non_empty_indices = []
+        non_empty_texts = []
+        for i, text in enumerate(texts):
+            if text and text.strip():
+                non_empty_indices.append(i)
+                non_empty_texts.append(text)
+
+        # Initialize results with empty lists
+        results: list[list[AnalyzedToken]] = [[] for _ in texts]
+
+        if not non_empty_texts:
+            return results
+
+        # Join non-empty texts with double newline (stanza sentence boundary)
+        batch_text = "\n\n".join(non_empty_texts)
         doc = self.nlp(batch_text)
 
-        results = []
-        stanza_sent_idx = 0
+        # Map stanza sentences back to original indices
+        for stanza_idx, orig_idx in enumerate(non_empty_indices):
+            if stanza_idx >= len(doc.sentences):
+                break
 
-        for _orig_text in texts:
-            if stanza_sent_idx >= len(doc.sentences):
-                results.append([])
-                continue
-
-            stanza_sent = doc.sentences[stanza_sent_idx]
+            stanza_sent = doc.sentences[stanza_idx]
             tokens = []
 
             for i, word in enumerate(stanza_sent.words):
                 token = self._word_to_token(word, i)
                 tokens.append(token)
 
-            stanza_sent_idx += 1
-            results.append(tokens)
+            results[orig_idx] = tokens
 
         return results
 
