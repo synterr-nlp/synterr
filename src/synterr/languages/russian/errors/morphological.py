@@ -43,6 +43,7 @@ class NounCaseErrorHandler:
     """Change noun case to create morphological error."""
 
     name = "noun_case"
+    subtypes = ["noun_case"]
     category = "MORPH"
     changes_length = False
 
@@ -99,6 +100,7 @@ class NounNumberErrorHandler:
     """Change noun number (singular ↔ plural)."""
 
     name = "noun_number"
+    subtypes = ["noun_number"]
     category = "MORPH"
     changes_length = False
 
@@ -151,6 +153,7 @@ class AdjCaseErrorHandler:
     """Change adjective case."""
 
     name = "adj_case"
+    subtypes = ["adj_case"]
     category = "MORPH"
     changes_length = False
 
@@ -205,6 +208,7 @@ class AdjNumberErrorHandler:
     """Change adjective number."""
 
     name = "adj_number"
+    subtypes = ["adj_number"]
     category = "MORPH"
     changes_length = False
 
@@ -256,6 +260,7 @@ class AdjGenderErrorHandler:
     """Change adjective gender."""
 
     name = "adj_gender"
+    subtypes = ["adj_gender"]
     category = "MORPH"
     changes_length = False
 
@@ -315,6 +320,7 @@ class VerbPersonNumberErrorHandler:
     """Change verb person or number."""
 
     name = "verb_person_number"
+    subtypes = ["verb_person_number"]
     category = "MORPH"
     changes_length = False
 
@@ -381,6 +387,7 @@ class VerbTenseErrorHandler:
     """Change verb tense."""
 
     name = "verb_tense"
+    subtypes = ["verb_tense"]
     category = "MORPH"
     changes_length = False
 

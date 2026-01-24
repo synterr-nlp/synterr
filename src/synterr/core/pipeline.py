@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
     from synterr.core.protocol import Analyzer, ErrorHandler, LanguageModule
+    from synterr.schemas import Schema
 
 # Output format constants
 TOKEN_SEP = "SEPL|||SEPR"
@@ -39,6 +40,7 @@ class GenerationConfig:
         enabled_errors: Set of error handler names to use (None = all)
         error_weights: Custom weights for error types (overrides language default)
         backend: NLP backend to use (None = language default)
+        schema: Linguistic schema name or path (e.g., 'synterr', 'rlc')
     """
 
     seed: int = 42
@@ -49,6 +51,7 @@ class GenerationConfig:
     enabled_errors: set[str] | None = None
     error_weights: dict[str, float] | None = None
     backend: str | None = None
+    schema: str | None = None
 
     @classmethod
     def from_preset(cls, language: str, preset: str, **overrides) -> GenerationConfig:
@@ -94,6 +97,7 @@ class GenerationConfig:
             label_format=data.get("label_format", "multiclass"),
             error_weights=data.get("weights"),
             backend=data.get("backend"),
+            schema=data.get("schema"),
         )
 
         # Apply overrides
@@ -143,7 +147,30 @@ class ErrorPipeline:
         self._analyzer: Analyzer | None = None
         self._handlers: list[ErrorHandler] | None = None
         self._distribution: dict[str, float] | None = None
+        self._schema: Schema | None = None
         self._rng = random.Random(self.config.seed)
+
+    @property
+    def schema(self) -> Schema | None:
+        """Get loaded schema (lazy initialization)."""
+        if self._schema is None and self.config.schema is not None:
+            from synterr.schemas import load_schema
+
+            self._schema = load_schema(self.config.schema)
+        return self._schema
+
+    def get_available_subtypes(self) -> set[str]:
+        """Get all subtypes available from registered handlers."""
+        subtypes = set()
+        for handler in self.handlers:
+            subtypes.update(handler.subtypes)
+        return subtypes
+
+    def get_schema_coverage(self) -> dict | None:
+        """Get schema coverage report if schema is loaded."""
+        if self.schema is None:
+            return None
+        return self.schema.get_coverage_report(self.get_available_subtypes())
 
     @property
     def analyzer(self) -> Analyzer:
@@ -233,7 +260,7 @@ class ErrorPipeline:
             if i in error_at:
                 err = error_at[i]
                 tag = err.fix_tag
-                category = self._get_category_label(err.category)
+                category = self._get_category_label(err.category, err.error_type)
             else:
                 tag = "$KEEP"
                 category = CATEGORY_CORRECT
@@ -249,8 +276,34 @@ class ErrorPipeline:
 
         return TOKEN_SEP.join(parts)
 
-    def _get_category_label(self, category: str) -> str:
-        """Normalize category label."""
+    def _get_category_label(self, category: str, error_type: str | None = None) -> str:
+        """Get detection category label.
+
+        If a schema is loaded, uses the schema's detection category for the
+        error subtype. Otherwise, uses the handler's category.
+
+        Args:
+            category: Handler's default category
+            error_type: Error type string (e.g., "spelling_vowel_reduction", "noun_case")
+
+        Returns:
+            Detection category (SPELL, MORPH, PUNCT, OTHER)
+        """
+        # If schema is loaded, try to get category from schema
+        if self.schema is not None and error_type is not None:
+            # Extract subtype from error_type
+            # For spelling: "spelling_vowel_reduction" -> "vowel_reduction"
+            # For morphological: "noun_case" -> "noun_case"
+            if error_type.startswith("spelling_"):
+                subtype = error_type[9:]  # Remove "spelling_" prefix
+            else:
+                subtype = error_type
+
+            schema_category = self.schema.get_detection_category(subtype)
+            if schema_category != "OTHER" or subtype in self.schema.mappings:
+                return schema_category
+
+        # Fall back to handler's category
         category_upper = category.upper()
         if category_upper in (CATEGORY_SPELL, CATEGORY_MORPH, CATEGORY_PUNCT, CATEGORY_OTHER):
             return category_upper

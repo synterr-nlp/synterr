@@ -1,0 +1,297 @@
+# Russian Learner Corpus (RLC) Error Classification Schema
+# Based on: Kosakin et al. (2024) "Russian Learner Corpus: Towards Error-Cause Annotation"
+# https://aclanthology.org/2024.lrec-main.1241/
+#
+# 35 primary tags + 3 modifiers = 38 total
+# Modifiers combine with primary tags: Ref+Miss, Lex+Transfer, Hyphen+Del, etc.
+
+name: rlc
+version: "1.0"
+description: "Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)"
+
+detection_categories:
+  SPELL: "Orthographic/spelling errors"
+  MORPH: "Morphological errors"
+  OTHER: "Lexical, syntactic, structural errors"
+
+# ============================================================================
+# 35 PRIMARY TAGS
+# ============================================================================
+
+primary_tags:
+  # ---------------------------------------------------------------------------
+  # SPELLING (5 tags)
+  # ---------------------------------------------------------------------------
+  Graph:
+    description: "Mixing alphabets (Cyrillic/Latin)"
+    detection_category: SPELL
+
+  Hyphen:
+    description: "Errors in hyphenated spelling"
+    detection_category: SPELL
+
+  Space:
+    description: "Extra or missing spaces"
+    detection_category: SPELL
+
+  Ortho:
+    description: "Violation of standard Russian orthography"
+    detection_category: SPELL
+
+  Misspell:
+    description: "Complex spelling errors from intuitive notion of word"
+    detection_category: SPELL
+
+  # ---------------------------------------------------------------------------
+  # MORPHOLOGY - Derivation/Inflection (5 tags)
+  # ---------------------------------------------------------------------------
+  Morph:
+    description: "Derivational errors - wrong suffix/prefix creates non-existent word"
+    detection_category: MORPH
+
+  Altern:
+    description: "Errors in stem alternation"
+    detection_category: MORPH
+
+  Infl:
+    description: "Inflectional error - existing inflection creates non-existent form"
+    detection_category: MORPH
+
+  Num:
+    description: "Errors in number as nominal category (not agreement)"
+    detection_category: MORPH
+
+  Gender:
+    description: "Errors in gender as nominal category (not agreement)"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # MORPHOLOGY - Verbal categories (4 tags)
+  # ---------------------------------------------------------------------------
+  Tense:
+    description: "Errors in tense forms"
+    detection_category: MORPH
+
+  Asp:
+    description: "Errors in aspectual forms (perfective/imperfective)"
+    detection_category: MORPH
+
+  Refl:
+    description: "Errors in reflexive forms (-ся)"
+    detection_category: MORPH
+
+  Brev:
+    description: "Errors in full vs short adjective forms"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # SYNTAX - Government (2 tags)
+  # ---------------------------------------------------------------------------
+  Gov:
+    description: "Errors in syntactic government (case selection)"
+    detection_category: MORPH
+
+  Nominative:
+    description: "Subject in oblique case instead of nominative"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # SYNTAX - Agreement (4 tags)
+  # ---------------------------------------------------------------------------
+  AgrNum:
+    description: "Errors in number agreement"
+    detection_category: MORPH
+
+  AgrCase:
+    description: "Errors in case agreement"
+    detection_category: MORPH
+
+  AgrGender:
+    description: "Errors in gender agreement"
+    detection_category: MORPH
+
+  AgrPers:
+    description: "Errors in person agreement"
+    detection_category: MORPH
+
+  # ---------------------------------------------------------------------------
+  # SYNTAX - Constructions (7 tags)
+  # ---------------------------------------------------------------------------
+  Passive:
+    description: "Errors in passive constructions"
+    detection_category: OTHER
+
+  Com:
+    description: "Errors in comparative constructions"
+    detection_category: OTHER
+
+  Impers:
+    description: "Errors in impersonal constructions"
+    detection_category: OTHER
+
+  Mode:
+    description: "Errors in conditional constructions (mood)"
+    detection_category: OTHER
+
+  Gerund:
+    description: "Errors in gerundive constructions"
+    detection_category: OTHER
+
+  WO:
+    description: "Errors in word order"
+    detection_category: OTHER
+
+  Syntax:
+    description: "Errors in basic syntactic structure (POS misuse)"
+    detection_category: OTHER
+
+  # ---------------------------------------------------------------------------
+  # LEXICAL (7 tags)
+  # ---------------------------------------------------------------------------
+  Constr:
+    description: "Multiple word errors / constructional errors"
+    detection_category: OTHER
+
+  Lex:
+    description: "Lexical errors - wrong word choice, collocations"
+    detection_category: OTHER
+
+  Prep:
+    description: "Errors in preposition choice"
+    detection_category: OTHER
+
+  Conj:
+    description: "Errors in conjunction use"
+    detection_category: OTHER
+
+  Ref:
+    description: "Misuse of referential markers (pronouns)"
+    detection_category: OTHER
+
+  Aux:
+    description: "Errors in auxiliary or copula verb usage"
+    detection_category: OTHER
+
+  CS:
+    description: "Code-switching (using non-Russian words)"
+    detection_category: OTHER
+
+  Idiom:
+    description: "Errors in idiomatic expressions"
+    detection_category: OTHER
+
+# ============================================================================
+# 3 MODIFIERS (combine with primary tags)
+# ============================================================================
+
+modifiers:
+  Miss:
+    description: "Missing element (needs insertion)"
+    aliases: [Del]  # Hyphen+Del = Hyphen+Miss
+
+  Extra:
+    description: "Extra element (needs deletion)"
+    aliases: [Ins]  # Space+Ins = Space+Extra
+
+  Transfer:
+    description: "Error caused by L1 transfer"
+
+# ============================================================================
+# MAPPINGS: handler subtype -> RLC tag
+# ============================================================================
+
+mappings:
+  # ---------------------------------------------------------------------------
+  # Spelling handler subtypes -> RLC tags
+  # ---------------------------------------------------------------------------
+  vowel_reduction:
+    primary: Ortho
+  devoicing:
+    primary: Ortho
+  tsa_confusion:
+    primary: Ortho
+  cluster:
+    primary: Ortho
+  double_consonant:
+    primary: Ortho
+  soft_sign:
+    primary: Ortho
+  keyboard:
+    primary: Misspell
+
+  # ---------------------------------------------------------------------------
+  # Morphological handler subtypes -> RLC tags
+  # ---------------------------------------------------------------------------
+  noun_case:
+    primary: Gov
+  noun_number:
+    primary: Num
+  adj_case:
+    primary: AgrCase
+  adj_number:
+    primary: AgrNum
+  adj_gender:
+    primary: AgrGender
+  verb_person_number:
+    primary: AgrPers
+  verb_tense:
+    primary: Tense
+
+  # ---------------------------------------------------------------------------
+  # Future handlers (Artem's tasks) -> RLC tags
+  # ---------------------------------------------------------------------------
+  # paronym:
+  #   primary: Lex
+  # preposition:
+  #   primary: Prep
+  # conjunction:
+  #   primary: Conj
+  # word_omission:
+  #   primary: Syntax
+  #   modifier: Miss
+  # word_insertion:
+  #   primary: Syntax
+  #   modifier: Extra
+
+# ============================================================================
+# WEIGHTS (from RLC-GEC corpus statistics, Table 2 in paper)
+# Normalized to sum ~1000
+# ============================================================================
+
+weights:
+  Lex: 197
+  Ortho: 158
+  Syntax: 138
+  Gov: 83
+  Constr: 69
+  Prep: 53
+  Ref: 46
+  Asp: 36
+  Conj: 34
+  AgrCase: 31
+  Morph: 28
+  AgrNum: 28
+  WO: 27
+  AgrGender: 26
+  Num: 25
+  Infl: 24
+  # Remaining tags have <2% frequency each
+  Misspell: 15
+  Tense: 10
+  Refl: 8
+  AgrPers: 8
+  Brev: 5
+  Aux: 5
+  Impers: 4
+  Gender: 4
+  Passive: 3
+  Mode: 3
+  Altern: 2
+  Com: 2
+  Gerund: 1
+  Nominative: 1
+  CS: 1
+  Idiom: 1
+  Hyphen: 1
+  Space: 1
+  Graph: 1

@@ -1,0 +1,112 @@
+# Synterr default schema - backward compatible with existing behavior
+name: synterr
+version: "1.0"
+description: "Synterr native error classification for GECToR training"
+
+# Detection categories for GECToR output
+detection_categories:
+  CORRECT: "No error"
+  SPELL: "Orthographic/spelling errors"
+  MORPH: "Morphological errors"
+  PUNCT: "Punctuation errors"
+  OTHER: "Lexical, structural, and other errors"
+
+# Tags organized by category
+# Each handler subtype maps to one primary tag
+tags:
+  # Spelling errors
+  spelling:
+    description: "General spelling/orthographic error"
+    detection_category: SPELL
+
+  # Morphological - Nouns
+  noun_case:
+    description: "Noun case error"
+    detection_category: MORPH
+  noun_number:
+    description: "Noun number error (singular/plural)"
+    detection_category: MORPH
+
+  # Morphological - Adjectives
+  adj_case:
+    description: "Adjective case error"
+    detection_category: MORPH
+  adj_number:
+    description: "Adjective number error"
+    detection_category: MORPH
+  adj_gender:
+    description: "Adjective gender error"
+    detection_category: MORPH
+
+  # Morphological - Verbs
+  verb_person_number:
+    description: "Verb person/number error"
+    detection_category: MORPH
+  verb_tense:
+    description: "Verb tense error"
+    detection_category: MORPH
+
+  # Future tags (not yet implemented)
+  preposition:
+    description: "Preposition error"
+    detection_category: OTHER
+  conjunction:
+    description: "Conjunction error"
+    detection_category: OTHER
+  paronym:
+    description: "Paronym confusion"
+    detection_category: OTHER
+  word_insert:
+    description: "Missing word (needs insertion)"
+    detection_category: OTHER
+  word_delete:
+    description: "Extra word (needs deletion)"
+    detection_category: OTHER
+  punctuation:
+    description: "Punctuation error"
+    detection_category: PUNCT
+
+# Mapping: handler subtype -> schema tag(s)
+# First tag is primary (used for detection category)
+mappings:
+  # SpellingErrorHandler subtypes
+  vowel_reduction: [spelling]
+  devoicing: [spelling]
+  tsa_confusion: [spelling]
+  cluster: [spelling]
+  double_consonant: [spelling]
+  keyboard: [spelling]
+  soft_sign: [spelling]
+
+  # NounCaseErrorHandler
+  noun_case: [noun_case]
+
+  # NounNumberErrorHandler
+  noun_number: [noun_number]
+
+  # AdjCaseErrorHandler
+  adj_case: [adj_case]
+
+  # AdjNumberErrorHandler
+  adj_number: [adj_number]
+
+  # AdjGenderErrorHandler
+  adj_gender: [adj_gender]
+
+  # VerbPersonNumberErrorHandler
+  verb_person_number: [verb_person_number]
+
+  # VerbTenseErrorHandler
+  verb_tense: [verb_tense]
+
+# Default weights (from rulec preset, normalized)
+# These can be overridden by config presets
+weights:
+  spelling: 475
+  noun_case: 280
+  noun_number: 53
+  adj_case: 71
+  adj_number: 19
+  adj_gender: 27
+  verb_person_number: 52
+  verb_tense: 23

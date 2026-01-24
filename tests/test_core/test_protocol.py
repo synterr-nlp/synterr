@@ -95,6 +95,7 @@ class TestErrorHandlerProtocol:
 
         class MockHandler:
             name = "mock"
+            subtypes = ["mock"]
             category = "OTHER"
             changes_length = False
 

@@ -33,6 +33,28 @@ def cmd_list_languages() -> None:
         click.echo(f"  {code}: {name}")
 
 
+@main.command("list-schemas")
+def cmd_list_schemas() -> None:
+    """List available linguistic schemas."""
+    from synterr.schemas import get_default_schema, list_schemas, load_schema
+
+    schemas = list_schemas()
+
+    if not schemas:
+        click.echo("No schemas available.")
+        return
+
+    default = get_default_schema()
+    click.echo("Available linguistic schemas:")
+    for name in sorted(schemas):
+        try:
+            schema = load_schema(name)
+            marker = " (default)" if name == default else ""
+            click.echo(f"  {name}{marker}: {schema.description} ({len(schema.tags)} tags)")
+        except Exception:
+            click.echo(f"  {name}: (error loading)")
+
+
 @main.command("list-presets")
 @click.option("--lang", "-l", required=True, help="Language code (e.g., ru)")
 def cmd_list_presets(lang: str) -> None:
@@ -106,6 +128,65 @@ def cmd_list_errors(lang: str, preset: str | None) -> None:
         click.echo()
 
 
+@main.command("coverage")
+@click.option("--lang", "-l", required=True, help="Language code (e.g., ru)")
+@click.option("--schema", "-s", required=True, help="Schema name (e.g., synterr, rlc)")
+def cmd_coverage(lang: str, schema: str) -> None:
+    """Show schema coverage by available handlers.
+
+    Reports which schema tags are covered by the language's error handlers.
+
+    Examples:
+
+      synterr coverage --lang ru --schema rlc
+    """
+    from synterr.schemas import load_schema
+
+    try:
+        language = get_language(lang)
+    except KeyError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    try:
+        sch = load_schema(schema)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    # Get all subtypes from handlers
+    handlers = language.get_error_handlers()
+    available_subtypes = set()
+    for h in handlers:
+        available_subtypes.update(h.subtypes)
+
+    # Get coverage report
+    report = sch.get_coverage_report(available_subtypes)
+
+    click.echo(f"Schema: {sch.name} v{sch.version}")
+    click.echo(f"Description: {sch.description}")
+    click.echo()
+    click.echo(f"Coverage: {report['covered_tags']}/{report['total_tags']} tags ({report['coverage_percent']}%)")
+    click.echo()
+
+    if report['covered_tag_names']:
+        click.echo("Covered tags:")
+        for tag in report['covered_tag_names']:
+            click.echo(f"  ✓ {tag}")
+        click.echo()
+
+    if report['uncovered_tag_names']:
+        click.echo("Uncovered tags (no handler mapping):")
+        for tag in report['uncovered_tag_names']:
+            click.echo(f"  ✗ {tag}")
+        click.echo()
+
+    if report['unmapped_subtypes']:
+        click.echo("Handler subtypes not in schema:")
+        for subtype in report['unmapped_subtypes']:
+            click.echo(f"  ? {subtype}")
+
+
 @main.command("list-backends")
 @click.option("--lang", "-l", default="ru", help="Language code (default: ru)")
 def cmd_list_backends(lang: str) -> None:
@@ -155,6 +236,7 @@ def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> No
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--preset", "-p", help="Use preset config (e.g., rulec, gera, balanced)")
 @click.option("--config", "-c", "config_path", type=click.Path(exists=True), help="Custom YAML config")
+@click.option("--schema", help="Linguistic schema (synterr, rlc, or path to YAML)")
 @click.option("--errors", "-e", help="Comma-separated error types (default: all)")
 @click.option("--weights", "-w", help="JSON weights dict, e.g., '{\"spelling\": 0.5}'")
 @click.option("--seed", "-s", type=int, default=42, help="Random seed")
@@ -175,6 +257,7 @@ def cmd_generate(
     backend: str | None,
     preset: str | None,
     config_path: str | None,
+    schema: str | None,
     errors: str | None,
     weights: str | None,
     seed: int,
@@ -231,6 +314,7 @@ def cmd_generate(
             label_format=label_format,
             enabled_errors=enabled_errors,
             backend=backend,
+            schema=schema,
         )
         click.echo(f"Using config: {config_path}")
     elif preset:
@@ -243,6 +327,7 @@ def cmd_generate(
             label_format=label_format,
             enabled_errors=enabled_errors,
             backend=backend,
+            schema=schema,
         )
         click.echo(f"Using preset: {preset}")
     else:
@@ -254,7 +339,11 @@ def cmd_generate(
             enabled_errors=enabled_errors,
             error_weights=error_weights,
             backend=backend,
+            schema=schema,
         )
+
+    if schema:
+        click.echo(f"Using schema: {schema}")
 
     # Override error_weights if provided via --weights (takes precedence)
     if error_weights and config.error_weights != error_weights:
