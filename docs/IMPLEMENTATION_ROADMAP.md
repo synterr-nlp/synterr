@@ -368,6 +368,57 @@ class TestParonymHandler:
 
 ---
 
+## Output Formats
+
+Currently only GECToR token-level tags are implemented. Additional formats to support:
+
+| Format | Use Case | Status | Priority |
+|--------|----------|--------|----------|
+| **GECToR tags** | Token taggers (GECToR, PIE) | ✅ Done | — |
+| **Parallel TSV** | seq2seq training (T5/BART) | ✅ Done | — |
+| **Rich JSONL** | Reproducibility, filtering, debugging | ✅ Done | — |
+| **Human diff** | Spot-checking, quality inspection | ✅ Done | — |
+| **Span edit JSON** | Intermediate for converters | ❌ TODO | Low |
+| **M2 (CoNLL GEC)** | ERRANT eval, standard benchmarks | ❌ TODO | Medium |
+| **ERRANT JSONL** | Schema-tagged metrics | ❌ TODO | Medium |
+| **CoNLL-U + MISC** | UD integration, morph/depparse context | ❌ TODO | Low |
+
+### Format Details
+
+#### Parallel TSV (implemented)
+```
+src<TAB>tgt
+Мама мыла раму	Мама мыла раме
+```
+Simplest format. Use `GeneratedSentence.to_tsv()`.
+
+#### Rich JSONL (implemented)
+```json
+{"id": "abc123", "original": "Мама мыла раму", "corrupted": "Мама мыла раме", "errors": [...], "seed": 42}
+```
+Full metadata for reproducibility. Use `GeneratedSentence.to_jsonl()`.
+
+#### Human Diff (implemented)
+```
+Мама мыла [-раму-]{+раме+}
+```
+Quick visual inspection. Use `GeneratedSentence.to_diff()`.
+
+#### M2 Format (TODO)
+```
+S Мама мыла раме
+A 2 3|||MORPH|||раму|||REQUIRED|||-NONE-|||0
+```
+Standard for GEC evaluation. Requires span support in `_format_output()`.
+
+#### Span Edit JSON (TODO)
+```json
+{"start": 2, "end": 3, "op": "replace", "original": "раму", "replacement": "раме", "category": "MORPH", "subtype": "noun_case"}
+```
+Clean intermediate format for downstream converters.
+
+---
+
 ## Implementation Order Recommendation
 
 1. **Lexical errors** (paronym, preposition, conjunction) — No depparse, straightforward

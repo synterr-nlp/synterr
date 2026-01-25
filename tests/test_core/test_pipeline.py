@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+from synterr.core.pipeline import ErrorPipeline, GeneratedSentence, GenerationConfig
 from synterr.core.protocol import AnalyzedToken, ErrorResult
 
 
@@ -360,3 +362,134 @@ class TestGenerateAndGenerateBatchParity:
         # Both should produce valid output
         assert single_result.original_tokens is not None
         assert batch_results[0].original_tokens is not None
+
+
+class TestGeneratedSentenceFormats:
+    """Tests for GeneratedSentence output format methods."""
+
+    @pytest.fixture
+    def sentence_with_error(self):
+        """Create a GeneratedSentence with one error."""
+        return GeneratedSentence(
+            original_tokens=["Мама", "мыла", "раму"],
+            corrupted_tokens=["Мама", "мыла", "раме"],
+            errors=[
+                ErrorResult(
+                    error_type="noun_case",
+                    category="MORPH",
+                    start_idx=2,
+                    end_idx=3,
+                    original="раму",
+                    corrupted="раме",
+                    fix_tag="$TRANSFORM_CASE_Acc",
+                )
+            ],
+            formatted="",
+        )
+
+    @pytest.fixture
+    def sentence_no_errors(self):
+        """Create a GeneratedSentence with no errors."""
+        return GeneratedSentence(
+            original_tokens=["Мама", "мыла", "раму"],
+            corrupted_tokens=["Мама", "мыла", "раму"],
+            errors=[],
+            formatted="",
+        )
+
+    def test_to_tsv_with_error(self, sentence_with_error):
+        """TSV format should show src<TAB>tgt."""
+        result = sentence_with_error.to_tsv()
+        assert result == "Мама мыла раму\tМама мыла раме"
+
+    def test_to_tsv_no_errors(self, sentence_no_errors):
+        """TSV format with no errors should have identical src and tgt."""
+        result = sentence_no_errors.to_tsv()
+        assert result == "Мама мыла раму\tМама мыла раму"
+
+    def test_to_jsonl_basic(self, sentence_with_error):
+        """JSONL should include original, corrupted, and errors."""
+        result = sentence_with_error.to_jsonl()
+        data = json.loads(result)
+
+        assert data["original"] == "Мама мыла раму"
+        assert data["corrupted"] == "Мама мыла раме"
+        assert len(data["errors"]) == 1
+        assert data["errors"][0]["type"] == "noun_case"
+        assert data["errors"][0]["category"] == "MORPH"
+        assert data["errors"][0]["start_idx"] == 2
+        assert data["errors"][0]["end_idx"] == 3
+
+    def test_to_jsonl_with_metadata(self, sentence_with_error):
+        """JSONL should include optional metadata when provided."""
+        result = sentence_with_error.to_jsonl(
+            id="test-001",
+            seed=42,
+            backend="stanza",
+            schema="rlc",
+        )
+        data = json.loads(result)
+
+        assert data["id"] == "test-001"
+        assert data["seed"] == 42
+        assert data["backend"] == "stanza"
+        assert data["schema"] == "rlc"
+
+    def test_to_jsonl_no_metadata(self, sentence_with_error):
+        """JSONL should not include metadata fields when not provided."""
+        result = sentence_with_error.to_jsonl()
+        data = json.loads(result)
+
+        assert "id" not in data
+        assert "seed" not in data
+        assert "backend" not in data
+        assert "schema" not in data
+
+    def test_to_diff_with_error(self, sentence_with_error):
+        """Diff should show [-deleted-]{+inserted+} format."""
+        result = sentence_with_error.to_diff()
+        assert result == "Мама мыла [-раму-]{+раме+}"
+
+    def test_to_diff_no_errors(self, sentence_no_errors):
+        """Diff with no errors should show original text."""
+        result = sentence_no_errors.to_diff()
+        assert result == "Мама мыла раму"
+
+    def test_to_diff_with_color(self, sentence_with_error):
+        """Diff with color should use ANSI escape codes."""
+        result = sentence_with_error.to_diff(use_color=True)
+        assert "\033[91m" in result  # Red for deletion
+        assert "\033[92m" in result  # Green for insertion
+        assert "раму" in result
+        assert "раме" in result
+
+    def test_to_diff_multiple_errors(self):
+        """Diff should handle multiple errors."""
+        sentence = GeneratedSentence(
+            original_tokens=["Мама", "мыла", "раму"],
+            corrupted_tokens=["Мамо", "мыла", "раме"],
+            errors=[
+                ErrorResult(
+                    error_type="spelling",
+                    category="SPELL",
+                    start_idx=0,
+                    end_idx=1,
+                    original="Мама",
+                    corrupted="Мамо",
+                    fix_tag="$REPLACE_Мама",
+                ),
+                ErrorResult(
+                    error_type="noun_case",
+                    category="MORPH",
+                    start_idx=2,
+                    end_idx=3,
+                    original="раму",
+                    corrupted="раме",
+                    fix_tag="$TRANSFORM_CASE_Acc",
+                ),
+            ],
+            formatted="",
+        )
+
+        result = sentence.to_diff()
+        assert result == "[-Мама-]{+Мамо+} мыла [-раму-]{+раме+}"

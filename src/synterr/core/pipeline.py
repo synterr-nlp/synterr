@@ -124,6 +124,101 @@ class GeneratedSentence:
     errors: list[ErrorResult]
     formatted: str = ""
 
+    def to_tsv(self) -> str:
+        """Format as parallel TSV (src<TAB>tgt) for seq2seq training.
+
+        Returns:
+            Tab-separated original and corrupted sentences
+        """
+        original = " ".join(self.original_tokens)
+        corrupted = " ".join(self.corrupted_tokens)
+        return f"{original}\t{corrupted}"
+
+    def to_jsonl(
+        self,
+        id: str | None = None,
+        seed: int | None = None,
+        backend: str | None = None,
+        schema: str | None = None,
+    ) -> str:
+        """Format as rich JSONL for reproducibility and filtering.
+
+        Args:
+            id: Optional unique identifier for this example
+            seed: Random seed used for generation
+            backend: NLP backend used (stanza, natasha, spacy)
+            schema: Schema name used (rlc, synterr, etc.)
+
+        Returns:
+            JSON string (single line, no trailing newline)
+        """
+        import json
+
+        record: dict = {
+            "original": " ".join(self.original_tokens),
+            "corrupted": " ".join(self.corrupted_tokens),
+            "errors": [
+                {
+                    "type": err.error_type,
+                    "category": err.category,
+                    "start_idx": err.start_idx,
+                    "end_idx": err.end_idx,
+                    "original": err.original,
+                    "corrupted": err.corrupted,
+                    "fix_tag": err.fix_tag,
+                }
+                for err in self.errors
+            ],
+        }
+
+        if id is not None:
+            record["id"] = id
+        if seed is not None:
+            record["seed"] = seed
+        if backend is not None:
+            record["backend"] = backend
+        if schema is not None:
+            record["schema"] = schema
+
+        return json.dumps(record, ensure_ascii=False)
+
+    def to_diff(self, use_color: bool = False) -> str:
+        """Format as human-readable diff for spot-checking.
+
+        Shows deletions as [-text-] and insertions as {+text+}.
+        Optionally uses ANSI colors (red for deletions, green for insertions).
+
+        Args:
+            use_color: Use ANSI escape codes for terminal colors
+
+        Returns:
+            Diff-formatted string
+        """
+        if use_color:
+            del_start, del_end = "\033[91m", "\033[0m"  # Red
+            ins_start, ins_end = "\033[92m", "\033[0m"  # Green
+        else:
+            del_start, del_end = "[-", "-]"
+            ins_start, ins_end = "{+", "+}"
+
+        # Build error lookup
+        error_at: dict[int, ErrorResult] = {}
+        for err in self.errors:
+            error_at[err.start_idx] = err
+
+        parts = []
+        for i, token in enumerate(self.corrupted_tokens):
+            if i in error_at:
+                err = error_at[i]
+                if err.original != err.corrupted:
+                    parts.append(f"{del_start}{err.original}{del_end}{ins_start}{err.corrupted}{ins_end}")
+                else:
+                    parts.append(token)
+            else:
+                parts.append(token)
+
+        return " ".join(parts)
+
 
 class ErrorPipeline:
     """Pipeline for generating synthetic errors in text."""
