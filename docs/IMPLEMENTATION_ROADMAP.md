@@ -306,7 +306,29 @@ class WordOmissionHandler:
     changes_length = True  # Important!
 ```
 
-The pipeline applies these last to avoid index corruption.
+The pipeline applies these last to avoid index corruption. After a length-changing error is applied, prior error indices are automatically adjusted via `_adjust_indices_for_length_change()`.
+
+### Span Support and M2 Format
+
+`ErrorResult` has both `start_idx` and `end_idx` to support multi-token spans. Currently:
+
+- **GECToR output** (`_format_output`): Only uses `start_idx`. Spans decompose to per-token tags.
+- **M2 output**: Not yet implemented. When added, will use full span information.
+
+**Handler convention**: Always set `end_idx` correctly, even for single-token errors (`end_idx = start_idx + 1`). This ensures span data is preserved for future M2 export.
+
+```python
+# Single-token error
+ErrorResult(start_idx=2, end_idx=3, ...)
+
+# Multi-token span (e.g., "потому что" → "поскольку")
+ErrorResult(start_idx=2, end_idx=4, ...)  # tokens 2-3 inclusive
+```
+
+Future M2 formatter will output:
+```
+A 2 4|||Conj|||поскольку|||REQUIRED|||-NONE-|||0
+```
 
 ### Handler Registration
 
