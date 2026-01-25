@@ -63,22 +63,25 @@ VOWELS = set('аеёиоуыэюяАЕЁИОУЫЭЮЯ')
 
 # =============================================================================
 # CONSONANT DEVOICING
-# Voiced consonants become voiceless at word end or before voiceless
+# Voiced consonants written as voiceless at word-final position.
+# This reflects the Russian phonetic rule where final voiced consonants
+# are pronounced voiceless (город → [горот]), leading to spelling errors.
+# Note: Only voiced → voiceless direction. The reverse (voicing) is rare.
 # =============================================================================
 
-VOICED_VOICELESS_PAIRS = {
-    'б': 'п', 'п': 'б',
-    'в': 'ф', 'ф': 'в',
-    'г': 'к', 'к': 'г',
-    'д': 'т', 'т': 'д',
-    'ж': 'ш', 'ш': 'ж',
-    'з': 'с', 'с': 'з',
-    'Б': 'П', 'П': 'Б',
-    'В': 'Ф', 'Ф': 'В',
-    'Г': 'К', 'К': 'Г',
-    'Д': 'Т', 'Т': 'Д',
-    'Ж': 'Ш', 'Ш': 'Ж',
-    'З': 'С', 'С': 'З',
+VOICED_TO_VOICELESS = {
+    'б': 'п',
+    'в': 'ф',
+    'г': 'к',
+    'д': 'т',
+    'ж': 'ш',
+    'з': 'с',
+    'Б': 'П',
+    'В': 'Ф',
+    'Г': 'К',
+    'Д': 'Т',
+    'Ж': 'Ш',
+    'З': 'С',
 }
 
 # =============================================================================
@@ -332,7 +335,12 @@ class SpellingErrorHandler:
         return PhoneticError(word, corrupted, 'vowel_reduction', pos)
 
     def _devoicing(self, word: str) -> PhoneticError | None:
-        """Apply consonant devoicing error at word end."""
+        """Apply consonant devoicing error at word end.
+
+        Simulates the common spelling error where word-final voiced consonants
+        are written as voiceless (as they are pronounced). E.g., город → *горот.
+        Only applies to words ending in voiced consonants.
+        """
         if len(word) < 2:
             return None
 
@@ -349,8 +357,9 @@ class SpellingErrorHandler:
         else:
             check_pos = -1
 
-        if last_char in VOICED_VOICELESS_PAIRS:
-            replacement = VOICED_VOICELESS_PAIRS[last_char]
+        # Only devoice voiced consonants (not the reverse)
+        if last_char in VOICED_TO_VOICELESS:
+            replacement = VOICED_TO_VOICELESS[last_char]
             if check_pos == -1:
                 corrupted = word[:-1] + replacement
             else:
