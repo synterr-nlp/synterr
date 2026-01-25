@@ -234,6 +234,134 @@ class ErrorPipeline:
         """Find token indices where handler can be applied."""
         return [i for i in range(len(tokens)) if i not in modified and handler.can_apply(tokens, i)]
 
+    def _adjust_indices_for_length_change(
+        self,
+        errors: list[ErrorResult],
+        change_idx: int,
+        delta: int,
+    ) -> list[ErrorResult]:
+        """Adjust error indices after a length-changing operation.
+
+        When a token is inserted or deleted, all errors at or after that
+        position need their indices shifted.
+
+        Args:
+            errors: List of errors to adjust
+            change_idx: Index where the length change occurred
+            delta: Change in length (+1 for insertion, -1 for deletion)
+
+        Returns:
+            New list of ErrorResults with adjusted indices
+        """
+        adjusted = []
+        for err in errors:
+            if err.start_idx >= change_idx:
+                adjusted.append(
+                    ErrorResult(
+                        error_type=err.error_type,
+                        category=err.category,
+                        start_idx=err.start_idx + delta,
+                        end_idx=err.end_idx + delta,
+                        original=err.original,
+                        corrupted=err.corrupted,
+                        fix_tag=err.fix_tag,
+                    )
+                )
+            else:
+                adjusted.append(err)
+        return adjusted
+
+    def _get_length_change_info(
+        self,
+        result: ErrorResult,
+        handler_idx: int,
+    ) -> tuple[int, int]:
+        """Determine change_idx and delta from a length-changing error.
+
+        Args:
+            result: The ErrorResult from a length-changing handler
+            handler_idx: The token index where the handler was applied
+
+        Returns:
+            (change_idx, delta) where delta is +1 for insertion, -1 for deletion.
+            Returns (0, 0) if the change type cannot be determined.
+        """
+        # Deletion (word_omission): creates $APPEND_x tag to restore the word
+        if result.fix_tag.startswith("$APPEND_"):
+            return (handler_idx, -1)
+
+        # Insertion (word_insertion): creates $DELETE tag to remove the word
+        if result.fix_tag == "$DELETE":
+            return (handler_idx + 1, +1)
+
+        return (0, 0)  # Unknown — no adjustment
+
+    def _apply_errors_to_sentence(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        original: list[str],
+    ) -> tuple[list[str], list[ErrorResult]]:
+        """Apply errors to a sentence following the generation rules.
+
+        This is the shared logic for both generate() and generate_batch().
+        It applies non-length-changing errors first, then optionally one
+        length-changing error, adjusting prior error indices as needed.
+
+        Args:
+            tokens: Analyzed tokens from the sentence
+            original: Original token texts
+
+        Returns:
+            (corrupted_sentence, errors) tuple
+        """
+        sentence = original.copy()
+        modified: set[int] = set()
+        errors: list[ErrorResult] = []
+
+        # Separate length-changing handlers (applied last to avoid index corruption)
+        length_handlers = [h for h in self.handlers if h.changes_length]
+
+        # Apply regular errors first (don't change indices)
+        num_errors = self._rng.randint(1, self.config.max_errors_per_sentence)
+
+        for _ in range(num_errors):
+            if len(modified) >= len(tokens):
+                break
+
+            handler = self._sample_error_type()
+            if handler is None or handler.changes_length:
+                continue
+
+            applicable = self._find_applicable_indices(handler, tokens, modified)
+            if not applicable:
+                continue
+
+            idx = self._rng.choice(applicable)
+            result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
+
+            if result is not None:
+                errors.append(result)
+                modified.add(idx)
+
+        # Apply length-changing errors last (if any)
+        # Note: For simplicity, we only apply one length-changing error per sentence
+        if length_handlers and self._rng.random() < 0.3:
+            handler = self._rng.choice(length_handlers)
+            applicable = self._find_applicable_indices(handler, tokens, modified)
+            if applicable:
+                idx = self._rng.choice(applicable)
+                result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
+                if result is not None:
+                    # Adjust prior error indices for the length change
+                    change_idx, delta = self._get_length_change_info(result, idx)
+                    if delta != 0:
+                        errors = self._adjust_indices_for_length_change(
+                            errors, change_idx, delta
+                        )
+                    errors.append(result)
+
+        return sentence, errors
+
     def _format_output(
         self,
         corrupted: list[str],
@@ -420,58 +548,22 @@ class ErrorPipeline:
                 formatted="",
             )
 
-        # Prepare mutable sentence
+        # Prepare original tokens
         original = [t.text for t in tokens]
-        sentence = original.copy()
-        modified: set[int] = set()
-        errors: list[ErrorResult] = []
 
         # Decide whether to introduce errors
         if self._rng.random() > self.config.error_probability:
             # No errors - return clean sentence
-            formatted = self._format_output(sentence, [])
+            formatted = self._format_output(original, [])
             return GeneratedSentence(
                 original_tokens=original,
-                corrupted_tokens=sentence,
+                corrupted_tokens=original.copy(),
                 errors=[],
                 formatted=formatted,
             )
 
-        # Separate length-changing handlers (applied last to avoid index corruption)
-        length_handlers = [h for h in self.handlers if h.changes_length]
-
-        # Apply regular errors first (don't change indices)
-        num_errors = self._rng.randint(1, self.config.max_errors_per_sentence)
-
-        for _ in range(num_errors):
-            if len(modified) >= len(tokens):
-                break
-
-            handler = self._sample_error_type()
-            if handler is None or handler.changes_length:
-                continue
-
-            applicable = self._find_applicable_indices(handler, tokens, modified)
-            if not applicable:
-                continue
-
-            idx = self._rng.choice(applicable)
-            result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
-
-            if result is not None:
-                errors.append(result)
-                modified.add(idx)
-
-        # Apply length-changing errors last (if any)
-        # Note: For simplicity, we only apply one length-changing error per sentence
-        if length_handlers and self._rng.random() < 0.3:
-            handler = self._rng.choice(length_handlers)
-            applicable = self._find_applicable_indices(handler, tokens, modified)
-            if applicable:
-                idx = self._rng.choice(applicable)
-                result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
-                if result is not None:
-                    errors.append(result)
+        # Apply errors using shared helper
+        sentence, errors = self._apply_errors_to_sentence(tokens, original)
 
         # Format output
         formatted = self._format_output(sentence, errors)
@@ -513,33 +605,23 @@ class ErrorPipeline:
                     )
                     continue
 
-                # Process similar to single sentence
+                # Prepare original tokens
                 original = [t.text for t in tokens]
-                sentence = original.copy()
-                modified: set[int] = set()
-                errors: list[ErrorResult] = []
 
-                if self._rng.random() <= self.config.error_probability:
-                    num_errors = self._rng.randint(1, self.config.max_errors_per_sentence)
+                # Decide whether to introduce errors
+                if self._rng.random() > self.config.error_probability:
+                    # No errors - return clean sentence
+                    formatted = self._format_output(original, [])
+                    yield GeneratedSentence(
+                        original_tokens=original,
+                        corrupted_tokens=original.copy(),
+                        errors=[],
+                        formatted=formatted,
+                    )
+                    continue
 
-                    for _ in range(num_errors):
-                        if len(modified) >= len(tokens):
-                            break
-
-                        handler = self._sample_error_type()
-                        if handler is None or handler.changes_length:
-                            continue
-
-                        applicable = self._find_applicable_indices(handler, tokens, modified)
-                        if not applicable:
-                            continue
-
-                        idx = self._rng.choice(applicable)
-                        result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
-
-                        if result is not None:
-                            errors.append(result)
-                            modified.add(idx)
+                # Apply errors using shared helper
+                sentence, errors = self._apply_errors_to_sentence(tokens, original)
 
                 formatted = self._format_output(sentence, errors)
 
