@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synterr Diff Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #444;
+        }
+
+        .dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .dropzone:hover, .dropzone.dragover {
+            border-color: #666;
+            background: #fafafa;
+        }
+
+        .dropzone input {
+            display: none;
+        }
+
+        .viewer {
+            display: none;
+        }
+
+        .viewer.active {
+            display: block;
+        }
+
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .nav button {
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .nav button:hover:not(:disabled) {
+            background: #f0f0f0;
+        }
+
+        .nav button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .counter {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .jump-input {
+            width: 60px;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .sentence {
+            font-size: 1.25rem;
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .token {
+            display: inline;
+            padding: 2px 0;
+        }
+
+        .token.error {
+            background: #fff3cd;
+            border-radius: 3px;
+            padding: 2px 4px;
+            margin: 0 1px;
+        }
+
+        .token .deleted {
+            color: #dc3545;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .token .inserted {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .token .arrow {
+            color: #666;
+            margin: 0 2px;
+            font-size: 0.9em;
+        }
+
+        .errors-list {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+        }
+
+        .errors-list h3 {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .error-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #f0f0f0;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .error-type {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .error-category {
+            color: #666;
+            font-size: 0.75rem;
+        }
+
+        .category-SPELL { border-left: 3px solid #dc3545; }
+        .category-MORPH { border-left: 3px solid #007bff; }
+        .category-PUNCT { border-left: 3px solid #6c757d; }
+        .category-OTHER { border-left: 3px solid #ffc107; }
+
+        .metadata {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 12px;
+        }
+
+        .metadata span {
+            margin-right: 16px;
+        }
+
+        .keyboard-hint {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        kbd {
+            background: #eee;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+
+        /* Annotation buttons placeholder */
+        .annotation-bar {
+            display: none; /* Enable when annotation is needed */
+            gap: 8px;
+            padding: 12px;
+            background: #fff;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .annotation-bar.active {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .annotation-bar button {
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .annotation-bar button:hover {
+            background: #f0f0f0;
+        }
+
+        .annotation-bar button.selected {
+            background: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+
+        .stats {
+            font-size: 0.85rem;
+            color: #666;
+            padding: 12px;
+            background: #fff;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-bar label {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .filter-bar select {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Synterr Diff Viewer</h1>
+
+    <div class="dropzone" id="dropzone">
+        <p>Drop a JSONL file here or click to select</p>
+        <p style="font-size: 0.85rem; color: #888; margin-top: 8px;">
+            Generated with <code>result.to_jsonl()</code>
+        </p>
+        <input type="file" id="fileInput" accept=".jsonl,.json,.txt">
+    </div>
+
+    <div class="viewer" id="viewer">
+        <div class="stats" id="stats"></div>
+
+        <div class="filter-bar">
+            <label>Filter by category:</label>
+            <select id="categoryFilter">
+                <option value="">All</option>
+                <option value="SPELL">SPELL</option>
+                <option value="MORPH">MORPH</option>
+                <option value="PUNCT">PUNCT</option>
+                <option value="OTHER">OTHER</option>
+            </select>
+            <label>Error type:</label>
+            <select id="typeFilter">
+                <option value="">All</option>
+            </select>
+        </div>
+
+        <div class="nav">
+            <button id="prevBtn">&larr; Prev</button>
+            <button id="nextBtn">Next &rarr;</button>
+            <span class="counter" id="counter">0 / 0</span>
+            <input type="number" class="jump-input" id="jumpInput" min="1" placeholder="#">
+            <button id="jumpBtn">Go</button>
+            <button id="resetBtn" style="margin-left: auto;">Load new file</button>
+        </div>
+
+        <!-- Annotation bar - enable by adding 'active' class -->
+        <div class="annotation-bar" id="annotationBar">
+            <button data-label="correct">Correct</button>
+            <button data-label="incorrect">Incorrect</button>
+            <button data-label="ambiguous">Ambiguous</button>
+            <button id="exportBtn" style="margin-left: auto;">Export annotations</button>
+        </div>
+
+        <div class="card" id="sentenceCard">
+            <div class="sentence" id="sentenceDisplay"></div>
+            <div class="errors-list" id="errorsList"></div>
+            <div class="metadata" id="metadata"></div>
+        </div>
+
+        <div class="keyboard-hint">
+            <kbd>&larr;</kbd> / <kbd>&rarr;</kbd> navigate &nbsp;&nbsp;
+            <kbd>1</kbd>-<kbd>3</kbd> annotate &nbsp;&nbsp;
+            <kbd>e</kbd> toggle errors only
+        </div>
+    </div>
+
+    <script>
+        let data = [];
+        let filteredData = [];
+        let currentIndex = 0;
+        let annotations = {};
+        let errorsOnlyMode = false;
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const viewer = document.getElementById('viewer');
+        const sentenceDisplay = document.getElementById('sentenceDisplay');
+        const errorsList = document.getElementById('errorsList');
+        const metadata = document.getElementById('metadata');
+        const counter = document.getElementById('counter');
+        const stats = document.getElementById('stats');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const jumpInput = document.getElementById('jumpInput');
+        const jumpBtn = document.getElementById('jumpBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const typeFilter = document.getElementById('typeFilter');
+
+        // Drag and drop
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) loadFile(file);
+        });
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) loadFile(e.target.files[0]);
+        });
+
+        function loadFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                data = text.trim().split('\n').map((line, idx) => {
+                    try {
+                        const obj = JSON.parse(line);
+                        obj._index = idx;
+                        return obj;
+                    } catch {
+                        return null;
+                    }
+                }).filter(Boolean);
+
+                if (data.length === 0) {
+                    alert('No valid JSONL records found');
+                    return;
+                }
+
+                populateTypeFilter();
+                applyFilters();
+                dropzone.style.display = 'none';
+                viewer.classList.add('active');
+                updateStats();
+                render();
+            };
+            reader.readAsText(file);
+        }
+
+        function populateTypeFilter() {
+            const types = new Set();
+            data.forEach(item => {
+                (item.errors || []).forEach(err => {
+                    if (err.type) types.add(err.type);
+                });
+            });
+
+            typeFilter.innerHTML = '<option value="">All</option>';
+            [...types].sort().forEach(type => {
+                const opt = document.createElement('option');
+                opt.value = type;
+                opt.textContent = type;
+                typeFilter.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const cat = categoryFilter.value;
+            const type = typeFilter.value;
+
+            filteredData = data.filter(item => {
+                const errors = item.errors || [];
+
+                // If errors only mode, skip items with no errors
+                if (errorsOnlyMode && errors.length === 0) return false;
+
+                // If no filters, include all
+                if (!cat && !type) return true;
+
+                // Check if any error matches filters
+                return errors.some(err => {
+                    const catMatch = !cat || err.category === cat;
+                    const typeMatch = !type || err.type === type;
+                    return catMatch && typeMatch;
+                });
+            });
+
+            currentIndex = 0;
+            updateStats();
+            render();
+        }
+
+        function updateStats() {
+            const totalErrors = data.reduce((sum, item) => sum + (item.errors?.length || 0), 0);
+            const withErrors = data.filter(item => (item.errors?.length || 0) > 0).length;
+
+            stats.innerHTML = `
+                <strong>${data.length}</strong> sentences &nbsp;|&nbsp;
+                <strong>${withErrors}</strong> with errors &nbsp;|&nbsp;
+                <strong>${totalErrors}</strong> total errors &nbsp;|&nbsp;
+                Showing <strong>${filteredData.length}</strong> after filters
+            `;
+        }
+
+        function render() {
+            if (filteredData.length === 0) {
+                sentenceDisplay.innerHTML = '<em>No sentences match the current filters</em>';
+                errorsList.innerHTML = '';
+                metadata.innerHTML = '';
+                counter.textContent = '0 / 0';
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                return;
+            }
+
+            const item = filteredData[currentIndex];
+            const errors = item.errors || [];
+
+            // Build token display
+            const originalTokens = item.original.split(' ');
+            const corruptedTokens = item.corrupted.split(' ');
+
+            // Create error lookup by start_idx
+            const errorAt = {};
+            errors.forEach(err => {
+                errorAt[err.start_idx] = err;
+            });
+
+            // Render tokens
+            let html = '';
+            corruptedTokens.forEach((token, i) => {
+                if (errorAt[i]) {
+                    const err = errorAt[i];
+                    html += `<span class="token error">`;
+                    html += `<span class="deleted">${err.original}</span>`;
+                    html += `<span class="arrow">&rarr;</span>`;
+                    html += `<span class="inserted">${err.corrupted}</span>`;
+                    html += `</span> `;
+                } else {
+                    html += `<span class="token">${token}</span> `;
+                }
+            });
+
+            sentenceDisplay.innerHTML = html;
+
+            // Render errors list
+            if (errors.length > 0) {
+                let errHtml = '<h3>Errors</h3>';
+                errors.forEach(err => {
+                    errHtml += `
+                        <span class="error-item category-${err.category}">
+                            <span class="error-type">${err.type}</span>
+                            <span class="error-category">${err.category}</span>
+                        </span>
+                    `;
+                });
+                errorsList.innerHTML = errHtml;
+            } else {
+                errorsList.innerHTML = '<h3>No errors (clean sentence)</h3>';
+            }
+
+            // Render metadata
+            let metaHtml = '';
+            if (item.id) metaHtml += `<span>ID: ${item.id}</span>`;
+            if (item.seed !== undefined) metaHtml += `<span>Seed: ${item.seed}</span>`;
+            if (item.backend) metaHtml += `<span>Backend: ${item.backend}</span>`;
+            if (item.schema) metaHtml += `<span>Schema: ${item.schema}</span>`;
+            metaHtml += `<span>Index: ${item._index}</span>`;
+            metadata.innerHTML = metaHtml;
+
+            // Update counter
+            counter.textContent = `${currentIndex + 1} / ${filteredData.length}`;
+            jumpInput.max = filteredData.length;
+
+            // Update buttons
+            prevBtn.disabled = currentIndex === 0;
+            nextBtn.disabled = currentIndex >= filteredData.length - 1;
+
+            // Update annotation buttons
+            updateAnnotationButtons();
+        }
+
+        function updateAnnotationButtons() {
+            const item = filteredData[currentIndex];
+            if (!item) return;
+
+            const annotation = annotations[item._index];
+            document.querySelectorAll('.annotation-bar button[data-label]').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.label === annotation);
+            });
+        }
+
+        function navigate(delta) {
+            const newIndex = currentIndex + delta;
+            if (newIndex >= 0 && newIndex < filteredData.length) {
+                currentIndex = newIndex;
+                render();
+            }
+        }
+
+        function jump(idx) {
+            if (idx >= 1 && idx <= filteredData.length) {
+                currentIndex = idx - 1;
+                render();
+            }
+        }
+
+        function annotate(label) {
+            const item = filteredData[currentIndex];
+            if (!item) return;
+
+            if (annotations[item._index] === label) {
+                delete annotations[item._index];
+            } else {
+                annotations[item._index] = label;
+            }
+            updateAnnotationButtons();
+        }
+
+        function exportAnnotations() {
+            const result = data.map((item, idx) => ({
+                ...item,
+                annotation: annotations[idx] || null
+            })).filter(item => item.annotation);
+
+            const blob = new Blob([result.map(r => JSON.stringify(r)).join('\n')],
+                                  {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'annotations.jsonl';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Event listeners
+        prevBtn.addEventListener('click', () => navigate(-1));
+        nextBtn.addEventListener('click', () => navigate(1));
+        jumpBtn.addEventListener('click', () => jump(parseInt(jumpInput.value)));
+        jumpInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') jump(parseInt(jumpInput.value));
+        });
+
+        resetBtn.addEventListener('click', () => {
+            data = [];
+            filteredData = [];
+            currentIndex = 0;
+            annotations = {};
+            viewer.classList.remove('active');
+            dropzone.style.display = 'block';
+            fileInput.value = '';
+        });
+
+        categoryFilter.addEventListener('change', applyFilters);
+        typeFilter.addEventListener('change', applyFilters);
+
+        // Annotation buttons
+        document.querySelectorAll('.annotation-bar button[data-label]').forEach(btn => {
+            btn.addEventListener('click', () => annotate(btn.dataset.label));
+        });
+        document.getElementById('exportBtn')?.addEventListener('click', exportAnnotations);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+
+            switch (e.key) {
+                case 'ArrowLeft':
+                    navigate(-1);
+                    break;
+                case 'ArrowRight':
+                    navigate(1);
+                    break;
+                case '1':
+                    annotate('correct');
+                    break;
+                case '2':
+                    annotate('incorrect');
+                    break;
+                case '3':
+                    annotate('ambiguous');
+                    break;
+                case 'e':
+                    errorsOnlyMode = !errorsOnlyMode;
+                    applyFilters();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
