@@ -64,10 +64,16 @@ class ErrorResult:
         error_type: Specific error identifier (e.g., "noun_case", "spelling_vowel")
         category: Detection category (SPELL, MORPH, PUNCT, OTHER)
         start_idx: Start token index (inclusive)
-        end_idx: End token index (exclusive)
+        end_idx: End token index (exclusive). For single-token errors, end_idx = start_idx + 1.
+            Multi-token spans are reserved for future M2 format support.
         original: Original text
         corrupted: Corrupted text
         fix_tag: GECToR correction tag (e.g., "$REPLACE_word", "$TRANSFORM_CASE_Nom")
+
+    Note:
+        Currently _format_output() only uses start_idx for GECToR output (token-by-token format).
+        Handlers should still set end_idx correctly for future span-aware output formats (M2).
+        For multi-token errors, GECToR output decomposes the span into per-token tags.
     """
 
     error_type: str
