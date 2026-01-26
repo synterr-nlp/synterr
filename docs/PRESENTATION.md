@@ -463,6 +463,151 @@ class SpellingErrorHandler:
 
 ---
 
+# Schemas: Why Do We Need Them?
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     THE PROBLEM: ERROR TAXONOMIES                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Different corpora use different error classification systems:          │
+│                                                                         │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
+│  │ RLC (Russian    │  │ RULEC-GEC       │  │ ERRANT          │         │
+│  │ Learner Corpus) │  │ (Rozovskaya)    │  │ (Bryant et al.) │         │
+│  ├─────────────────┤  ├─────────────────┤  ├─────────────────┤         │
+│  │ 35 primary tags │  │ 17 error types  │  │ 25 error types  │         │
+│  │ 3 modifiers     │  │ freq-based      │  │ edit-based      │         │
+│  │ linguistics     │  │ GEC-focused     │  │ multilingual    │         │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘         │
+│                                                                         │
+│  Same error, different labels:                                          │
+│  ─────────────────────────────────                                      │
+│  "молоко → малако" (vowel reduction)                                   │
+│    RLC:       Ortho                                                     │
+│    RULEC:     spelling                                                  │
+│    ERRANT:    SPELL                                                     │
+│                                                                         │
+│  synterr SOLUTION: Pluggable schemas with handler → tag mappings        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# Schemas: Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          SCHEMA SYSTEM                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  HANDLERS (HOW to corrupt)          SCHEMAS (WHAT to call it)           │
+│  ═════════════════════════          ═════════════════════════           │
+│                                                                         │
+│  SpellingErrorHandler               rlc.yaml:                           │
+│  ├── vowel_reduction ─────────────────→ Ortho                           │
+│  ├── devoicing ───────────────────────→ Ortho                           │
+│  ├── prefix_voicing ──────────────────→ Ortho                           │
+│  ├── tsa_confusion ───────────────────→ Ortho                           │
+│  ├── keyboard ────────────────────────→ Misspell  ← different!          │
+│  └── ...                                                                │
+│                                                                         │
+│  NounCaseHandler                                                        │
+│  └── noun_case ───────────────────────→ Gov                             │
+│                                                                         │
+│  AdjCaseHandler                                                         │
+│  └── adj_case ────────────────────────→ AgrCase                         │
+│                                                                         │
+│  ─────────────────────────────────────────────────────────────────────  │
+│                                                                         │
+│  KEY INSIGHT: Ortho ≠ Misspell                                          │
+│    - Ortho: phonetic rules (learner writes what they hear)              │
+│    - Misspell: random typos (motor errors)                              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# Schemas: Available Options
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       AVAILABLE SCHEMAS                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  synterr (default)                  rlc                                 │
+│  ══════════════════                 ═══                                 │
+│  14 simple tags                     35 primary + 3 modifiers            │
+│  Backward compatible                Full RLC taxonomy                   │
+│  Good for quick prototyping         For linguistic research             │
+│                                                                         │
+│  Tags: SPELL, MORPH, GOV,           Tags: Ortho, Misspell, Gov,        │
+│        AGR_CASE, AGR_NUM, ...             AgrCase, AgrNum, Tense, ...  │
+│                                                                         │
+│  ─────────────────────────────────────────────────────────────────────  │
+│                                                                         │
+│  WHERE TO GET SCHEMAS:                                                  │
+│  ─────────────────────                                                  │
+│  1. Built-in: synterr, rlc (src/synterr/schemas/data/)                 │
+│  2. Custom YAML: synterr generate --schema ./my_schema.yaml            │
+│  3. Future: ERRANT schema, M2 schema                                    │
+│                                                                         │
+│  WHY USE RLC?                                                           │
+│  ─────────────                                                          │
+│  - Published taxonomy (LREC 2024)                                       │
+│  - Fine-grained linguistic distinctions                                 │
+│  - Comparable to other Russian GEC research                             │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# Subtype Filtering (NEW in v0.1.2)
+
+```python
+# Problem: "spelling" includes both phonetic AND typos
+# Solution: Filter by handler:subtype OR schema tag
+
+# ══════════════════════════════════════════════════════════════════════════
+# METHOD 1: Handler:subtype syntax (internal, readable)
+# ══════════════════════════════════════════════════════════════════════════
+
+synterr corrupt -l ru -e spelling:vowel_reduction "Молоко"
+# → Молако (only vowel reduction, no typos)
+
+synterr corrupt -l ru -e spelling:keyboard "Привет"
+# → Прмвет (only keyboard typos)
+
+# ══════════════════════════════════════════════════════════════════════════
+# METHOD 2: Schema tag filtering (for RLC taxonomy)
+# ══════════════════════════════════════════════════════════════════════════
+
+synterr corrupt -l ru -e Ortho --schema rlc "Молоко"
+# → Uses all Ortho-mapped subtypes: vowel_reduction, devoicing, tsa_confusion...
+# → Does NOT use keyboard (mapped to Misspell)
+
+synterr corrupt -l ru -e Misspell --schema rlc "Привет"
+# → Uses only keyboard subtype
+
+# ══════════════════════════════════════════════════════════════════════════
+# LIST AVAILABLE SUBTYPES
+# ══════════════════════════════════════════════════════════════════════════
+
+synterr list-errors -l ru
+# [SPELL]
+#   spelling: weight=0.475
+#     - spelling:vowel_reduction
+#     - spelling:devoicing
+#     - spelling:prefix_voicing
+#     - spelling:keyboard
+#     ...
+```
+
+---
+
 # Schema: Dataclasses
 
 ```python
@@ -1130,13 +1275,14 @@ python predict.py \
 
 1. **Pluggable schemas** — RLC (35+3), synterr (14)
 2. **Handler subtypes** — fine-grained error types (13 total)
-3. **Tagged corruption API** — `apply_error(text, tag)`
-4. **Stress-based spelling** — correct vowel reduction
-5. **Capitalization preservation** — `Мама → Маме` not `мамы`
-6. **Multiple backends** — stanza/natasha/spacy
-7. **Output formats** — GECToR, TSV, JSONL, diff (NEW)
-8. **Configurable subtype weights** — via preset YAML (NEW)
-9. **Diff viewer** — `tools/diff_viewer.html` (NEW)
+3. **Subtype filtering** — `-e spelling:vowel_reduction` or `-e Ortho --schema rlc` (NEW)
+4. **Tagged corruption API** — `apply_error(text, tag)`
+5. **Stress-based spelling** — correct vowel reduction
+6. **Capitalization preservation** — `Мама → Маме` not `мамы`
+7. **Multiple backends** — stanza/natasha/spacy (benchmarked on M4 Pro)
+8. **Output formats** — GECToR, TSV, JSONL, diff (NEW)
+9. **Configurable subtype weights** — via preset YAML (NEW)
+10. **Diff viewer** — `tools/diff_viewer.html` (NEW)
 
 ## Metrics
 
@@ -1176,6 +1322,9 @@ LOC:          ~4k Python
 │                                                                         │
 │   Try it:                                                               │
 │     uv run synterr corrupt -l ru -e spelling "Молоко на столе"         │
+│     uv run synterr corrupt -l ru -e spelling:vowel_reduction "Молоко"  │
+│     uv run synterr corrupt -l ru -e Ortho --schema rlc "Молоко"        │
+│     uv run synterr list-errors -l ru                                   │
 │     uv run synterr coverage --lang ru --schema rlc                     │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
