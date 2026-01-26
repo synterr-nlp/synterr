@@ -745,7 +745,7 @@ class SpellingErrorHandler:
 │  ─────────────────────                                                  │
 │  1. Built-in: synterr, rlc (src/synterr/schemas/data/)                 │
 │  2. Custom YAML: synterr generate --schema ./my_schema.yaml            │
-│  3. Future: ERRANT schema, M2 schema                                    │
+│  3. Future: ERRANT schema (25-type taxonomy), LORuGEC schema (48 rules) │
 │                                                                         │
 │  WHY USE RLC?                                                           │
 │  ─────────────                                                          │
