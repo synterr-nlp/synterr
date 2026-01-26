@@ -121,37 +121,123 @@
 
 ---
 
-# LORuGEC: Rule-Annotated Evaluation (Dialogue 2025)
+# Russian GEC Datasets Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│          LORuGEC: 48 RULES THAT ARE HARD FOR LLMs                       │
+│                    RUSSIAN GEC CORPORA LANDSCAPE                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  PUNCTUATION (~20 rules)           SPELLING (~20 rules)                 │
-│  ════════════════════════          ═══════════════════                  │
-│  • Запятая внутри фразеологизмов   • чтобы / что бы                    │
-│  • Тире между подл. и сказ.        • причём / при чём                  │
-│  • Запятая между однор. придат.    • зато / за то                      │
-│  • Тире в бессоюзных предл.        • оттого / от того                  │
-│  • Обособление деепричастий        • не + глагол/прилаг./сущ.          │
-│  • Запятая на стыке союзов         • частица -таки                     │
-│  • Запятая перед "как"             • приставки пре-/при-               │
-│                                    • разд. ъ и ь                       │
-│                                    • числ. пол-/полу-                  │
-│                                    • суффиксы -ек/-ик, -иц/-ец         │
-│                                                                         │
-│  GRAMMAR (~8 rules)                                                     │
-│  ══════════════════                                                     │
-│  • Согласование причастий          • Склонение числительных            │
-│  • Гласные в суффиксах причастий   • полтора/полторы/полтораста        │
+│  Corpus       Sentences  Source           Error Types   Purpose         │
+│  ═══════════  ═════════  ═══════════════  ══════════    ═══════════     │
+│  RULEC-GEC    12,480     L2/heritage      23 types      Train + eval    │
+│  RU-Lang8     4,412      Lang8 crowdsorc  RULEC-derived Train + eval    │
+│  GERA         5,500      L1 school texts  Fine-grained  Train + eval    │
+│  LORuGEC      960        Rule-based       48 rules      Eval only!      │
+│  RLC          15,000+    L2 essays        38 tags       Research        │
+│                                                         (not public)    │
 │                                                                         │
 │  ─────────────────────────────────────────────────────────────────────  │
 │                                                                         │
-│  SYNTERR CONNECTION:                                                    │
-│  These 48 rules = PRIORITY for handler development!                     │
-│  Current coverage: чтобы (tsa_confusion?), ъ/ь (soft_sign) ← partial   │
-│  TODO: Add spelling handlers for притом/причём, зато, пол-, пре-/при-  │
+│  KEY DIFFERENCES:                                                       │
+│  ────────────────                                                       │
+│  • RULEC-GEC: L2 learners (foreigners + heritage) — case/spelling      │
+│  • GERA: L1 natives (school essays) — punctuation/spelling             │
+│  • LORuGEC: Artificial (rule-targeted) — diagnostic, hard cases        │
+│  • RLC: Linguistic research — error CAUSES, not just types             │
+│                                                                         │
+│  FOR SYNTERR:                                                           │
+│  ────────────                                                           │
+│  • Train on: RULEC-GEC + GERA distributions                            │
+│  • Evaluate on: LORuGEC (diagnostic), RULEC-GEC test                   │
+│  • Schema from: RLC taxonomy (most linguistically motivated)           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# LORuGEC: Specific Rules vs Categories
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│         LORuGEC vs SYNTERR: DIFFERENT GRANULARITY                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  LORuGEC (48 rules)                 synterr (8 handlers)                │
+│  ══════════════════                 ════════════════════                │
+│  "чтобы vs что бы"  ←───────────→   spelling (category)                │
+│  "причём vs при чём" ←──────────→     └── 8 subtypes                   │
+│  "зато vs за то"                                                        │
+│  (specific lexemes)                 (generalizable patterns)            │
+│                                                                         │
+│  ─────────────────────────────────────────────────────────────────────  │
+│                                                                         │
+│  LORuGEC 48 RULES BREAKDOWN:                                            │
+│  ═══════════════════════════                                            │
+│                                                                         │
+│  Spelling (25 rules):                                                   │
+│  ├── Specific lexemes (~10): чтобы, также, причём, зато, оттого...    │
+│  │   └── Too narrow for synterr — need lexical lookup, not patterns    │
+│  ├── Patterns (~12): пре-/при-, пол-, не+POS, -таки, н/нн...          │
+│  │   └── SYNTERR CAN DO! Generalizable phonetic/morpho rules           │
+│  └── Other (~3): ы/и after prefixes, suffix spelling                   │
+│                                                                         │
+│  Punctuation (17 rules): ← NOT SYNTERR'S DOMAIN                        │
+│  └── Commas, dashes, colons — requires syntactic analysis              │
+│                                                                         │
+│  Grammar (4 rules): ← SYNTERR CAN DO (partially)                       │
+│  └── Numeral declension, participle agreement, government              │
+│                                                                         │
+│  Semantics (2 rules): ← HARD                                           │
+│  └── Collocations, pleonasms — needs lexical resources                 │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# LORuGEC: What synterr CAN and CANNOT Do
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│              LORUGEC RULES × SYNTERR COVERAGE                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ✅ CAN IMPLEMENT (pattern-based):                                      │
+│  ─────────────────────────────────                                      │
+│  • пре-/при- prefix confusion      → Add prefix_pre_pri handler        │
+│  • пол-/полу- spelling             → Add pol_prefix handler            │
+│  • не + POS (generalizable)        → Add ne_spelling handler           │
+│  • н/нн in adjective suffixes      → Add suffix_nn handler             │
+│  • ы/и after prefixes              → Add prefix_yi handler             │
+│  • Numeral declension              → Extend morphological handlers     │
+│  • Participle agreement            → With depparse (v0.3+)             │
+│                                                                         │
+│  ⚠️  PARTIALLY COVERED:                                                 │
+│  ────────────────────────                                               │
+│  • -тся/-ться                      → tsa_confusion (already have!)     │
+│  • ъ/ь separation                  → soft_sign (already have!)         │
+│  • -таки hyphenation               → Needs new handler                 │
+│                                                                         │
+│  ❌ CANNOT IMPLEMENT (lexeme-specific):                                 │
+│  ──────────────────────────────────────                                 │
+│  • чтобы/что бы                    → Specific word, not pattern        │
+│  • причём/притом vs при чём/том    → Specific word, not pattern        │
+│  • зато vs за то                   → Specific word, not pattern        │
+│  • оттого vs от того               → Specific word, not pattern        │
+│  → These need LEXICAL LOOKUP, not morphological generation!            │
+│                                                                         │
+│  ❌ OUT OF SCOPE:                                                       │
+│  ────────────────                                                       │
+│  • All punctuation rules (17)      → Different system needed           │
+│  • Collocations, pleonasms (2)     → Lexical semantics                 │
+│                                                                         │
+│  ─────────────────────────────────────────────────────────────────────  │
+│                                                                         │
+│  STRATEGY: Use LORuGEC as EVALUATION — does synthetic data help        │
+│  models learn these specific rules? Even if we don't generate them     │
+│  directly, good morphological training may transfer!                   │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
