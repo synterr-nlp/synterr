@@ -70,11 +70,13 @@ Full list: `synterr list-errors -l ru`
 
 ## Backends
 
-| Backend | Speed | Accuracy | Install |
-|---------|-------|----------|---------|
-| stanza (default) | ~90 sent/s | Best | `pip install synterr[russian]` |
-| natasha | ~500 sent/s | Good | `pip install synterr[natasha]` |
-| spacy | ~300 sent/s | Good | `pip install synterr[spacy]` |
+| Backend | Speed (single) | Speed (batch) | Accuracy | Install |
+|---------|----------------|---------------|----------|---------|
+| stanza (default) | ~75 sent/s | ~500 sent/s | Best | `pip install synterr[russian]` |
+| natasha | ~1700 sent/s | ~1700 sent/s | Good | `pip install synterr[natasha]` |
+| spacy | ~530 sent/s | ~760 sent/s | Good | `pip install synterr[spacy]` |
+
+*Benchmarked on M4 Pro. Batch mode uses `generate_batch()` / `analyze_batch()`.*
 
 ## Presets
 
