@@ -16,8 +16,6 @@ class TestAdjustIndicesForLengthChange:
     @pytest.fixture
     def pipeline(self):
         """Create a pipeline instance for testing."""
-        # Use minimal config to avoid loading language module
-        config = GenerationConfig(error_probability=0.0)
         # We need to mock the language module for the pipeline
         # but we can test the helper method directly
         return None
@@ -338,7 +336,7 @@ class TestGenerateAndGenerateBatchParity:
         assert single_result.corrupted_tokens == batch_result.corrupted_tokens
         assert len(single_result.errors) == len(batch_result.errors)
 
-        for single_err, batch_err in zip(single_result.errors, batch_result.errors):
+        for single_err, batch_err in zip(single_result.errors, batch_result.errors, strict=True):
             assert single_err.error_type == batch_err.error_type
             assert single_err.start_idx == batch_err.start_idx
             assert single_err.fix_tag == batch_err.fix_tag

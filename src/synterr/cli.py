@@ -166,24 +166,26 @@ def cmd_coverage(lang: str, schema: str) -> None:
     click.echo(f"Schema: {sch.name} v{sch.version}")
     click.echo(f"Description: {sch.description}")
     click.echo()
-    click.echo(f"Coverage: {report['covered_tags']}/{report['total_tags']} tags ({report['coverage_percent']}%)")
+    click.echo(
+        f"Coverage: {report['covered_tags']}/{report['total_tags']} tags ({report['coverage_percent']}%)"
+    )
     click.echo()
 
-    if report['covered_tag_names']:
+    if report["covered_tag_names"]:
         click.echo("Covered tags:")
-        for tag in report['covered_tag_names']:
+        for tag in report["covered_tag_names"]:
             click.echo(f"  ✓ {tag}")
         click.echo()
 
-    if report['uncovered_tag_names']:
+    if report["uncovered_tag_names"]:
         click.echo("Uncovered tags (no handler mapping):")
-        for tag in report['uncovered_tag_names']:
+        for tag in report["uncovered_tag_names"]:
             click.echo(f"  ✗ {tag}")
         click.echo()
 
-    if report['unmapped_subtypes']:
+    if report["unmapped_subtypes"]:
         click.echo("Handler subtypes not in schema:")
-        for subtype in report['unmapped_subtypes']:
+        for subtype in report["unmapped_subtypes"]:
             click.echo(f"  ? {subtype}")
 
 
@@ -293,7 +295,9 @@ def cmd_corrupt(
 @click.option("--output", "-o", "output_path", type=click.Path(), required=True)
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--preset", "-p", help="Use preset config (e.g., rulec, gera, balanced)")
-@click.option("--config", "-c", "config_path", type=click.Path(exists=True), help="Custom YAML config")
+@click.option(
+    "--config", "-c", "config_path", type=click.Path(exists=True), help="Custom YAML config"
+)
 @click.option("--schema", help="Linguistic schema (synterr, rlc, or path to YAML)")
 @click.option("--errors", "-e", help="Comma-separated error types (default: all)")
 @click.option("--weights", "-w", help="JSON weights dict, e.g., '{\"spelling\": 0.5}'")

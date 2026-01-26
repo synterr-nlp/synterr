@@ -216,7 +216,9 @@ class GeneratedSentence:
             if i in error_at:
                 err = error_at[i]
                 if err.original != err.corrupted:
-                    parts.append(f"{del_start}{err.original}{del_end}{ins_start}{err.corrupted}{ins_end}")
+                    parts.append(
+                        f"{del_start}{err.original}{del_end}{ins_start}{err.corrupted}{ins_end}"
+                    )
                 else:
                     parts.append(token)
             else:
@@ -465,9 +467,7 @@ class ErrorPipeline:
                     # Adjust prior error indices for the length change
                     change_idx, delta = self._get_length_change_info(result, idx)
                     if delta != 0:
-                        errors = self._adjust_indices_for_length_change(
-                            errors, change_idx, delta
-                        )
+                        errors = self._adjust_indices_for_length_change(errors, change_idx, delta)
                     errors.append(result)
 
         return sentence, errors
@@ -532,10 +532,7 @@ class ErrorPipeline:
             # Extract subtype from error_type
             # For spelling: "spelling_vowel_reduction" -> "vowel_reduction"
             # For morphological: "noun_case" -> "noun_case"
-            if error_type.startswith("spelling_"):
-                subtype = error_type[9:]  # Remove "spelling_" prefix
-            else:
-                subtype = error_type
+            subtype = error_type[9:] if error_type.startswith("spelling_") else error_type
 
             schema_category = self.schema.get_detection_category(subtype)
             if schema_category != "OTHER" or subtype in self.schema.mappings:

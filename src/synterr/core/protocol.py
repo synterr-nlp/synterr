@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
-
-import random
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

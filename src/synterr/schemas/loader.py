@@ -312,9 +312,7 @@ def load_schema(name_or_path: str) -> Schema:
         path = Path(name_or_path)
     else:
         available = list_schemas()
-        raise ValueError(
-            f"Schema not found: {name_or_path}. " f"Available: {', '.join(available)}"
-        )
+        raise ValueError(f"Schema not found: {name_or_path}. Available: {', '.join(available)}")
 
     with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
