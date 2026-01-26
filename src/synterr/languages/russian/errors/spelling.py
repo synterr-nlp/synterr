@@ -220,11 +220,11 @@ class SpellingErrorHandler:
         "soft_sign",
     ]
 
-    # Error type weights (based on corpus analysis)
-    ERROR_WEIGHTS = {
+    # Default subtype weights (used if not overridden by config)
+    DEFAULT_WEIGHTS = {
         'vowel_reduction': 30,
         'devoicing': 10,
-        'prefix_voicing': 15,  # Common spelling rule error
+        'prefix_voicing': 15,
         'tsa_confusion': 25,
         'cluster': 10,
         'double_consonant': 5,
@@ -235,6 +235,25 @@ class SpellingErrorHandler:
     def __init__(self):
         self._stress_dict: dict[str, int] | None = None
         self._keyboard_upper: dict[str, list[str]] | None = None
+        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+
+    @property
+    def weights(self) -> dict[str, float]:
+        """Get current subtype weights."""
+        return self._weights
+
+    def set_subtype_weights(self, weights: dict[str, float]) -> None:
+        """Set custom subtype weights from config.
+
+        Args:
+            weights: Dict mapping subtype names to weights.
+                     Missing subtypes keep their default weights.
+        """
+        # Start with defaults, then override with provided weights
+        self._weights = self.DEFAULT_WEIGHTS.copy()
+        for subtype, weight in weights.items():
+            if subtype in self._weights:
+                self._weights[subtype] = weight
 
     @property
     def stress_dict(self) -> dict[str, int]:
@@ -292,11 +311,11 @@ class SpellingErrorHandler:
     def _corrupt(self, word: str, rng: Random | None = None) -> PhoneticError | None:
         """Corrupt a word with a spelling error."""
         rng = rng if rng is not None else random_module
-        methods = list(self.ERROR_WEIGHTS.keys())
+        methods = list(self.weights.keys())
 
         # Weighted shuffle - sort by random * weight for probabilistic ordering
         rng.shuffle(methods)
-        methods.sort(key=lambda m: rng.random() * self.ERROR_WEIGHTS[m], reverse=True)
+        methods.sort(key=lambda m: rng.random() * self.weights[m], reverse=True)
 
         for method_name in methods:
             result = self._apply_method(word, method_name, rng)

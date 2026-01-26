@@ -39,6 +39,9 @@ class GenerationConfig:
         label_format: Output label format ('original', 'binary', 'multiclass')
         enabled_errors: Set of error handler names to use (None = all)
         error_weights: Custom weights for error types (overrides language default)
+        subtype_weights: Custom weights for error subtypes within handlers
+            Format: {"handler_name": {"subtype": weight, ...}, ...}
+            Example: {"spelling": {"vowel_reduction": 30, "tsa_confusion": 25}}
         backend: NLP backend to use (None = language default)
         schema: Linguistic schema name or path (e.g., 'synterr', 'rlc')
     """
@@ -50,6 +53,7 @@ class GenerationConfig:
     label_format: str = "multiclass"
     enabled_errors: set[str] | None = None
     error_weights: dict[str, float] | None = None
+    subtype_weights: dict[str, dict[str, float]] | None = None
     backend: str | None = None
     schema: str | None = None
 
@@ -96,6 +100,7 @@ class GenerationConfig:
             use_depparse=data.get("use_depparse", False),
             label_format=data.get("label_format", "multiclass"),
             error_weights=data.get("weights"),
+            subtype_weights=data.get("subtype_weights"),
             backend=data.get("backend"),
             schema=data.get("schema"),
         )
@@ -279,13 +284,23 @@ class ErrorPipeline:
 
     @property
     def handlers(self) -> list[ErrorHandler]:
-        """Get filtered error handlers."""
+        """Get filtered error handlers with subtype weights applied."""
         if self._handlers is None:
             all_handlers = self.language.get_error_handlers()
             if self.config.enabled_errors is not None:
                 self._handlers = [h for h in all_handlers if h.name in self.config.enabled_errors]
             else:
                 self._handlers = all_handlers
+
+            # Apply subtype weights from config to handlers that support them
+            if self.config.subtype_weights:
+                for handler in self._handlers:
+                    if handler.name in self.config.subtype_weights:
+                        weights = self.config.subtype_weights[handler.name]
+                        # Call set_subtype_weights if handler supports it
+                        if hasattr(handler, "set_subtype_weights"):
+                            handler.set_subtype_weights(weights)
+
         return self._handlers
 
     @property
