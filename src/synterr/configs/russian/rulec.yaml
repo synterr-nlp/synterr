@@ -29,6 +29,20 @@ weights:
   verb_person_number: 0.052  # 2.4%
   verb_tense: 0.023          # 1.0%
 
+# Subtype weights within handlers
+# These control the distribution of error subtypes when a handler is selected.
+# Values are relative weights (not probabilities) - higher = more likely.
+subtype_weights:
+  spelling:
+    vowel_reduction: 30     # Unstressed vowel confusion (аканье/иканье)
+    tsa_confusion: 25       # -тся/-ться confusion (most common)
+    prefix_voicing: 15      # из-/ис-, раз-/рас- prefix errors
+    devoicing: 10           # Word-final devoicing (город → горот)
+    cluster: 10             # Consonant cluster simplification
+    double_consonant: 5     # Double consonant errors
+    keyboard: 3             # Keyboard typos
+    soft_sign: 2            # Soft sign errors
+
 # Unimplemented error types (for reference)
 # These are significant in RULEC-GEC but not yet in synterr:
 #
