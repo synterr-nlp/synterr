@@ -1,4 +1,4 @@
-# synterr v0.1.0
+# synterr v0.1.2
 ## Генератор синтетических ошибок для GEC
 
 *Анна Смирнова | Январь 2026*
@@ -55,7 +55,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                              synterr v0.1.0                             │
+│                              synterr v0.1.2                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                 │
@@ -105,7 +105,7 @@ src/synterr/
         │   ├── natasha_backend.py  # Fast, lightweight
         │   └── spacy_backend.py    # spacy-ru
         └── errors/
-            ├── spelling.py         # 7 subtypes
+            ├── spelling.py         # 8 subtypes
             └── morphological.py    # 7 handlers
 ```
 
@@ -262,15 +262,15 @@ BACKENDS = {
 
 DEFAULT_BACKEND = "stanza"
 
-# Performance comparison (sentences/sec on M1 Mac):
+# Performance comparison (sentences/sec on M4 Pro):
 #
-# ┌──────────┬─────────┬──────────┬───────────────────────────┐
-# │ Backend  │ Speed   │ Accuracy │ Notes                     │
-# ├──────────┼─────────┼──────────┼───────────────────────────┤
-# │ stanza   │ ~92/s   │ Best     │ SynTagRus-trained neural  │
-# │ natasha  │ ~500/s  │ Good     │ Navec embeddings, light   │
-# │ spacy    │ ~200/s  │ Good     │ spacy-ru, good depparse   │
-# └──────────┴─────────┴──────────┴───────────────────────────┘
+# ┌──────────┬──────────┬──────────┬──────────┬──────────────────────────┐
+# │ Backend  │ Single   │ Batch    │ Accuracy │ Notes                    │
+# ├──────────┼──────────┼──────────┼──────────┼──────────────────────────┤
+# │ stanza   │ ~75/s    │ ~500/s   │ Best     │ SynTagRus-trained neural │
+# │ natasha  │ ~1700/s  │ ~1700/s  │ Good     │ Navec embeddings, light  │
+# │ spacy    │ ~530/s   │ ~760/s   │ Good     │ spacy-ru, good depparse  │
+# └──────────┴──────────┴──────────┴──────────┴──────────────────────────┘
 
 # CLI selection:
 # synterr generate --lang ru --backend natasha -i ... -o ...
@@ -434,6 +434,7 @@ class SpellingErrorHandler:
     subtypes = [
         "vowel_reduction",    # молоко → малако
         "devoicing",          # гриб → грип (final devoicing)
+        "prefix_voicing",     # расписать → разписать (из-/ис-, раз-/рас-)
         "tsa_confusion",      # цирк → цырк (ци/цы confusion)
         "cluster",            # солнце → сонце (silent consonant)
         "double_consonant",   # касса → каса
@@ -443,21 +444,21 @@ class SpellingErrorHandler:
     category = "SPELL"
     changes_length = False
 
-    # Internal weights for subtype sampling
-    ERROR_WEIGHTS = {
-        "vowel_reduction": 0.35,
-        "keyboard": 0.25,
-        "devoicing": 0.15,
-        "double_consonant": 0.10,
-        "soft_sign": 0.05,
-        "tsa_confusion": 0.05,
-        "cluster": 0.05,
+    # Weights configurable via preset YAML (subtype_weights section)
+    DEFAULT_WEIGHTS = {
+        "vowel_reduction": 30,
+        "tsa_confusion": 25,
+        "prefix_voicing": 15,
+        "devoicing": 10,
+        "cluster": 10,
+        "double_consonant": 5,
+        "keyboard": 3,
+        "soft_sign": 2,
     }
 
-    def _sample_error_type(self) -> str:
-        types = list(self.ERROR_WEIGHTS.keys())
-        weights = list(self.ERROR_WEIGHTS.values())
-        return random.choices(types, weights=weights, k=1)[0]
+    def set_subtype_weights(self, weights: dict[str, int]) -> None:
+        """Override default weights from config."""
+        self._weights = weights
 ```
 
 ---
@@ -845,6 +846,42 @@ Fix tag:   $TRANSFORM_CASE_Acc
 
 ---
 
+# Output Formats (NEW in v0.1.2)
+
+```python
+# src/synterr/core/pipeline.py
+
+result = pipeline.generate("Мама мыла раму.")
+
+# GECToR format (default) — for training
+result.formatted
+# "$STARTSEPL|||SEPR$KEEP:CORRECT МамаSEPL|||SEPR..."
+
+# TSV — parallel text for seq2seq models
+result.to_tsv()
+# "Мама мыла раму\tМама мыла раме"
+
+# JSONL — rich format with metadata
+result.to_jsonl(id="001", seed=42, schema="rlc")
+# {"original": "Мама мыла раму", "corrupted": "Мама мыла раме",
+#  "errors": [{"type": "noun_case", "category": "MORPH", ...}], ...}
+
+# Diff — human-readable with highlighting
+result.to_diff()
+# "Мама мыла [-раму-]{+раме+}"
+
+result.to_diff(use_color=True)
+# ANSI-colored: red deletions, green insertions
+```
+
+**Diff Viewer** (`tools/diff_viewer.html`):
+- Drag-drop JSONL loading
+- Token-level error highlighting
+- Filter by category/type
+- Keyboard navigation (↑/↓)
+
+---
+
 # Language Discovery: Entry Points
 
 ```python
@@ -1059,14 +1096,16 @@ python predict.py \
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         PERFORMANCE NOTES                               │
+│                    PERFORMANCE NOTES (M4 Pro benchmarks)                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  Bottleneck: Morphological analysis (stanza)                           │
+│  Backend speeds (sentences/sec):                                        │
 │  ─────────────────────────────────────────────                         │
-│  - ~92 sentences/sec on M1 Mac                                         │
-│  - Batch processing amortizes model loading                            │
-│  - GPU acceleration available (stanza)                                 │
+│  │ Backend  │ Single   │ Batch    │ Accuracy │                         │
+│  ├──────────┼──────────┼──────────┼──────────┤                         │
+│  │ stanza   │ ~75/s    │ ~500/s   │ Best     │ ← 7x faster in batch!   │
+│  │ natasha  │ ~1700/s  │ ~1700/s  │ Good     │ ← Fastest               │
+│  │ spacy    │ ~530/s   │ ~760/s   │ Good     │                         │
 │                                                                         │
 │  Memory:                                                                │
 │  ─────────────────────────────────────────────                         │
@@ -1074,16 +1113,11 @@ python predict.py \
 │  - pymorphy3: ~100MB (dictionary)                                      │
 │  - stress_dict: ~5MB (50k words)                                       │
 │                                                                         │
-│  Throughput:                                                            │
+│  Throughput (100k sentences, batch mode):                               │
 │  ─────────────────────────────────────────────                         │
-│  - 100k sentences: ~18 min (stanza)                                    │
-│  - 100k sentences: ~3 min (natasha)                                    │
-│                                                                         │
-│  Parallelization:                                                       │
-│  ─────────────────────────────────────────────                         │
-│  - Batch size configurable (--batch-size)                              │
-│  - stanza supports GPU batching                                        │
-│  - Future: multiprocessing for CPU                                     │
+│  - stanza:  ~3.5 min                                                   │
+│  - natasha: ~1 min                                                     │
+│  - spacy:   ~2 min                                                     │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1092,19 +1126,22 @@ python predict.py \
 
 # Summary
 
-## v0.1.0 Features
+## v0.1.2 Features
 
 1. **Pluggable schemas** — RLC (35+3), synterr (14)
-2. **Handler subtypes** — fine-grained error types
+2. **Handler subtypes** — fine-grained error types (13 total)
 3. **Tagged corruption API** — `apply_error(text, tag)`
 4. **Stress-based spelling** — correct vowel reduction
 5. **Capitalization preservation** — `Мама → Маме` not `мамы`
 6. **Multiple backends** — stanza/natasha/spacy
+7. **Output formats** — GECToR, TSV, JSONL, diff (NEW)
+8. **Configurable subtype weights** — via preset YAML (NEW)
+9. **Diff viewer** — `tools/diff_viewer.html` (NEW)
 
 ## Metrics
 
 ```
-Handlers:     8 (12 subtypes)
+Handlers:     8 (13 subtypes)
 Schemas:      2 (synterr, rlc)
 RLC coverage: 25.7% → 40% (after Artem)
 LOC:          ~4k Python
@@ -1132,13 +1169,14 @@ LOC:          ~4k Python
 │     src/synterr/languages/russian/     # Handlers, backends            │
 │                                                                         │
 │   Docs:                                                                 │
-│     CONTRIBUTING.ru.md                 # Developer guide               │
+│     docs/CONTRIBUTING.ru.md            # Developer guide               │
 │     docs/ARTEM_TASKS.md                # v0.2.0 tasks                  │
-│     VERSIONING.md                      # Roadmap                       │
+│     docs/VERSIONING.md                 # Roadmap                       │
+│     tools/diff_viewer.html             # Error inspection UI           │
 │                                                                         │
 │   Try it:                                                               │
-│     synterr corrupt --lang ru -e spelling "Молоко на столе"            │
-│     synterr coverage --lang ru --schema rlc                            │
+│     uv run synterr corrupt -l ru -e spelling "Молоко на столе"         │
+│     uv run synterr coverage --lang ru --schema rlc                     │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
