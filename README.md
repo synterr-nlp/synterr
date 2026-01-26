@@ -14,24 +14,41 @@ Training GEC models requires parallel data (incorrect → correct). Real learner
 pip install synterr[russian]  # includes stanza, pymorphy3
 ```
 
-Or from source:
+### Development (uv)
+
 ```bash
 git clone https://github.com/mechanicpanic/synterr
 cd synterr
-uv sync --all-extras
+uv sync --all-extras   # install all dependencies
+```
+
+Run commands with `uv run`:
+```bash
+uv run synterr --help
+uv run synterr list-errors -l ru
+uv run pytest  # run tests
+```
+
+Or activate the venv:
+```bash
+source .venv/bin/activate
+synterr --help
 ```
 
 ## Usage
 
 ```bash
 # Generate errors with RULEC-GEC distribution
-synterr generate -l ru -i clean.txt -o train.edits --preset rulec
+uv run synterr generate -l ru -i clean.txt -o train.edits --preset rulec
 
 # Use faster backend for large corpora
-synterr generate -l ru -i corpus.txt -o out.edits --backend natasha
+uv run synterr generate -l ru -i corpus.txt -o out.edits --backend natasha
 
 # Specific error types only
-synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case
+uv run synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case
+
+# Single sentence corruption (for testing)
+uv run synterr corrupt -l ru -e noun_case "Мама мыла раму."
 ```
 
 Output format (GECToR `.edits`):
@@ -82,9 +99,9 @@ The "rule inversion" approach: look up what's grammatically correct, then genera
 
 ## Status
 
-**v0.0.1-alpha** — Russian morphological + spelling errors working. Lexical and structural errors in progress.
+**v0.1.2** — Russian morphological + spelling errors working. Output formats (TSV, JSONL, diff). Lexical and structural errors in progress.
 
-See [VERSIONING.md](VERSIONING.md) for roadmap.
+See [docs/VERSIONING.md](docs/VERSIONING.md) for roadmap.
 
 ## References
 
