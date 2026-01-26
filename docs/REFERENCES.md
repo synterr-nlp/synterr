@@ -26,8 +26,20 @@ Literature and resources used in synterr development.
 - *Extended RULEC approach with Lang8 crowdsourced data*
 
 **GERA**
-- *German-Russian learner corpus, different annotation schema*
-- Error types documented in corpus metadata
+- Sorokin, A. & Nasyrova, R. (2024). "GERA: A Corpus of Russian School Texts Annotated for Grammatical Error Correction." *AIST 2024*.
+- https://dl.acm.org/doi/10.1007/978-3-031-88036-0_8
+- *~4500 train + ~1000 test sentences from native L1 school essays*
+- *Fine-grained error types in M2 format*
+
+**LORuGEC** ⭐ *Highly relevant to synterr*
+- Nasyrova, R. & Sorokin, A. (2025). "LORuGEC: the Linguistically Oriented Rule-annotated corpus for Grammatical Error Correction of Russian." *Dialogue 2025*.
+- https://dialogue-conf.org/wp-content/uploads/2025/04/SorokinANasyrovaR.052.pdf
+- https://github.com/ReginaNasyrova/LORuGEC
+- *First rule-annotated Russian GEC corpus*
+- *48 grammar rules with 348 val + 612 test sentences (no train — eval only)*
+- *Rules from Rozental, teacher manuals, educational standards*
+- *Very challenging: Qwen2.5-7B gets 44% F0.5, YandexGPT-5 gets 83%*
+- **synterr connection**: LORuGEC identifies *which rules are hard* — synterr can use this to prioritize handler development. Consider adding `lorugec` schema with their 48-rule taxonomy.
 
 ### GEC Models
 
@@ -115,8 +127,9 @@ Literature and resources used in synterr development.
 | Corpus | Sentences | Error Types | Access |
 |--------|-----------|-------------|--------|
 | RULEC-GEC | ~12.5K | 23 types | Email request |
-| GERA | Variable | Different schema | Public |
+| GERA | ~5.5K | Fine-grained M2 | Public |
 | RuLang-8 | Variable | RULEC-derived | With RULEC |
+| LORuGEC | 960 (eval only) | 48 rules | Public (GitHub) |
 
 ---
 
@@ -161,6 +174,23 @@ Literature and resources used in synterr development.
     booktitle = "Proceedings of EMNLP 2024",
     year = "2024",
     url = "https://github.com/RussianNLP/RuBLiMP",
+}
+
+@inproceedings{sorokin-nasyrova-2024-gera,
+    title = "{GERA}: A Corpus of {R}ussian School Texts Annotated for Grammatical Error Correction",
+    author = "Sorokin, Alexey and Nasyrova, Regina",
+    booktitle = "Proceedings of AIST 2024",
+    year = "2024",
+    url = "https://dl.acm.org/doi/10.1007/978-3-031-88036-0_8",
+}
+
+@inproceedings{nasyrova-sorokin-2025-lorugec,
+    title = "{LOR}u{GEC}: the Linguistically Oriented Rule-annotated corpus for Grammatical Error Correction of {R}ussian",
+    author = "Nasyrova, Regina and Sorokin, Alexey",
+    booktitle = "Proceedings of Dialogue 2025",
+    year = "2025",
+    url = "https://github.com/ReginaNasyrova/LORuGEC",
+    note = "48 grammar rules, evaluation-only corpus",
 }
 ```
 
