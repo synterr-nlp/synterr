@@ -107,6 +107,37 @@ CLUSTER_CONFUSIONS = {
     'лнц': 'нц',     # солнце → сонце
 }
 
+# =============================================================================
+# PREFIX VOICING
+# Prefixes ending in з/с follow spelling rules based on the following consonant:
+# - из-, раз-, без-, воз-, низ-, чрез- before voiced consonants and vowels
+# - ис-, рас-, бес-, вос-, нис-, черес- before voiceless consonants
+# Learners often use the wrong form.
+# =============================================================================
+
+# Voiced prefix → voiceless prefix (used before voiceless consonants)
+PREFIX_VOICED_TO_VOICELESS = {
+    'из': 'ис',
+    'раз': 'рас',
+    'без': 'бес',
+    'воз': 'вос',
+    'низ': 'нис',
+    'чрез': 'черес',
+    # Uppercase variants
+    'Из': 'Ис',
+    'Раз': 'Рас',
+    'Без': 'Бес',
+    'Воз': 'Вос',
+    'Низ': 'Нис',
+    'Чрез': 'Черес',
+}
+
+# Voiceless prefix → voiced prefix (used before voiced consonants/vowels)
+PREFIX_VOICELESS_TO_VOICED = {v: k for k, v in PREFIX_VOICED_TO_VOICELESS.items()}
+
+# Consonants that trigger voiceless prefix form
+VOICELESS_CONSONANTS = set('пфктшсхцчщПФКТШСХЦЧЩ')
+
 # Double consonant errors (common in borrowed words)
 DOUBLE_CONSONANTS = {
     'нн': 'н',
@@ -181,6 +212,7 @@ class SpellingErrorHandler:
     subtypes = [
         "vowel_reduction",
         "devoicing",
+        "prefix_voicing",
         "tsa_confusion",
         "cluster",
         "double_consonant",
@@ -191,12 +223,13 @@ class SpellingErrorHandler:
     # Error type weights (based on corpus analysis)
     ERROR_WEIGHTS = {
         'vowel_reduction': 30,
-        'devoicing': 15,
+        'devoicing': 10,
+        'prefix_voicing': 15,  # Common spelling rule error
         'tsa_confusion': 25,
         'cluster': 10,
-        'double_consonant': 10,
-        'keyboard': 5,
-        'soft_sign': 5,
+        'double_consonant': 5,
+        'keyboard': 3,
+        'soft_sign': 2,
     }
 
     def __init__(self):
@@ -279,6 +312,8 @@ class SpellingErrorHandler:
             return self._vowel_reduction(word, rng)
         elif method == 'devoicing':
             return self._devoicing(word)
+        elif method == 'prefix_voicing':
+            return self._prefix_voicing(word)
         elif method == 'tsa_confusion':
             return self._tsa_confusion(word)
         elif method == 'cluster':
@@ -366,6 +401,77 @@ class SpellingErrorHandler:
                 corrupted = word[:-2] + replacement + word[-1]
 
             return PhoneticError(word, corrupted, 'devoicing', len(word) + check_pos)
+
+        return None
+
+    def _prefix_voicing(self, word: str) -> PhoneticError | None:
+        """Apply prefix voicing/devoicing error.
+
+        Russian prefixes из-/ис-, раз-/рас-, без-/бес-, etc. follow spelling rules:
+        - Voiced form (з) before voiced consonants and vowels: разбить, избежать
+        - Voiceless form (с) before voiceless consonants: расписать, исправить
+
+        This simulates the common error of using the wrong prefix form:
+        - *изправить (should be исправить)
+        - *расбить (should be разбить)
+        """
+        word_lower = word.lower()
+
+        # Try voiced prefixes (из-, раз-, etc.) - should be voiceless before voiceless
+        for voiced_prefix, voiceless_prefix in PREFIX_VOICED_TO_VOICELESS.items():
+            if word_lower.startswith(voiced_prefix.lower()):
+                prefix_len = len(voiced_prefix)
+                if prefix_len >= len(word):
+                    continue
+
+                # Get the consonant after the prefix
+                next_char = word[prefix_len]
+
+                # If next char is voiceless, this is actually correct usage
+                # Error: using voiced prefix before voiceless consonant (which is wrong)
+                # But we want to CREATE errors, so we swap to wrong form
+                if next_char in VOICELESS_CONSONANTS:
+                    # Word correctly uses voiced prefix before voiceless - no error possible
+                    # (this would be a correct word that we shouldn't corrupt this way)
+                    continue
+                else:
+                    # Word has voiced prefix before voiced/vowel (correct)
+                    # Create error: swap to voiceless prefix (wrong)
+                    # Match case of original prefix
+                    if word.startswith(voiced_prefix):
+                        new_prefix = voiceless_prefix
+                    elif word.startswith(voiced_prefix.capitalize()):
+                        new_prefix = voiceless_prefix.capitalize()
+                    else:
+                        new_prefix = voiceless_prefix.lower()
+
+                    corrupted = new_prefix + word[prefix_len:]
+                    return PhoneticError(word, corrupted, 'prefix_voicing', 0)
+
+        # Try voiceless prefixes (ис-, рас-, etc.) - should be voiced before voiced
+        for voiceless_prefix, voiced_prefix in PREFIX_VOICELESS_TO_VOICED.items():
+            if word_lower.startswith(voiceless_prefix.lower()):
+                prefix_len = len(voiceless_prefix)
+                if prefix_len >= len(word):
+                    continue
+
+                next_char = word[prefix_len]
+
+                if next_char not in VOICELESS_CONSONANTS:
+                    # Would be wrong usage (voiceless before voiced) - skip
+                    continue
+                else:
+                    # Word has voiceless prefix before voiceless (correct)
+                    # Create error: swap to voiced prefix (wrong)
+                    if word.startswith(voiceless_prefix):
+                        new_prefix = voiced_prefix
+                    elif word.startswith(voiceless_prefix.capitalize()):
+                        new_prefix = voiced_prefix.capitalize()
+                    else:
+                        new_prefix = voiced_prefix.lower()
+
+                    corrupted = new_prefix + word[prefix_len:]
+                    return PhoneticError(word, corrupted, 'prefix_voicing', 0)
 
         return None
 
