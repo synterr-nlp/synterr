@@ -1,32 +1,32 @@
 # synterr v0.1.2
-## Генератор синтетических ошибок для GEC
+## Synthetic Error Generator for GEC
 
-*Анна Смирнова | Январь 2026*
+*Anna Smirnova | January 2026*
 
 ---
 
-# Проблема
+# The Problem
 
-**GEC (Grammatical Error Correction)** требует размеченных данных:
+**GEC (Grammatical Error Correction)** requires annotated data:
 
 ```
-Исходное:  Мама мыла ра|му|.
-Ошибочное: Мама мыла ра|ме|.
-Метка:     $TRANSFORM_CASE_Acc
+Original:  Мама мыла ра|му|.
+Corrupted: Мама мыла ра|ме|.
+Tag:       $TRANSFORM_CASE_Acc
 ```
 
-**Проблема**: ручная разметка дорогая, корпуса маленькие
+**Problem**: manual annotation is expensive, corpora are small
 
-| Корпус | Предложений | Ошибок | Источник |
-|--------|-------------|--------|----------|
+| Corpus | Sentences | Errors | Source |
+|--------|-----------|--------|--------|
 | RULEC-GEC | 12,480 | 11,847 | L2/heritage learners |
 | GERA | 6,681 | 5,988 | Russian school texts |
 
-**Решение**: синтетическая генерация ошибок из чистого текста
+**Solution**: synthetic error generation from clean text
 
 ---
 
-# Подходы к синтетической генерации
+# Approaches to Synthetic Generation
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -244,7 +244,7 @@
 
 ---
 
-# synterr: Архитектура верхнего уровня
+# synterr: High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -270,7 +270,7 @@
 
 ---
 
-# Структура пакета
+# Package Structure
 
 ```
 src/synterr/
@@ -405,7 +405,7 @@ class ErrorHandler(Protocol):
 
 ---
 
-# Backend: Морфологический анализ
+# Backend: Morphological Analysis
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -442,7 +442,7 @@ class ErrorHandler(Protocol):
 
 ---
 
-# Backend: Выбор
+# Backend: Selection
 
 ```python
 # src/synterr/languages/russian/backends/__init__.py
