@@ -51,6 +51,76 @@
 
 ---
 
+# Landscape: Synthetic Error Generation
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    APPROACHES TO SYNTHETIC ERRORS                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ RULE-BASED                                                        │  │
+│  ├───────────────────────────────────────────────────────────────────┤  │
+│  │ synterr (this)  │ Handlers + schemas    │ GEC training data      │  │
+│  │ RuBLiMP         │ Minimal pairs         │ LM evaluation probing  │  │
+│  │ ERRANT          │ Edit extraction       │ Annotation (not gen)   │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ NEURAL / DATA-DRIVEN                                              │  │
+│  ├───────────────────────────────────────────────────────────────────┤  │
+│  │ C4_200M         │ Tagged corruption     │ Seq2seq pretraining    │  │
+│  │ PIE             │ Back-translation      │ Iterative refinement   │  │
+│  │ Round-trip MT   │ Translate→back        │ Noise injection        │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ HYBRID                                                            │  │
+│  ├───────────────────────────────────────────────────────────────────┤  │
+│  │ GECToR          │ Rule-based synth      │ Then neural correction │  │
+│  │ FELIX           │ Synthetic + real      │ Mixed pretraining      │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# RuBLiMP: Complementary, Not Competing
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│              RuBLiMP vs synterr: DIFFERENT PURPOSES                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  RuBLiMP (EMNLP 2024)                   synterr                         │
+│  ═══════════════════                    ═══════                         │
+│                                                                         │
+│  Purpose: "Does the model know        Purpose: "Generate training      │
+│            X is ungrammatical?"                 data with error X"     │
+│                                                                         │
+│  Output:                              Output:                           │
+│    Minimal pair:                        Corrupted sentence:             │
+│    ✓ "Кошка спит"                       "Кошка спит" → "Кошке спит"    │
+│    ✗ "Кошка спят"                       + fix tag: $TRANSFORM_CASE_Nom │
+│                                                                         │
+│  Method: Compare P(good) > P(bad)      Method: Apply error handlers     │
+│                                                                         │
+│  ─────────────────────────────────────────────────────────────────────  │
+│                                                                         │
+│  REUSABLE RESOURCES from RuBLiMP:                                       │
+│  ────────────────────────────────                                       │
+│  • 2716 aspect pairs (Zaliznjak)    → synterr aspect handler           │
+│  • ADP_CASES (19 prepositions)      → synterr preposition handler      │
+│  • Agreement phenomena specs        → synterr depparse handlers        │
+│                                                                         │
+│  synterr can IMPORT RuBLiMP data, not replace it!                      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 # synterr: Архитектура верхнего уровня
 
 ```
