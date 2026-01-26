@@ -237,6 +237,7 @@ class SpellingErrorHandler:
         self._stress_dict: dict[str, int] | None = None
         self._keyboard_upper: dict[str, list[str]] | None = None
         self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+        self._enabled_subtypes: set[str] | None = None  # None = all subtypes
 
     @property
     def weights(self) -> dict[str, float]:
@@ -255,6 +256,27 @@ class SpellingErrorHandler:
         for subtype, weight in weights.items():
             if subtype in self._weights:
                 self._weights[subtype] = weight
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        """Restrict handler to only use specific subtypes.
+
+        Args:
+            subtypes: Set of subtype names to enable, or None for all.
+                      Example: {"vowel_reduction", "devoicing"}
+        """
+        if subtypes is not None:
+            # Validate subtypes
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
+    @property
+    def enabled_subtypes(self) -> set[str]:
+        """Get currently enabled subtypes."""
+        if self._enabled_subtypes is None:
+            return set(self.subtypes)
+        return self._enabled_subtypes
 
     @property
     def stress_dict(self) -> dict[str, int]:
@@ -313,7 +335,11 @@ class SpellingErrorHandler:
     def _corrupt(self, word: str, rng: Random | None = None) -> PhoneticError | None:
         """Corrupt a word with a spelling error."""
         rng = rng if rng is not None else random_module
-        methods = list(self.weights.keys())
+
+        # Filter to enabled subtypes only
+        methods = [m for m in self.weights if m in self.enabled_subtypes]
+        if not methods:
+            return None
 
         # Weighted shuffle - sort by random * weight for probabilistic ordering
         rng.shuffle(methods)

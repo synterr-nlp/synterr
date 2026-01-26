@@ -208,6 +208,8 @@ mappings:
     primary: Ortho
   devoicing:
     primary: Ortho
+  prefix_voicing:
+    primary: Ortho
   tsa_confusion:
     primary: Ortho
   cluster:

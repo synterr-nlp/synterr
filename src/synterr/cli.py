@@ -112,19 +112,22 @@ def cmd_list_errors(lang: str, preset: str | None) -> None:
     click.echo()
 
     # Group by category
-    by_category: dict[str, list[tuple[str, float, bool]]] = {}
+    by_category: dict[str, list[tuple[str, float, bool, list[str]]]] = {}
     for h in handlers:
         cat = h.category
         weight = distribution.get(h.name, 0)
         if cat not in by_category:
             by_category[cat] = []
-        by_category[cat].append((h.name, weight, h.changes_length))
+        by_category[cat].append((h.name, weight, h.changes_length, h.subtypes))
 
     for category in sorted(by_category.keys()):
         click.echo(f"  [{category}]")
-        for name, weight, changes_len in sorted(by_category[category]):
+        for name, weight, changes_len, subtypes in sorted(by_category[category]):
             marker = " (length-changing)" if changes_len else ""
             click.echo(f"    {name}: weight={weight:.3f}{marker}")
+            if len(subtypes) > 1:
+                for subtype in subtypes:
+                    click.echo(f"      - {name}:{subtype}")
         click.echo()
 
 
@@ -233,7 +236,9 @@ def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> No
 
 @main.command("corrupt")
 @click.option("--lang", "-l", required=True, help="Language code")
-@click.option("--error", "-e", required=True, help="Error type (handler name or schema tag)")
+@click.option(
+    "--error", "-e", required=True, help="Error specifier: handler, handler:subtype, or schema tag"
+)
 @click.option("--position", "-p", type=int, help="Token position (0-indexed, random if omitted)")
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--schema", "-s", help="Schema for tag lookup (e.g., rlc)")
@@ -252,13 +257,34 @@ def cmd_corrupt(
 
     Tagged corruption: apply exactly one error of the specified type.
 
+    Error specifier formats:
+
+      \b
+      spelling              - any spelling error (all subtypes)
+      spelling:vowel_reduction - only vowel_reduction subtype
+      Ortho --schema rlc    - all subtypes mapped to Ortho tag
+
     Examples:
 
-      synterr corrupt --lang ru --error spelling "Молоко стоит на столе."
+      \b
+      # Any spelling error
+      synterr corrupt -l ru -e spelling "Молоко стоит на столе."
 
-      synterr corrupt --lang ru --error Gov --schema rlc "Мама мыла раму."
+      \b
+      # Only vowel reduction (phonetic)
+      synterr corrupt -l ru -e spelling:vowel_reduction "Молоко стоит на столе."
 
-      synterr corrupt --lang ru --error noun_case --position 3 "Мама мыла раму."
+      \b
+      # Only typos (keyboard errors)
+      synterr corrupt -l ru -e spelling:keyboard "Привет мир."
+
+      \b
+      # All Ortho-mapped subtypes (phonetic errors, no typos)
+      synterr corrupt -l ru -e Ortho --schema rlc "Молоко стоит на столе."
+
+      \b
+      # Schema tag for case errors
+      synterr corrupt -l ru -e Gov --schema rlc "Мама мыла раму."
     """
     from synterr.core.pipeline import ErrorPipeline, GenerationConfig
 

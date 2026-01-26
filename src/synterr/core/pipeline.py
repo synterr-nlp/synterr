@@ -27,6 +27,26 @@ CATEGORY_PUNCT = "PUNCT"
 CATEGORY_OTHER = "OTHER"
 
 
+def parse_error_spec(spec: str) -> tuple[str, str | None]:
+    """Parse error specifier into handler name and optional subtype.
+
+    Supports formats:
+        - "spelling" → ("spelling", None)
+        - "spelling:vowel_reduction" → ("spelling", "vowel_reduction")
+        - "Gov" → ("Gov", None) - schema tag, resolved later
+
+    Args:
+        spec: Error type specifier
+
+    Returns:
+        (handler_or_tag, subtype) tuple
+    """
+    if ":" in spec:
+        handler, subtype = spec.split(":", 1)
+        return handler.strip(), subtype.strip()
+    return spec.strip(), None
+
+
 @dataclass
 class GenerationConfig:
     """Configuration for error generation.
@@ -576,6 +596,71 @@ class ErrorPipeline:
 
         return None
 
+    def get_subtypes_for_schema_tag(self, tag: str) -> set[str]:
+        """Get all handler subtypes that map to a schema tag.
+
+        Args:
+            tag: Schema tag name (e.g., 'Ortho', 'Gov')
+
+        Returns:
+            Set of subtype names, empty if no schema or no mappings
+        """
+        if self.schema is None:
+            return set()
+
+        subtypes = set()
+        for subtype, mapping in self.schema.mappings.items():
+            if mapping.primary == tag:
+                subtypes.add(subtype)
+        return subtypes
+
+    def resolve_error_spec(self, spec: str) -> tuple[ErrorHandler | None, set[str] | None]:
+        """Resolve error specifier to handler and optional subtype filter.
+
+        Supports:
+            - "spelling" → (SpellingHandler, None) - all subtypes
+            - "spelling:vowel_reduction" → (SpellingHandler, {"vowel_reduction"})
+            - "Ortho" with schema → (SpellingHandler, {"vowel_reduction", "devoicing", ...})
+
+        Args:
+            spec: Error specifier string
+
+        Returns:
+            (handler, subtypes) where subtypes is None for all or set for filter
+        """
+        handler_name, subtype = parse_error_spec(spec)
+
+        # Direct handler:subtype syntax
+        if subtype is not None:
+            handler = self._get_handler_by_name(handler_name)
+            if handler is not None and subtype in handler.subtypes:
+                return handler, {subtype}
+            return None, None
+
+        # Try as direct handler name first
+        handler = self._get_handler_by_name(handler_name)
+        if handler is not None:
+            return handler, None  # All subtypes
+
+        # Try as schema tag (returns handler with filtered subtypes)
+        if self.schema is not None:
+            subtypes = self.get_subtypes_for_schema_tag(handler_name)
+            if subtypes:
+                # Find a handler that has any of these subtypes
+                for h in self.handlers:
+                    handler_subtypes = set(h.subtypes) & subtypes
+                    if handler_subtypes:
+                        return h, handler_subtypes
+
+        return None, None
+
+    def _get_handler_by_name(self, name: str) -> ErrorHandler | None:
+        """Get handler by direct name match only (no schema lookup)."""
+        for handler in self.handlers:
+            if handler.name == name:
+                return handler
+        return None
+
     def apply_error(
         self,
         text: str,
@@ -587,17 +672,26 @@ class ErrorPipeline:
         Unlike generate(), this applies exactly one error of the specified type.
         Useful for tagged corruption (à la C4_200M).
 
+        Supports multiple specifier formats:
+            - "spelling" → any spelling error
+            - "spelling:vowel_reduction" → only vowel_reduction subtype
+            - "Ortho" (with --schema rlc) → subtypes mapped to Ortho tag
+
         Args:
             text: Input sentence text
-            error_type: Handler name ('spelling', 'noun_case') or schema tag ('Gov', 'Ortho')
+            error_type: Error specifier (see formats above)
             position: Optional token index to apply error at (random if None)
 
         Returns:
             GeneratedSentence with the error applied, or None if error cannot be applied
         """
-        handler = self.get_handler(error_type)
+        handler, subtype_filter = self.resolve_error_spec(error_type)
         if handler is None:
             return None
+
+        # Configure handler with subtype filter if applicable
+        if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
+            handler.set_enabled_subtypes(subtype_filter)
 
         tokens = self.analyzer.analyze(text)
         if not tokens:
@@ -606,22 +700,39 @@ class ErrorPipeline:
         # Find applicable positions
         applicable = self._find_applicable_indices(handler, tokens, set())
         if not applicable:
+            # Reset subtype filter before returning
+            if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
+                handler.set_enabled_subtypes(None)
             return None
 
-        # Choose position
+        original = [t.text for t in tokens]
+
+        # If specific position requested, try only that
         if position is not None:
             if position not in applicable:
+                if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
+                    handler.set_enabled_subtypes(None)
                 return None
-            idx = position
+            positions_to_try = [position]
         else:
-            idx = self._rng.choice(applicable)
+            # Shuffle positions to try multiple if first fails
+            positions_to_try = applicable.copy()
+            self._rng.shuffle(positions_to_try)
 
-        # Apply error
-        original = [t.text for t in tokens]
-        sentence = original.copy()
-        modified: set[int] = set()
+        # Try positions until one succeeds
+        result = None
+        idx = None
+        for idx in positions_to_try:
+            sentence = original.copy()
+            modified: set[int] = set()
+            result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
+            if result is not None:
+                break
 
-        result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
+        # Reset subtype filter after use
+        if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
+            handler.set_enabled_subtypes(None)
+
         if result is None:
             return None
 
