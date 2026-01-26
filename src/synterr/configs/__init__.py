@@ -27,9 +27,11 @@ def load_preset(language: str, preset_name: str) -> dict[str, Any]:
 
     # Try package resources first
     try:
-        with importlib.resources.files("synterr.configs").joinpath(
-            f"{lang_dir}/{preset_name}.yaml"
-        ).open() as f:
+        with (
+            importlib.resources.files("synterr.configs")
+            .joinpath(f"{lang_dir}/{preset_name}.yaml")
+            .open() as f
+        ):
             return yaml.safe_load(f)
     except (FileNotFoundError, TypeError):
         pass
@@ -82,9 +84,7 @@ def list_presets(language: str) -> list[str]:
         pkg_path = importlib.resources.files("synterr.configs") / lang_dir
         if pkg_path.is_dir():
             return [
-                p.name.removesuffix(".yaml")
-                for p in pkg_path.iterdir()
-                if p.name.endswith(".yaml")
+                p.name.removesuffix(".yaml") for p in pkg_path.iterdir() if p.name.endswith(".yaml")
             ]
     except (TypeError, AttributeError):
         pass

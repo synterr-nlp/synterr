@@ -217,17 +217,19 @@ class DistributionStats:
         }
 
         if include_unimplemented:
-            handler_mapping.update({
-                "MORPH:verb_aspect": "verb_aspect",
-                "MORPH:verb_voice": "verb_voice",
-                "OTHER:insert": "insert",
-                "OTHER:delete": "delete",
-                "OTHER:preposition": "preposition",
-                "OTHER:conjunction": "conjunction",
-                "OTHER:pronoun": "pronoun",
-                "OTHER:lexical": "lexical",
-                "PUNCT": "punctuation",
-            })
+            handler_mapping.update(
+                {
+                    "MORPH:verb_aspect": "verb_aspect",
+                    "MORPH:verb_voice": "verb_voice",
+                    "OTHER:insert": "insert",
+                    "OTHER:delete": "delete",
+                    "OTHER:preposition": "preposition",
+                    "OTHER:conjunction": "conjunction",
+                    "OTHER:pronoun": "pronoun",
+                    "OTHER:lexical": "lexical",
+                    "PUNCT": "punctuation",
+                }
+            )
 
         # Use category_counts (mapped categories), not error_counts (raw types)
         total = sum(self.category_counts.values())
