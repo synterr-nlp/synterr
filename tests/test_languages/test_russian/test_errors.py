@@ -116,7 +116,9 @@ class TestMorphologicalErrorHandlers:
     def test_paronym_handler_protocol(self):
         from synterr.languages.russian.errors.lexical import ParonymErrorHandler
 
-        handler = ParonymErrorHandler()
+        handler = ParonymErrorHandler(
+            path_to_paronyms_dict="src/synterr/data/russian/paronyms.json"
+        )
         assert isinstance(handler, ErrorHandler)
         assert handler.name == "paronym"
 
