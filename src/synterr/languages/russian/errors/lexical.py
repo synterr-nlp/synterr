@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import random as random_module
 import json
+import random as random_module
 from typing import TYPE_CHECKING
 
 import pymorphy3
 
-from synterr.core.protocol import ErrorResult, AnalyzedToken
-from synterr.languages.russian.errors.morphological import _find_tokens_by_pos, _get_pymorphy_parse, inflect_word
+from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors.morphological import (
+    _get_pymorphy_parse,
+    inflect_word,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -19,13 +22,10 @@ if TYPE_CHECKING:
 
 
 def load_paronyms_dict(filepath: str) -> dict:
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, encoding="utf-8") as f:
         data = json.load(f)
 
-    paronyms = {
-        key: value for key, value in data.items()
-        if not key.startswith('_')
-    }
+    paronyms = {key: value for key, value in data.items() if not key.startswith("_")}
 
     return paronyms
 
@@ -40,14 +40,14 @@ class ParonymErrorHandler:
     changes_length = False
 
     def __init__(
-            self,
-            path_to_paronyms_dict='/home/artyom/Programming/synterr/src/synterr/data/russian/paronyms.json'
+        self,
+        path_to_paronyms_dict="/home/artyom/Programming/synterr/src/synterr/data/russian/paronyms.json",
     ):
-        self.paronyms = load_paronyms_dict(path_to_paronyms_dict) # dict[str, list[str]]
+        self.paronyms = load_paronyms_dict(path_to_paronyms_dict)  # dict[str, list[str]]
         self.morph = pymorphy3.MorphAnalyzer()
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        return tokens[idx].lemma in self.paronyms.keys()
+        return tokens[idx].lemma in self.paronyms
 
     def apply(
         self,
@@ -75,7 +75,7 @@ class ParonymErrorHandler:
             new_word_lemma,
             parse.tag.POS,
             {},
-            extra={'pymorphy_parse': self.morph.parse(new_word_lemma)[0]}
+            extra={"pymorphy_parse": self.morph.parse(new_word_lemma)[0]},
         )
         new_word_parse = _get_pymorphy_parse(new_word_token)
         new_word = inflect_word(new_word_parse, grammemes)
@@ -90,5 +90,5 @@ class ParonymErrorHandler:
             end_idx=idx + 1,
             original=word,
             corrupted=new_word,
-            fix_tag=f"$REPLACE_{word}"
+            fix_tag=f"$REPLACE_{word}",
         )
