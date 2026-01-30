@@ -41,7 +41,7 @@ class ParonymErrorHandler:
 
     def __init__(
         self,
-        path_to_paronyms_dict="/home/artyom/Programming/synterr/src/synterr/data/russian/paronyms.json",
+        path_to_paronyms_dict="src/synterr/data/russian/paronyms.json",
     ):
         self.paronyms = load_paronyms_dict(path_to_paronyms_dict)  # dict[str, list[str]]
         self.morph = pymorphy3.MorphAnalyzer()

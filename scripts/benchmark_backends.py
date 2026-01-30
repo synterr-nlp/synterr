@@ -33,6 +33,7 @@ def benchmark_backend(backend_name: str, n_iterations: int = 3, n_sentences: int
     if backend_name == "spacy":
         # Use small model for benchmark
         from synterr.languages.russian.backends.spacy_backend import SpacyBackend
+
         analyzer = SpacyBackend(model="ru_core_news_sm")
     else:
         analyzer = get_backend(backend_name)
@@ -74,7 +75,9 @@ def benchmark_backend(backend_name: str, n_iterations: int = 3, n_sentences: int
             elapsed = time.perf_counter() - start
             rate = len(all_sentences) / elapsed
             times.append(rate)
-            print(f"  Run {i + 1}: {rate:.1f} sent/s ({len(all_sentences)} sentences in {elapsed:.2f}s)")
+            print(
+                f"  Run {i + 1}: {rate:.1f} sent/s ({len(all_sentences)} sentences in {elapsed:.2f}s)"
+            )
 
         avg = mean(times)
         std = stdev(times) if len(times) > 1 else 0
