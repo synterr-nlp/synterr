@@ -20,6 +20,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         VerbTenseErrorHandler,
     )
     from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+    from synterr.languages.russian.errors.lexical import ParonymErrorHandler
 
     return [
         # Spelling
@@ -34,6 +35,8 @@ def get_all_handlers() -> list[ErrorHandler]:
         # Morphological - Verbs
         VerbPersonNumberErrorHandler(),
         VerbTenseErrorHandler(),
+        # Lexical
+        ParonymErrorHandler(),
     ]
 
 

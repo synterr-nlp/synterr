@@ -113,6 +113,13 @@ class TestMorphologicalErrorHandlers:
         assert isinstance(handler, ErrorHandler)
         assert handler.name == "verb_tense"
 
+    def test_paronym_handler_protocol(self):
+        from synterr.languages.russian.errors.lexical import ParonymErrorHandler
+
+        handler = ParonymErrorHandler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "paronym"
+
     def test_can_apply_checks_pos(self):
         """Test that handlers check correct POS tags."""
         from synterr.languages.russian.errors.morphological import (
@@ -191,3 +198,4 @@ class TestGetAllHandlers:
         assert "adj_gender" in names
         assert "verb_person_number" in names
         assert "verb_tense" in names
+        assert "paronym" in names
