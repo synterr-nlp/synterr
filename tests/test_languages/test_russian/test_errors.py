@@ -122,6 +122,24 @@ class TestMorphologicalErrorHandlers:
         assert isinstance(handler, ErrorHandler)
         assert handler.name == "paronym"
 
+    def test_preposition_handler_protocol(self):
+        from synterr.languages.russian.errors.lexical import PrepositionErrorHandler
+
+        handler = PrepositionErrorHandler(
+            path_to_prepositions_dict="src/synterr/data/russian/prepositions.json"
+        )
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "preposition"
+
+    def test_conjunction_handler_protocol(self):
+        from synterr.languages.russian.errors.lexical import ConjunctionErrorHandler
+
+        handler = ConjunctionErrorHandler(
+            path_to_conjunctions_dict="src/synterr/data/russian/conjunctions.json"
+        )
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "conjunction"
+
     def test_can_apply_checks_pos(self):
         """Test that handlers check correct POS tags."""
         from synterr.languages.russian.errors.morphological import (
@@ -201,3 +219,5 @@ class TestGetAllHandlers:
         assert "verb_person_number" in names
         assert "verb_tense" in names
         assert "paronym" in names
+        assert "preposition" in names
+        assert "conjunction" in names
