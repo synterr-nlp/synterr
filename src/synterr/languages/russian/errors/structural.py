@@ -6,10 +6,10 @@ from random import Random
 from synterr import AnalyzedToken
 from synterr.core.protocol import ErrorResult
 
-OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ"}
+OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ", "PUNCT"}
 
 
-def load_filler_list(filepath: str) -> list[str]:
+def _load_filler_list(filepath: str) -> list[str]:
     with open(filepath, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -37,13 +37,16 @@ class WordOmissionHandler:
         modified: set[int],
         rng: Random | None = None,
     ):
+        if idx == 0 or tokens[idx].pos not in OMITTABLE_POS:
+            return None
+
         deleted_word = sentence[idx]
 
         del sentence[idx]
 
         return ErrorResult(
-            error_type="word_omission",
-            category="STRUCTURAL",
+            error_type=self.name,
+            category=self.category,
             start_idx=idx - 1,
             end_idx=idx - 1,
             original=deleted_word,
@@ -62,7 +65,7 @@ class WordInsertionHandler:
         self,
         path_to_fillers_dict="src/synterr/data/russian/fillers.json",
     ):
-        self.fillers = load_filler_list(path_to_fillers_dict)
+        self.fillers = _load_filler_list(path_to_fillers_dict)
 
     def can_apply(self, tokens, idx):
         return idx < len(tokens) - 1
@@ -75,6 +78,9 @@ class WordInsertionHandler:
         modified: set[int],
         rng: Random | None = None,
     ):
+        if idx >= len(tokens) - 1:
+            return None
+
         rng = rng if rng is not None else random_module
 
         filler = rng.choice(self.fillers)
@@ -82,8 +88,8 @@ class WordInsertionHandler:
         sentence.insert(idx + 1, filler)
 
         return ErrorResult(
-            error_type="word_insertion",
-            category="STRUCTURAL",
+            error_type=self.name,
+            category=self.category,
             start_idx=idx + 1,
             end_idx=idx + 1,
             original="",
