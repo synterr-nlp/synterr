@@ -66,13 +66,12 @@ def load_prepositions_dict_from_file(filepath: str) -> dict[str, list[str]]:
     return prepositions_dict
 
 
-# TODO: придумать, как не создавать каждый раз MorphAnalyzer
 class ParonymErrorHandler:
     """Replace word from paronyms list to one from its paronyms"""
 
     name = "paronym"
     subtypes = ["paronym"]
-    category = "LEX"
+    category = "OTHER"
     changes_length = False
 
     def __init__(
@@ -136,7 +135,7 @@ class PrepositionErrorHandler:
 
     name = "preposition"
     subtypes = ["preposition"]
-    category = "LEX"
+    category = "OTHER"
     changes_length = False
 
     def __init__(
@@ -195,7 +194,7 @@ class ConjunctionErrorHandler:
 
     name = "conjunction"
     subtypes = ["conjunction"]
-    category = "LEX"
+    category = "OTHER"
     changes_length = False
 
     def __init__(
