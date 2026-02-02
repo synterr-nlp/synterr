@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from random import Random
 
 
-def load_paronyms_dict(filepath: str) -> dict[str, list[str]]:
+def _load_paronyms_dict(filepath: str) -> dict[str, list[str]]:
     """
     Load paronyms list from JSON file
 
@@ -39,7 +39,7 @@ def load_paronyms_dict(filepath: str) -> dict[str, list[str]]:
     return paronyms
 
 
-def load_prepositions_dict_from_file(filepath: str) -> dict[str, list[str]]:
+def _load_prepositions_dict(filepath: str) -> dict[str, list[str]]:
     """
     Load prepositions list from JSON file
 
@@ -78,7 +78,7 @@ class ParonymErrorHandler:
         self,
         path_to_paronyms_dict="src/synterr/data/russian/paronyms.json",
     ):
-        self.paronyms = load_paronyms_dict(path_to_paronyms_dict)
+        self.paronyms = _load_paronyms_dict(path_to_paronyms_dict)
         self.morph = pymorphy3.MorphAnalyzer()
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
@@ -99,20 +99,17 @@ class ParonymErrorHandler:
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
 
-        if parse is None:
+        print(token)
+        print(word)
+        print(parse)
+
+        if parse is None or token.lemma not in self.paronyms:
             return None
 
         grammemes = set(parse.tag.grammemes)
 
         new_word_lemma = rng.choice(self.paronyms.get(token.lemma))
-        new_word_token = AnalyzedToken(
-            new_word_lemma,
-            new_word_lemma,
-            parse.tag.POS,
-            {},
-            extra={"pymorphy_parse": self.morph.parse(new_word_lemma)[0]},
-        )
-        new_word_parse = _get_pymorphy_parse(new_word_token)
+        new_word_parse = self.morph.parse(new_word_lemma)[0]
         new_word = inflect_word(new_word_parse, grammemes)
         new_word = match_capitalization(word, new_word)
 
@@ -120,7 +117,7 @@ class ParonymErrorHandler:
         modified.add(idx)
 
         return ErrorResult(
-            error_type="paronym",
+            error_type=self.name,
             category=self.category,
             start_idx=idx,
             end_idx=idx + 1,
@@ -142,7 +139,7 @@ class PrepositionErrorHandler:
         self,
         path_to_prepositions_dict="src/synterr/data/russian/prepositions.json",
     ):
-        self.prepositions = load_paronyms_dict(path_to_prepositions_dict)
+        self.prepositions = _load_paronyms_dict(path_to_prepositions_dict)
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].pos == "ADP" and any(
@@ -179,7 +176,7 @@ class PrepositionErrorHandler:
         modified.add(idx)
 
         return ErrorResult(
-            error_type="preposition",
+            error_type=self.name,
             category=self.category,
             start_idx=idx,
             end_idx=idx + 1,
@@ -201,7 +198,7 @@ class ConjunctionErrorHandler:
         self,
         path_to_conjunctions_dict="src/synterr/data/russian/conjunctions.json",
     ):
-        self.conjunctions = load_paronyms_dict(path_to_conjunctions_dict)
+        self.conjunctions = _load_paronyms_dict(path_to_conjunctions_dict)
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].pos in ["CCONJ", "SCONJ"] and any(
@@ -238,7 +235,7 @@ class ConjunctionErrorHandler:
         modified.add(idx)
 
         return ErrorResult(
-            error_type="conjunction",
+            error_type=self.name,
             category=self.category,
             start_idx=idx,
             end_idx=idx + 1,

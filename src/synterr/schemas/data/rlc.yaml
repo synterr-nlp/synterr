@@ -242,18 +242,18 @@ mappings:
   # ---------------------------------------------------------------------------
   # Future handlers (Artem's tasks) -> RLC tags
   # ---------------------------------------------------------------------------
-  # paronym:
-  #   primary: Lex
-  # preposition:
-  #   primary: Prep
-  # conjunction:
-  #   primary: Conj
-  # word_omission:
-  #   primary: Syntax
-  #   modifier: Miss
-  # word_insertion:
-  #   primary: Syntax
-  #   modifier: Extra
+  paronym:
+    primary: Lex
+  preposition:
+    primary: Prep
+  conjunction:
+    primary: Conj
+  word_omission:
+    primary: Syntax
+    modifier: Miss
+  word_insertion:
+    primary: Syntax
+    modifier: Extra
 
 # ============================================================================
 # REFERENCE FREQUENCIES (from RLC-GEC corpus statistics, Table 2 in paper)
