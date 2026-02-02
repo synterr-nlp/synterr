@@ -25,6 +25,10 @@ def get_all_handlers() -> list[ErrorHandler]:
         VerbTenseErrorHandler,
     )
     from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+    from synterr.languages.russian.errors.structural import (
+        WordInsertionHandler,
+        WordOmissionHandler,
+    )
 
     return [
         # Spelling
@@ -43,6 +47,9 @@ def get_all_handlers() -> list[ErrorHandler]:
         ParonymErrorHandler(),
         PrepositionErrorHandler(),
         ConjunctionErrorHandler(),
+        # Structural
+        WordOmissionHandler(),
+        WordInsertionHandler(),
     ]
 
 

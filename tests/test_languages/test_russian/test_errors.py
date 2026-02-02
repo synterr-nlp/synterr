@@ -113,33 +113,6 @@ class TestMorphologicalErrorHandlers:
         assert isinstance(handler, ErrorHandler)
         assert handler.name == "verb_tense"
 
-    def test_paronym_handler_protocol(self):
-        from synterr.languages.russian.errors.lexical import ParonymErrorHandler
-
-        handler = ParonymErrorHandler(
-            path_to_paronyms_dict="src/synterr/data/russian/paronyms.json"
-        )
-        assert isinstance(handler, ErrorHandler)
-        assert handler.name == "paronym"
-
-    def test_preposition_handler_protocol(self):
-        from synterr.languages.russian.errors.lexical import PrepositionErrorHandler
-
-        handler = PrepositionErrorHandler(
-            path_to_prepositions_dict="src/synterr/data/russian/prepositions.json"
-        )
-        assert isinstance(handler, ErrorHandler)
-        assert handler.name == "preposition"
-
-    def test_conjunction_handler_protocol(self):
-        from synterr.languages.russian.errors.lexical import ConjunctionErrorHandler
-
-        handler = ConjunctionErrorHandler(
-            path_to_conjunctions_dict="src/synterr/data/russian/conjunctions.json"
-        )
-        assert isinstance(handler, ErrorHandler)
-        assert handler.name == "conjunction"
-
     def test_can_apply_checks_pos(self):
         """Test that handlers check correct POS tags."""
         from synterr.languages.russian.errors.morphological import (
@@ -196,6 +169,55 @@ class TestMorphologicalErrorHandlers:
         assert verb_handler.can_apply(tokens, 2) is True
 
 
+class TestLexicalErrorHandlers:
+    """Tests for Russian lexical error handlers."""
+
+    def test_paronym_handler_protocol(self):
+        from synterr.languages.russian.errors.lexical import ParonymErrorHandler
+
+        handler = ParonymErrorHandler(
+            path_to_paronyms_dict="src/synterr/data/russian/paronyms.json"
+        )
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "paronym"
+
+    def test_preposition_handler_protocol(self):
+        from synterr.languages.russian.errors.lexical import PrepositionErrorHandler
+
+        handler = PrepositionErrorHandler(
+            path_to_prepositions_dict="src/synterr/data/russian/prepositions.json"
+        )
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "preposition"
+
+    def test_conjunction_handler_protocol(self):
+        from synterr.languages.russian.errors.lexical import ConjunctionErrorHandler
+
+        handler = ConjunctionErrorHandler(
+            path_to_conjunctions_dict="src/synterr/data/russian/conjunctions.json"
+        )
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "conjunction"
+
+
+class TestStructuralErrorHandlers:
+    """Tests for Russian structural error handlers."""
+
+    def test_word_omission_handler_protocol(self):
+        from synterr.languages.russian.errors.structural import WordOmissionHandler
+
+        handler = WordOmissionHandler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "word_omission"
+
+    def test_word_insertion_handler_protocol(self):
+        from synterr.languages.russian.errors.structural import WordInsertionHandler
+
+        handler = WordInsertionHandler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "word_insertion"
+
+
 class TestGetAllHandlers:
     """Tests for get_all_handlers function."""
 
@@ -221,3 +243,5 @@ class TestGetAllHandlers:
         assert "paronym" in names
         assert "preposition" in names
         assert "conjunction" in names
+        assert "word_omission" in names
+        assert "word_insertion" in names
