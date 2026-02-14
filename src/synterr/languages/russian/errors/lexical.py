@@ -20,15 +20,15 @@ if TYPE_CHECKING:
     from random import Random
 
 
-def _load_paronyms_dict(filepath: str) -> dict[str, list[str]]:
+def _load_grouped_dict(filepath: str) -> dict[str, list[str]]:
     """
-    Load paronyms list from JSON file
+    Load grouped list from JSON file
 
     Args:
-        filepath (str): Path to JSON file with paronyms dictionary
+        filepath (str): Path to JSON file with grouped dictionary
 
     Returns:
-        Dict[str, List[str]]: Dictionary with paronyms mapping
+        Dict[str, List[str]]: Dictionary with mapping
     """
 
     with open(filepath, encoding="utf-8") as f:
@@ -37,33 +37,6 @@ def _load_paronyms_dict(filepath: str) -> dict[str, list[str]]:
     paronyms = {key: value for key, value in data.items() if not key.startswith("_")}
 
     return paronyms
-
-
-def _load_prepositions_dict(filepath: str) -> dict[str, list[str]]:
-    """
-    Load prepositions list from JSON file
-
-    Args:
-        filepath (str): Path to JSON file with prepositions
-
-    Returns:
-        Dict[str, List[str]]: Dictionary of preposition groups
-    """
-    with open(filepath, encoding="utf-8") as f:
-        data = json.load(f)
-
-    prepositions_dict = {}
-
-    for key, value in data.items():
-        if key == "_meta":
-            continue
-
-        if isinstance(value, list):
-            prepositions_dict[key] = value
-        else:
-            prepositions_dict[key] = []
-
-    return prepositions_dict
 
 
 class ParonymErrorHandler:
@@ -78,7 +51,7 @@ class ParonymErrorHandler:
         self,
         path_to_paronyms_dict="src/synterr/data/russian/paronyms.json",
     ):
-        self.paronyms = _load_paronyms_dict(path_to_paronyms_dict)
+        self.paronyms = _load_grouped_dict(path_to_paronyms_dict)
         self.morph = pymorphy3.MorphAnalyzer()
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
@@ -99,10 +72,6 @@ class ParonymErrorHandler:
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
 
-        print(token)
-        print(word)
-        print(parse)
-
         if parse is None or token.lemma not in self.paronyms:
             return None
 
@@ -110,7 +79,7 @@ class ParonymErrorHandler:
 
         new_word_lemma = rng.choice(self.paronyms.get(token.lemma))
         new_word_parse = self.morph.parse(new_word_lemma)[0]
-        new_word = inflect_word(new_word_parse, grammemes)
+        new_word = inflect_word(new_word_parse, grammemes, word)
         new_word = match_capitalization(word, new_word)
 
         sentence[idx] = new_word
@@ -139,7 +108,7 @@ class PrepositionErrorHandler:
         self,
         path_to_prepositions_dict="src/synterr/data/russian/prepositions.json",
     ):
-        self.prepositions = _load_paronyms_dict(path_to_prepositions_dict)
+        self.prepositions = _load_grouped_dict(path_to_prepositions_dict)
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].pos == "ADP" and any(
@@ -154,7 +123,7 @@ class PrepositionErrorHandler:
         modified: set[int],
         rng: Random | None = None,
     ) -> ErrorResult | None:
-        """Apply paronym error"""
+        """Apply preposition error"""
 
         rng = rng if rng is not None else random_module
         token = tokens[idx]
@@ -165,7 +134,10 @@ class PrepositionErrorHandler:
 
         for v in self.prepositions.values():
             if word.lower() in v:
-                new_word = rng.choice([x for x in v if x != word.lower()])
+                candidates = [x for x in v if x != word.lower()]
+                if not candidates:
+                    return None
+                new_word = rng.choice(candidates)
                 break
         else:
             return None
@@ -198,7 +170,7 @@ class ConjunctionErrorHandler:
         self,
         path_to_conjunctions_dict="src/synterr/data/russian/conjunctions.json",
     ):
-        self.conjunctions = _load_paronyms_dict(path_to_conjunctions_dict)
+        self.conjunctions = _load_grouped_dict(path_to_conjunctions_dict)
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].pos in ["CCONJ", "SCONJ"] and any(
@@ -213,7 +185,7 @@ class ConjunctionErrorHandler:
         modified: set[int],
         rng: Random | None = None,
     ) -> ErrorResult | None:
-        """Apply paronym error"""
+        """Apply conjunction error"""
 
         rng = rng if rng is not None else random_module
         token = tokens[idx]
@@ -224,7 +196,10 @@ class ConjunctionErrorHandler:
 
         for v in self.conjunctions.values():
             if word.lower() in v:
-                new_word = rng.choice([x for x in v if x != word.lower()])
+                candidates = [x for x in v if x != word.lower()]
+                if not candidates:
+                    return None
+                new_word = rng.choice(candidates)
                 break
         else:
             return None
