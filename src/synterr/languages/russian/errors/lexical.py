@@ -47,12 +47,17 @@ class ParonymErrorHandler:
     category = "OTHER"
     changes_length = False
 
-    def __init__(
-        self,
-        path_to_paronyms_dict="src/synterr/data/russian/paronyms.json",
-    ):
-        self.paronyms = _load_grouped_dict(path_to_paronyms_dict)
+    def __init__(self):
         self.morph = pymorphy3.MorphAnalyzer()
+        self._paronyms = None
+
+    @property
+    def paronyms(self):
+        if self._paronyms is None:
+            from synterr.languages.russian.resources import get_paronyms
+
+            self._paronyms = get_paronyms()
+        return self._paronyms
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].lemma in self.paronyms
@@ -104,11 +109,16 @@ class PrepositionErrorHandler:
     category = "OTHER"
     changes_length = False
 
-    def __init__(
-        self,
-        path_to_prepositions_dict="src/synterr/data/russian/prepositions.json",
-    ):
-        self.prepositions = _load_grouped_dict(path_to_prepositions_dict)
+    def __init__(self):
+        self._prepositions = None
+
+    @property
+    def prepositions(self):
+        if self._prepositions is None:
+            from synterr.languages.russian.resources import get_preposition_list
+
+            self._prepositions = get_preposition_list()
+        return self._prepositions
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].pos == "ADP" and any(
@@ -166,11 +176,16 @@ class ConjunctionErrorHandler:
     category = "OTHER"
     changes_length = False
 
-    def __init__(
-        self,
-        path_to_conjunctions_dict="src/synterr/data/russian/conjunctions.json",
-    ):
-        self.conjunctions = _load_grouped_dict(path_to_conjunctions_dict)
+    def __init__(self):
+        self._conjunctions = None
+
+    @property
+    def conjunctions(self):
+        if self._conjunctions is None:
+            from synterr.languages.russian.resources import get_conjunction_list
+
+            self._conjunctions = get_conjunction_list()
+        return self._conjunctions
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].pos in ["CCONJ", "SCONJ"] and any(
