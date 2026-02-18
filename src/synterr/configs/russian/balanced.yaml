@@ -11,18 +11,27 @@ max_errors_per_sentence: 3
 
 # Error weights - balanced across all implemented handlers
 weights:
-  # Spelling: ~25%
-  spelling: 0.25
+  # Spelling: ~17%
+  spelling: 0.17
 
-  # Morphological - Nouns: ~25%
-  noun_case: 0.18
-  noun_number: 0.07
+  # Lexical: ~17%
+  paronym: 0.05
+  preposition: 0.06
+  conjunction: 0.06
 
-  # Morphological - Adjectives: ~25%
-  adj_case: 0.12
-  adj_number: 0.07
-  adj_gender: 0.06
+  # Structural: ~16%
+  word_omission: 0.08
+  word_insertion: 0.08
 
-  # Morphological - Verbs: ~25%
-  verb_person_number: 0.13
-  verb_tense: 0.12
+  # Morphological - Nouns: ~17%
+  noun_case: 0.12
+  noun_number: 0.05
+
+  # Morphological - Adjectives: ~16%
+  adj_case: 0.07
+  adj_number: 0.05
+  adj_gender: 0.04
+
+  # Morphological - Verbs: ~17%
+  verb_person_number: 0.09
+  verb_tense: 0.08

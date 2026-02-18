@@ -29,6 +29,15 @@ weights:
   verb_person_number: 0.052  # 2.4%
   verb_tense: 0.023          # 1.0%
 
+  # Lexical
+  paronym: 0.122 # lexical: 12.2%
+  preposition: 0.031 # 3.1%
+  conjunction: 0.007 # 0.7%
+
+  # Structural
+  word_omission: 0.146 # insert: 14.6%
+  word_insertion: 0.082 # delete: 8.2%
+
 # Subtype weights within handlers
 # These control the distribution of error subtypes when a handler is selected.
 # Values are relative weights (not probabilities) - higher = more likely.
@@ -46,9 +55,7 @@ subtype_weights:
 # Unimplemented error types (for reference)
 # These are significant in RULEC-GEC but not yet in synterr:
 #
-# insert: 14.6%        - Missing function words
 # lexical: 12.2%       - Word choice errors
-# delete: 8.2%         - Extra words
 # preposition: 3.1%    - Preposition errors
 # verb_aspect: 1.8%    - Aspect confusion
 # verb_voice: 1.1%     - Voice errors (add/remove -ся)
