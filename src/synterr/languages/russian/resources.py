@@ -58,7 +58,7 @@ def get_conjunction_list() -> dict[str, list[str]]:
 
 @lru_cache(maxsize=1)
 def get_preposition_list() -> dict[str, list[str]]:
-    """Get list of frequent Russian conjunctions."""
+    """Get list of frequent Russian prepositions."""
     data_path = _get_package_data_path() / "prepositions.json"
 
     if data_path.exists():
@@ -68,6 +68,27 @@ def get_preposition_list() -> dict[str, list[str]]:
             return {k: v for k, v in data.items() if not k.startswith("_")}
 
     return {}
+
+
+@lru_cache(maxsize=1)
+def get_filler_list() -> list[str]:
+    """Get list of filler words for word insertion errors."""
+    data_path = _get_package_data_path() / "fillers.json"
+
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("fillers", [])
+
+    return []
+
+
+@lru_cache(maxsize=1)
+def get_morph_analyzer():
+    """Get shared pymorphy3 MorphAnalyzer instance (cached singleton)."""
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
 
 
 @lru_cache(maxsize=1)

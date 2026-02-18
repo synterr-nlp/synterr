@@ -1,26 +1,26 @@
-import json
-import random as random_module
-from collections.abc import Sequence
-from random import Random
+"""Russian structural error handlers - word omission and insertion."""
 
-from synterr import AnalyzedToken
+from __future__ import annotations
+
+import random as random_module
+from typing import TYPE_CHECKING
+
 from synterr.core.protocol import ErrorResult
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from random import Random
+
+    from synterr.core.protocol import AnalyzedToken
 
 OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ", "PUNCT"}
 
 
-def _load_filler_list(filepath: str) -> list[str]:
-    with open(filepath, encoding="utf-8") as f:
-        data = json.load(f)
-
-    fillers = data.get("fillers", [])
-
-    return fillers
-
-
 class WordOmissionHandler:
+    """Delete a function word (preposition, particle, conjunction, punctuation)."""
+
     name = "word_omission"
-    subtypes = ["word_omission"]  # ~ Syntax+Miss в RLC
+    subtypes = ["word_omission"]
     category = "OTHER"
     changes_length = True
 
@@ -56,16 +56,23 @@ class WordOmissionHandler:
 
 
 class WordInsertionHandler:
+    """Insert a filler word (discourse marker, particle) into the sentence."""
+
     name = "word_insertion"
-    subtypes = ["word_insertion"]  # Маппится на Syntax+Extra в RLC
+    subtypes = ["word_insertion"]
     category = "OTHER"
     changes_length = True
 
-    def __init__(
-        self,
-        path_to_fillers_dict="src/synterr/data/russian/fillers.json",
-    ):
-        self.fillers = _load_filler_list(path_to_fillers_dict)
+    def __init__(self):
+        self._fillers = None
+
+    @property
+    def fillers(self):
+        if self._fillers is None:
+            from synterr.languages.russian.resources import get_filler_list
+
+            self._fillers = get_filler_list()
+        return self._fillers
 
     def can_apply(self, tokens, idx):
         return idx < len(tokens) - 1

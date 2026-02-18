@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import random as random_module
 from typing import TYPE_CHECKING
-
-import pymorphy3
 
 from synterr.core.protocol import AnalyzedToken, ErrorResult
 from synterr.languages.russian.errors.morphological import (
@@ -20,25 +17,6 @@ if TYPE_CHECKING:
     from random import Random
 
 
-def _load_grouped_dict(filepath: str) -> dict[str, list[str]]:
-    """
-    Load grouped list from JSON file
-
-    Args:
-        filepath (str): Path to JSON file with grouped dictionary
-
-    Returns:
-        Dict[str, List[str]]: Dictionary with mapping
-    """
-
-    with open(filepath, encoding="utf-8") as f:
-        data = json.load(f)
-
-    paronyms = {key: value for key, value in data.items() if not key.startswith("_")}
-
-    return paronyms
-
-
 class ParonymErrorHandler:
     """Replace word from paronyms list to one from its paronyms"""
 
@@ -48,8 +26,16 @@ class ParonymErrorHandler:
     changes_length = False
 
     def __init__(self):
-        self.morph = pymorphy3.MorphAnalyzer()
         self._paronyms = None
+        self.__morph = None
+
+    @property
+    def _morph(self):
+        if self.__morph is None:
+            from synterr.languages.russian.resources import get_morph_analyzer
+
+            self.__morph = get_morph_analyzer()
+        return self.__morph
 
     @property
     def paronyms(self):
@@ -83,7 +69,7 @@ class ParonymErrorHandler:
         grammemes = set(parse.tag.grammemes)
 
         new_word_lemma = rng.choice(self.paronyms.get(token.lemma))
-        new_word_parse = self.morph.parse(new_word_lemma)[0]
+        new_word_parse = self._morph.parse(new_word_lemma)[0]
         new_word = inflect_word(new_word_parse, grammemes, word)
         new_word = match_capitalization(word, new_word)
 
