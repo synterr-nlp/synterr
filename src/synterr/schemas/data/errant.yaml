@@ -251,28 +251,25 @@ mappings:
     primary: VERB:TENSE
     modifier: R
 
-  # ---------------------------------------------------------------------------
-  # Future handlers (Artem)
-  # ---------------------------------------------------------------------------
-  # paronym:
-  #   primary: OTHER
-  #   modifier: R
+  paronym:
+    primary: OTHER
+    modifier: R
 
-  # preposition:
-  #   primary: PREP
-  #   modifier: R
+  preposition:
+    primary: PREP
+    modifier: R
 
-  # conjunction:
-  #   primary: CONJ
-  #   modifier: R
+  conjunction:
+    primary: CONJ
+    modifier: R
 
-  # word_omission:
-  #   primary: OTHER
-  #   modifier: M
+  word_omission:
+    primary: OTHER
+    modifier: M
 
-  # word_insertion:
-  #   primary: OTHER
-  #   modifier: U
+  word_insertion:
+    primary: OTHER
+    modifier: U
 
 # ============================================================================
 # REFERENCE: Tag frequency in RULEC-GEC (approximate)

@@ -43,6 +43,55 @@ get_lexical_confusions = get_paronyms
 
 
 @lru_cache(maxsize=1)
+def get_conjunction_list() -> dict[str, list[str]]:
+    """Get list of frequent Russian conjunctions."""
+    data_path = _get_package_data_path() / "conjunctions.json"
+
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+            # Remove metadata key
+            return {k: v for k, v in data.items() if not k.startswith("_")}
+
+    return {}
+
+
+@lru_cache(maxsize=1)
+def get_preposition_list() -> dict[str, list[str]]:
+    """Get list of frequent Russian prepositions."""
+    data_path = _get_package_data_path() / "prepositions.json"
+
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+            # Remove metadata key
+            return {k: v for k, v in data.items() if not k.startswith("_")}
+
+    return {}
+
+
+@lru_cache(maxsize=1)
+def get_filler_list() -> list[str]:
+    """Get list of filler words for word insertion errors."""
+    data_path = _get_package_data_path() / "fillers.json"
+
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("fillers", [])
+
+    return []
+
+
+@lru_cache(maxsize=1)
+def get_morph_analyzer():
+    """Get shared pymorphy3 MorphAnalyzer instance (cached singleton)."""
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
+
+
+@lru_cache(maxsize=1)
 def get_stress_dict() -> dict[str, int]:
     """Load stress dictionary for vowel reduction.
 
@@ -60,64 +109,6 @@ def get_stress_dict() -> dict[str, int]:
 
     # Return empty dict if not found (vowel reduction will be skipped)
     return {}
-
-
-@lru_cache(maxsize=1)
-def get_conjunction_list() -> list[str]:
-    """Get list of frequent Russian conjunctions."""
-    # Frequently used conjunctions from RULEC/corpus analysis
-    return [
-        "и",
-        "а",
-        "но",
-        "или",
-        "что",
-        "как",
-        "когда",
-        "если",
-        "чтобы",
-        "потому",
-        "хотя",
-        "однако",
-        "либо",
-        "тоже",
-        "также",
-        "зато",
-        "притом",
-        "причём",
-        "поэтому",
-        "ведь",
-    ]
-
-
-@lru_cache(maxsize=1)
-def get_preposition_list() -> list[str]:
-    """Get list of frequent Russian prepositions."""
-    return [
-        "в",
-        "на",
-        "с",
-        "к",
-        "по",
-        "за",
-        "о",
-        "из",
-        "у",
-        "для",
-        "от",
-        "до",
-        "без",
-        "при",
-        "над",
-        "под",
-        "между",
-        "через",
-        "перед",
-        "после",
-        "около",
-        "вокруг",
-        "против",
-    ]
 
 
 @lru_cache(maxsize=1)

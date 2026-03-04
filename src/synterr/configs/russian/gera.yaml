@@ -29,6 +29,15 @@ weights:
   verb_person_number: 0.000  # Combined in G:VERB:P/N/G
   verb_tense: 0.009          # G:VERB:TENSE 0.7%
 
+  # Lexical
+  paronym: 0.038             # L:OTHER 3.8%
+  preposition: 0.009         # G:PREP:WRONG 0.9%
+  conjunction: 0.003         # G:CONJ:WRONG 0.3%
+
+  # Structural
+  word_omission: 0.032       # LACK 3.2%
+  word_insertion: 0.000      # EXCESS 0%
+
 # Major unimplemented types in GERA:
 #
 # punctuation: 42.5%   - Dominant error type in school texts

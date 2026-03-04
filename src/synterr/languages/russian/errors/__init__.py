@@ -10,6 +10,11 @@ if TYPE_CHECKING:
 
 def get_all_handlers() -> list[ErrorHandler]:
     """Get all registered Russian error handlers."""
+    from synterr.languages.russian.errors.lexical import (
+        ConjunctionErrorHandler,
+        ParonymErrorHandler,
+        PrepositionErrorHandler,
+    )
     from synterr.languages.russian.errors.morphological import (
         AdjCaseErrorHandler,
         AdjGenderErrorHandler,
@@ -20,6 +25,10 @@ def get_all_handlers() -> list[ErrorHandler]:
         VerbTenseErrorHandler,
     )
     from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+    from synterr.languages.russian.errors.structural import (
+        WordInsertionHandler,
+        WordOmissionHandler,
+    )
 
     return [
         # Spelling
@@ -34,6 +43,13 @@ def get_all_handlers() -> list[ErrorHandler]:
         # Morphological - Verbs
         VerbPersonNumberErrorHandler(),
         VerbTenseErrorHandler(),
+        # Lexical
+        ParonymErrorHandler(),
+        PrepositionErrorHandler(),
+        ConjunctionErrorHandler(),
+        # Structural
+        WordOmissionHandler(),
+        WordInsertionHandler(),
     ]
 
 

@@ -64,7 +64,7 @@ $STARTSEPL|||SEPR$KEEP:CORRECT ОнSEPL|||SEPR$REPLACE_читает:MORPH чит
 | Noun case | *к дому* → к дом | MORPH |
 | Adj agreement | *новый книга* → новая книга | MORPH |
 | Verb conjugation | *они читает* → они читают | MORPH |
-| Paronyms | *одеть* ↔ надеть | OTHER |
+| Paronyms | *одеть* ↔ надеть | LEX |
 
 Full list: `synterr list-errors -l ru`
 

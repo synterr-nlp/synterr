@@ -77,7 +77,7 @@ Literature and resources used in synterr development.
 ### Prescriptive Grammar
 
 **Rozental (Розенталь)**
-- Розенталь Д.Э. "Справочник по правописанию и литературной правке"
+- Розенталь Д.Э. "Справочник по правописанию и стилистике" (ИК «Комплект», 1997)
 - Розенталь Д.Э. "Управление в русском языке"
 - *Standard prescriptive references for Russian grammar rules*
 
