@@ -1,37 +1,47 @@
 # Rozental-grounded hierarchical error classification schema
-# Based on: Розенталь Д. Э. Справочник по правописанию и литературной правке (1997)
+# Based on: Розенталь Д. Э. Справочник по правописанию и стилистике (ИК «Комплект», 1997)
 #
 # Three levels:
-#   L0  Detection      5 tags   → GECToR d_tags.txt
+#   L0  Detection      8 tags   (7 error categories + CORRECT)
 #   L1  Working       29 tags   → synterr handlers, training analysis, paper tables
-#   L2  Fine-grained ~65 tags   → research annotation, Rozental § tracing
+#   L2  Fine-grained  99 tags   → research annotation, Rozental § tracing
+#
+# L0 prefix mapping (deterministic from tag name):
+#   sp_ → SPELL    mo_ → MORPH    ag_ → AGR    gv_ → GOV
+#   pu_ → PUNCT    sy_ → SYNT     lx_ → LEX
 
 name: rozental
 version: "1.0"
-description: "Rozental-grounded hierarchical error schema (5 L0 / 29 L1 / ~65 L2)"
+description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 99 L2)"
 
 # =============================================================================
-# L0: Detection Categories (same as synterr — no GECToR breaking change)
+# L0: Detection Categories (linguistically grounded, decoupled from GECToR)
+#
+# GECToR d_tags.txt conversion:
+#   SPELL → SPELL | MORPH, AGR, GOV → MORPH | PUNCT → PUNCT | SYNT, LEX → OTHER
 # =============================================================================
 
 detection_categories:
   CORRECT: "No error"
   SPELL: "Orthographic (Rozental Part I, §1–74)"
-  MORPH: "Morphological + agreement + government (Part III, §144–213)"
+  MORPH: "Morphological form (Part III, §144–175)"
+  AGR: "Agreement (Part III, §183–197)"
+  GOV: "Government (Part III, §198–205)"
   PUNCT: "Punctuation (Part II, §75–138)"
-  OTHER: "Lexical choice + structural (Part III, §139–143, §176–182)"
+  SYNT: "Syntax and sentence structure (Part III, §176–182, §206–213)"
+  LEX: "Lexical choice + structural (Part III, §139–143)"
 
 # =============================================================================
 # L1: Working Tags (29)
 #
-# Prefixes:
-#   sp_  spelling          (Part I)
-#   mo_  morphological form (Part III, §144–175)
-#   ag_  agreement         (Part III, §183–197)
-#   gv_  government        (Part III, §198–205)
-#   sy_  syntax            (Part III, §176–182, §206–213)
-#   pu_  punctuation       (Part II)
-#   lx_  lexical           (Part III, §139–143 + cross-cutting)
+# Prefixes = L0 categories:
+#   sp_  SPELL   spelling          (Part I)
+#   mo_  MORPH   morphological form (Part III, §144–175)
+#   ag_  AGR     agreement         (Part III, §183–197)
+#   gv_  GOV     government        (Part III, §198–205)
+#   sy_  SYNT    syntax            (Part III, §176–182, §206–213)
+#   pu_  PUNCT   punctuation       (Part II)
+#   lx_  LEX     lexical           (Part III, §139–143 + cross-cutting)
 # =============================================================================
 
 primary_tags:
@@ -51,16 +61,16 @@ primary_tags:
     rozental_chapters: "III"
 
   sp_affix:
-    description: "Prefixes, ъ/ь, sibilants"
+    description: "Prefixes and ъ/ь signs"
     detection_category: SPELL
-    rozental_paras: "§29–36"
-    rozental_chapters: "IV–VI"
+    rozental_paras: "§29–34"
+    rozental_chapters: "IV–V"
 
-  sp_pos_endings:
-    description: "POS-specific suffix/ending orthography"
+  sp_pos:
+    description: "POS-specific spelling rules (endings, suffixes, solid/hyphen/separate)"
     detection_category: SPELL
-    rozental_paras: "§37–58"
-    rozental_chapters: "VII–XIV"
+    rozental_paras: "§35–40, §45–58"
+    rozental_chapters: "VI–VIII, X–XIV"
 
   sp_compounds:
     description: "Compound words (solid/hyphen/separate)"
@@ -90,9 +100,9 @@ primary_tags:
     rozental_chapters: "XXXVI"
 
   mo_noun_number:
-    description: "Noun plural formation (nom -ы/-а, gen pl)"
+    description: "Noun plural formation (nom -ы/-а, gen pl) + suffix variants"
     detection_category: MORPH
-    rozental_paras: "§153–157"
+    rozental_paras: "§153–158"
     rozental_chapters: "XXXVI"
 
   mo_noun_gender:
@@ -148,13 +158,13 @@ primary_tags:
   # ---------------------------------------------------------------------------
   ag_subject_verb:
     description: "Subject-verb agreement (collective nouns, counting, coordinated)"
-    detection_category: MORPH
+    detection_category: AGR
     rozental_paras: "§183–190"
     rozental_chapters: "XLIII"
 
   ag_modifier_noun:
     description: "Modifier-noun agreement (adj/participle/apposition)"
-    detection_category: MORPH
+    detection_category: AGR
     rozental_paras: "§191–197"
     rozental_chapters: "XLIV"
 
@@ -163,7 +173,7 @@ primary_tags:
   # ---------------------------------------------------------------------------
   gv_government:
     description: "Case government, preposition choice, negation genitive"
-    detection_category: MORPH
+    detection_category: GOV
     rozental_paras: "§198–205"
     rozental_chapters: "XLV"
 
@@ -172,15 +182,15 @@ primary_tags:
   # ---------------------------------------------------------------------------
   sy_word_order:
     description: "Word order errors"
-    detection_category: OTHER
+    detection_category: SYNT
     rozental_paras: "§178–182"
-    rozental_chapters: "XLI–XLII"
+    rozental_chapters: "XLII"
 
   sy_construction:
     description: "Sentence structure, parallel constructions"
-    detection_category: OTHER
+    detection_category: SYNT
     rozental_paras: "§176–177, §206–213"
-    rozental_chapters: "XLI–XLII, XLVI–XLVIII"
+    rozental_chapters: "XLI, XLVI–XLVIII"
 
   # ---------------------------------------------------------------------------
   # PUNCT (5 tags)
@@ -220,18 +230,18 @@ primary_tags:
   # ---------------------------------------------------------------------------
   lx_word_choice:
     description: "Paronyms, pleonasms, clichés"
-    detection_category: OTHER
+    detection_category: LEX
     rozental_paras: "§139–143"
     rozental_chapters: "XXXV"
 
   lx_structural:
     description: "Missing/extra words, constructional errors"
-    detection_category: OTHER
+    detection_category: LEX
     rozental_paras: ""
     rozental_chapters: ""
 
 # =============================================================================
-# L2: Fine-Grained Tags (~65) — for research annotation
+# L2: Fine-Grained Tags (99) — for research annotation
 #
 # Each tag traces to specific Rozental sub-paragraphs.
 # parent: L1 tag name
@@ -254,33 +264,33 @@ fine_grained_tags:
   sp_root_voiced_voiceless:
     parent: sp_root
     description: "Voiced/voiceless consonants"
-    paras: "§4"
+    paras: "§8"
   sp_root_double:
     parent: sp_root
     description: "Double consonants in roots"
-    paras: "§5"
+    paras: "§9"
   sp_root_silent:
     parent: sp_root
     description: "Unpronounced consonants"
-    paras: "§6"
+    paras: "§10"
   sp_root_vowel_after:
     parent: sp_root
-    description: "Vowels after sibilants/ц in roots"
-    paras: "§7–10"
+    description: "Vowels after sibilants/ц, э-е, й in roots"
+    paras: "§4–7"
 
   # --- sp_capitalization children ---
   sp_cap_proper:
     parent: sp_capitalization
-    description: "Personal names, patronymics, pen names"
-    paras: "§11–14"
+    description: "General capitalization, personal/fictional names, derived adjectives"
+    paras: "§11–16"
   sp_cap_geographic:
     parent: sp_capitalization
     description: "Geographic and astronomical names"
-    paras: "§15–17"
+    paras: "§17–18"
   sp_cap_organizations:
     parent: sp_capitalization
-    description: "Organizations, institutions, events"
-    paras: "§18–22"
+    description: "Historical events, holidays, organizations, institutions"
+    paras: "§19–22"
   sp_cap_titles:
     parent: sp_capitalization
     description: "Titles, awards, brands, abbreviations"
@@ -293,40 +303,40 @@ fine_grained_tags:
     paras: "§29–30"
   sp_affix_prefix:
     parent: sp_affix
-    description: "Prefixes (пре-/при-, з-/с-)"
-    paras: "§31–33"
-  sp_affix_sibilant:
-    parent: sp_affix
-    description: "Vowels after sibilants and ц"
-    paras: "§34–36"
+    description: "Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
+    paras: "§31–34"
 
-  # --- sp_pos_endings children ---
+  # --- sp_pos children ---
+  sp_pos_sibilant:
+    parent: sp_pos
+    description: "Vowels after sibilants and ц in suffixes/endings"
+    paras: "§35–36"
   sp_noun_endings:
-    parent: sp_pos_endings
+    parent: sp_pos
     description: "Noun endings and suffixes"
     paras: "§37–38"
   sp_adj_endings:
-    parent: sp_pos_endings
+    parent: sp_pos
     description: "Adjective endings and suffixes (н/нн)"
     paras: "§39–40"
   sp_numeral_spelling:
-    parent: sp_pos_endings
-    description: "Numeral spelling"
+    parent: sp_pos
+    description: "Numeral spelling (количественные, порядковые, дробные, пол-)"
     paras: "§45–46"
   sp_pronoun_spelling:
-    parent: sp_pos_endings
-    description: "Pronoun spelling (кое-, -то, -либо)"
+    parent: sp_pos
+    description: "Negative pronoun spelling (не-/ни- with pronouns)"
     paras: "§47"
   sp_verb_endings:
-    parent: sp_pos_endings
+    parent: sp_pos
     description: "Verb personal endings and suffixes"
     paras: "§48–50"
   sp_participle_endings:
-    parent: sp_pos_endings
+    parent: sp_pos
     description: "Participle suffixes and н/нн"
     paras: "§51–52"
   sp_adverb_spelling:
-    parent: sp_pos_endings
+    parent: sp_pos
     description: "Adverb spelling (solid/hyphen/separate)"
     paras: "§53–58"
 
@@ -339,28 +349,28 @@ fine_grained_tags:
     parent: sp_compounds
     description: "Hyphenated compound words"
     paras: "§42–43"
-  sp_compound_pol:
+  sp_compound_adj:
     parent: sp_compounds
-    description: "пол-/полу- compounds"
+    description: "Compound adjective spelling (слитное/дефисное, 13 sub-rules)"
     paras: "§44"
 
   # --- sp_function children ---
   sp_ne_ni:
     parent: sp_function
-    description: "не/ни particles"
-    paras: "§59–64"
+    description: "не/ни with all parts of speech"
+    paras: "§65–72"
   sp_preposition_spelling:
     parent: sp_function
     description: "Preposition spelling (вследствие, в течение)"
-    paras: "§65–67"
+    paras: "§59–60"
   sp_conjunction_spelling:
     parent: sp_function
     description: "Conjunction spelling (чтобы, также, зато)"
-    paras: "§68–70"
+    paras: "§61–62"
   sp_particle_spelling:
     parent: sp_function
-    description: "Particle spelling (-таки, бы, ли)"
-    paras: "§71–72"
+    description: "Particle spelling (-таки, бы, ли, же)"
+    paras: "§63–64"
 
   # --- sp_foreign children ---
   sp_interjection:
@@ -380,15 +390,15 @@ fine_grained_tags:
   mo_noun_case_prep_e_u:
     parent: mo_noun_case
     description: "Prepositional -е/-у alternation"
-    paras: "§151"
+    paras: "§152"
   mo_noun_case_instr:
     parent: mo_noun_case
-    description: "Instrumental case variation"
-    paras: "§152"
+    description: "Instrumental plural -ями/-(ь)ми variation"
+    paras: "§155"
   mo_noun_case_other:
     parent: mo_noun_case
-    description: "Other case form variations"
-    paras: "§153–155"
+    description: "Accusative animate/inanimate + nom/gen plural forms"
+    paras: "§151, §153–154"
 
   # --- mo_noun_number children ---
   mo_noun_num_nom_pl:
@@ -398,11 +408,15 @@ fine_grained_tags:
   mo_noun_num_gen_pl:
     parent: mo_noun_number
     description: "Genitive plural forms"
-    paras: "§154–155"
+    paras: "§154"
   mo_noun_num_tantum:
     parent: mo_noun_number
     description: "Singularia/pluralia tantum"
     paras: "§156–157"
+  mo_noun_suffix:
+    parent: mo_noun_number
+    description: "Noun suffix variants (diminutive, abstract: воробышек/воробушек, бессмысленность/бессмыслица)"
+    paras: "§158"
 
   # --- mo_noun_gender children ---
   mo_noun_gender_fluctuation:
@@ -415,7 +429,7 @@ fine_grained_tags:
     paras: "§146–147"
   mo_noun_gender_common:
     parent: mo_noun_gender
-    description: "Common-gender nouns (сирота, коллега)"
+    description: "Declension peculiarities and name/surname declension"
     paras: "§148–149"
 
   # --- mo_adj_form children ---
@@ -426,15 +440,15 @@ fine_grained_tags:
   mo_adj_comparative:
     parent: mo_adj_form
     description: "Comparative/superlative forms"
-    paras: "§160"
+    paras: "§161"
   mo_adj_possessive:
     parent: mo_adj_form
     description: "Possessive adjectives (отцов/отца)"
-    paras: "§161"
+    paras: "§162"
   mo_adj_other:
     parent: mo_adj_form
-    description: "Other adjective form issues"
-    paras: "§162–163"
+    description: "Short form variants + adj/noun synonymy"
+    paras: "§160, §163"
 
   # --- mo_numeral children ---
   mo_numeral_cardinal:
@@ -447,22 +461,22 @@ fine_grained_tags:
     paras: "§165"
   mo_numeral_oba:
     parent: mo_numeral
-    description: "оба/обе usage"
+    description: "Numerals in compound words (двух-, пол-, 2500-летие)"
     paras: "§166"
 
   # --- mo_pronoun children ---
   mo_pronoun_svoy:
     parent: mo_pronoun
-    description: "свой vs его/её/их"
-    paras: "§167–168"
+    description: "Personal pronouns (его/её/их, начальное н)"
+    paras: "§167"
   mo_pronoun_sebya:
     parent: mo_pronoun
-    description: "себя reflexive pronoun"
-    paras: "§170"
+    description: "Reflexive/possessive pronouns (себя, свой)"
+    paras: "§168"
   mo_pronoun_forms:
     parent: mo_pronoun
-    description: "Pronoun form variations (кто/что)"
-    paras: "§169"
+    description: "Определительные and indefinite pronouns (всякий/каждый, кое-кто)"
+    paras: "§169–170"
 
   # --- mo_verb_aspect children ---
   mo_verb_asp_pair:
@@ -503,16 +517,16 @@ fine_grained_tags:
     paras: "§184"
   ag_sv_approximate:
     parent: ag_subject_verb
-    description: "Agreement with approximate quantities"
+    description: "Agreement with subjects having appositions"
     paras: "§185"
   ag_sv_compound:
     parent: ag_subject_verb
-    description: "Agreement with compound subjects (кто/что + relative)"
-    paras: "§186"
+    description: "Agreement with special subjects (comitative, pronouns, indeclinables, copula)"
+    paras: "§186–189"
   ag_sv_coordinated:
     parent: ag_subject_verb
     description: "Agreement with coordinated subjects (A и B)"
-    paras: "§187–190"
+    paras: "§190"
 
   # --- ag_modifier_noun children ---
   ag_mn_adj_case:
@@ -561,16 +575,16 @@ fine_grained_tags:
   # --- sy_word_order children ---
   sy_wo_subject:
     parent: sy_word_order
-    description: "Subject position errors"
-    paras: "§178–179"
+    description: "Subject and predicate position"
+    paras: "§178"
   sy_wo_modifier:
     parent: sy_word_order
     description: "Modifier/attribute position"
-    paras: "§180–181"
+    paras: "§179"
   sy_wo_other:
     parent: sy_word_order
-    description: "Other word order issues"
-    paras: "§182"
+    description: "Complement, adverbial, and other word order"
+    paras: "§180–182"
 
   # --- sy_construction children ---
   sy_parallel:
@@ -615,7 +629,7 @@ fine_grained_tags:
     paras: "§79"
   pu_dash_apposition:
     parent: pu_dash
-    description: "Dash with appositional members"
+    description: "Dash in incomplete sentences"
     paras: "§80"
   pu_dash_other:
     parent: pu_dash
@@ -630,29 +644,29 @@ fine_grained_tags:
   pu_clause_subordinate:
     parent: pu_clause
     description: "Subordinate clause (сложноподчинённое)"
-    paras: "§107–112"
+    paras: "§107–113"
   pu_clause_comparative:
     parent: pu_clause
-    description: "Comparative constructions"
-    paras: "§113–114"
+    description: "Idiomatic phrases and comparative constructions"
+    paras: "§114–115"
   pu_clause_asyndetic:
     parent: pu_clause
     description: "Asyndetic complex sentences (бессоюзное)"
-    paras: "§115–118"
+    paras: "§116–118"
 
   # --- pu_speech_quotes children ---
   pu_direct_speech:
     parent: pu_speech_quotes
     description: "Direct speech punctuation"
-    paras: "§119–125"
+    paras: "§119–123"
   pu_citation:
     parent: pu_speech_quotes
     description: "Citations and epigraphs"
-    paras: "§126–128"
+    paras: "§124–127"
   pu_quotation_marks:
     parent: pu_speech_quotes
     description: "Quotation mark usage"
-    paras: "§129–132"
+    paras: "§128–132"
 
   # --- pu_other children ---
   pu_sentence_final:
@@ -672,11 +686,11 @@ fine_grained_tags:
   lx_pleonasm:
     parent: lx_word_choice
     description: "Pleonasm and tautology"
-    paras: "§140"
+    paras: "§141"
   lx_cliche:
     parent: lx_word_choice
-    description: "Clichés, anachoronisms"
-    paras: "§141–143"
+    description: "Bureaucratese, clichés, euphony, phraseology"
+    paras: "§140, §142–143"
 
   # --- lx_structural children ---
   lx_word_missing:
@@ -712,7 +726,7 @@ mappings:
   devoicing:
     primary: sp_root
   tsa_confusion:
-    primary: sp_pos_endings
+    primary: sp_pos
   cluster:
     primary: sp_root
   double_consonant:
@@ -783,7 +797,7 @@ cross_reference:
     rlc: [Ortho]
     rulec: ["Орфография"]
     errant: [SPELL, ORTH]
-  sp_pos_endings:
+  sp_pos:
     rlc: [Ortho]
     rulec: ["Орфография"]
     errant: [SPELL]
@@ -885,5 +899,5 @@ cross_reference:
     errant: [OTHER]
   lx_structural:
     rlc: [Constr]
-    rulec: ["Вставить", "Удалить"]
+    rulec: ["Вставить", "Убрать"]
     errant: [OTHER]
