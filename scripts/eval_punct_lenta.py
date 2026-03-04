@@ -80,12 +80,17 @@ def main():
 
     # Lazy imports
     from synterr.core.registry import get_language
-    from synterr.languages.russian.errors.punctuation import CommaDeleteHandler, DashDeleteHandler
+    from synterr.languages.russian.errors.punctuation import (
+        CommaDeleteHandler,
+        CommaPairDeleteHandler,
+        DashDeleteHandler,
+    )
 
     lang = get_language("ru")
     analyzer = lang.get_analyzer(use_depparse=True, backend="stanza")
 
     comma_handler = CommaDeleteHandler()
+    pair_handler = CommaPairDeleteHandler()
     dash_handler = DashDeleteHandler()
 
     # Collect examples by subtype — call handlers directly on every comma/dash
@@ -107,7 +112,7 @@ def main():
 
             # Try every comma and dash in the sentence
             for idx in range(len(tokens)):
-                for handler in (comma_handler, dash_handler):
+                for handler in (comma_handler, pair_handler, dash_handler):
                     if not handler.can_apply(tokens, idx):
                         continue
 
@@ -143,6 +148,8 @@ def main():
     all_subtypes = [
         "comma_subordinate", "comma_compound", "comma_parenthetical",
         "comma_isolation", "comma_homogeneous",
+        "pair_participle", "pair_relative", "pair_gerund",
+        "pair_parenthetical", "pair_apposition",
         "dash_subj_pred", "dash_other",
     ]
 

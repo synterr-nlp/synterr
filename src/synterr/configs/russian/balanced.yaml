@@ -20,8 +20,9 @@ weights:
   conjunction: 0.06
 
   # Punctuation: ~8%
-  comma_delete: 0.06
-  dash_delete: 0.02
+  comma_delete: 0.04
+  comma_pair_delete: 0.03
+  dash_delete: 0.01
 
   # Structural: ~16%
   word_omission: 0.08

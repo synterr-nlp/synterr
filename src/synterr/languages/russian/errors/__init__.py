@@ -27,6 +27,7 @@ def get_all_handlers() -> list[ErrorHandler]:
     from synterr.languages.russian.errors.spelling import SpellingErrorHandler
     from synterr.languages.russian.errors.punctuation import (
         CommaDeleteHandler,
+        CommaPairDeleteHandler,
         DashDeleteHandler,
     )
     from synterr.languages.russian.errors.structural import (
@@ -53,6 +54,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         ConjunctionErrorHandler(),
         # Punctuation
         CommaDeleteHandler(),
+        CommaPairDeleteHandler(),
         DashDeleteHandler(),
         # Structural
         WordOmissionHandler(),

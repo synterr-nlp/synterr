@@ -44,6 +44,15 @@ DASH_CHARS = frozenset({"—", "–", "--"})
 ISOLATION_DEPRELS = frozenset({"acl", "acl:relcl", "advcl"})
 CLAUSE_DEPRELS = frozenset({"ccomp", "advcl", "csubj", "csubj:pass"})
 
+# Dep relations that form paired-comma constructions
+PAIR_DEPRELS = {
+    "acl": "pair_participle",        # причастный оборот
+    "acl:relcl": "pair_relative",    # relative clause (который...)
+    "advcl": "pair_gerund",          # деепричастный оборот / adverbial clause
+    "parataxis": "pair_parenthetical",  # вводное слово/выражение
+    "appos": "pair_apposition",      # приложение
+}
+
 
 def _get_head(tokens: Sequence[AnalyzedToken], tok: AnalyzedToken) -> AnalyzedToken | None:
     """Follow head_idx to get the head token."""
@@ -58,6 +67,45 @@ def _has_own_subject(tokens: Sequence[AnalyzedToken], verb_idx: int) -> bool:
         t.head_idx == verb_idx and t.dep_rel in ("nsubj", "nsubj:pass")
         for t in tokens
     )
+
+
+def _find_comma_partner(tokens: Sequence[AnalyzedToken], idx: int) -> tuple[int, str] | None:
+    """Find the partner comma that shares the same dep head.
+
+    Returns (partner_idx, subtype) or None if no pair found.
+    Only returns a result when idx is the FIRST (leftmost) comma of the pair.
+    """
+    comma = tokens[idx]
+    if comma.head_idx is None:
+        return None
+
+    head = tokens[comma.head_idx] if 0 <= comma.head_idx < len(tokens) else None
+    if head is None or head.dep_rel not in PAIR_DEPRELS:
+        return None
+
+    subtype = PAIR_DEPRELS[head.dep_rel]
+
+    # Refine: advcl could be a gerund phrase or a full subordinate clause.
+    # Only treat as pair_gerund if the head is actually a gerund (VerbForm=Conv).
+    if head.dep_rel == "advcl" and head.get_feature("VerbForm") != "Conv":
+        return None  # Full advcl clause — handled by single comma delete
+
+    # Find all commas with the same head
+    partners = [
+        t.idx for t in tokens
+        if t.idx != idx and t.text == "," and t.pos == "PUNCT" and t.head_idx == comma.head_idx
+    ]
+    if not partners:
+        return None
+
+    # Pick the nearest partner
+    partner = min(partners, key=lambda p: abs(p - idx))
+
+    # Only trigger on the first (leftmost) comma to avoid double processing
+    if idx > partner:
+        return None
+
+    return (partner, subtype)
 
 
 def _get_subtree_span(tokens: Sequence[AnalyzedToken], root_idx: int) -> tuple[int, int]:
@@ -268,4 +316,66 @@ class DashDeleteHandler:
             original=dash_char,
             corrupted="",
             fix_tag=f"$APPEND_{dash_char}",
+        )
+
+
+class CommaPairDeleteHandler:
+    """Delete both commas of a paired construction (обособление).
+
+    Detects constructions where two commas share the same dep-tree head:
+    причастный оборот (acl), деепричастный оборот (advcl+Conv),
+    relative clause (acl:relcl), parenthetical (parataxis), apposition (appos).
+
+    Only triggers on the FIRST comma of a pair to avoid double processing.
+    """
+
+    name = "comma_pair_delete"
+    subtypes = [
+        "pair_participle",
+        "pair_relative",
+        "pair_gerund",
+        "pair_parenthetical",
+        "pair_apposition",
+    ]
+    category = "PUNCT"
+    changes_length = True
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        if idx == 0:
+            return False
+        tok = tokens[idx]
+        if tok.pos != "PUNCT" or tok.text != ",":
+            return False
+        return _find_comma_partner(tokens, idx) is not None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        if idx == 0 or tokens[idx].text != ",":
+            return None
+
+        pair = _find_comma_partner(tokens, idx)
+        if pair is None:
+            return None
+
+        partner_idx, subtype = pair
+
+        # Delete second comma first (higher index) to preserve first's index
+        del sentence[partner_idx]
+        del sentence[idx]
+
+        # Span covers from first comma to second comma (both removed)
+        return ErrorResult(
+            error_type=subtype,
+            category=self.category,
+            start_idx=idx - 1,
+            end_idx=partner_idx - 1,
+            original=", ... ,",
+            corrupted="...",
+            fix_tag="$APPEND_,",  # Simplified — real fix needs both commas
         )

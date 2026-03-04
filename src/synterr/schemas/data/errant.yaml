@@ -287,6 +287,21 @@ mappings:
   comma_homogeneous:
     primary: PUNCT
     modifier: U
+  pair_participle:
+    primary: PUNCT
+    modifier: U
+  pair_relative:
+    primary: PUNCT
+    modifier: U
+  pair_gerund:
+    primary: PUNCT
+    modifier: U
+  pair_parenthetical:
+    primary: PUNCT
+    modifier: U
+  pair_apposition:
+    primary: PUNCT
+    modifier: U
   dash_subj_pred:
     primary: PUNCT
     modifier: U

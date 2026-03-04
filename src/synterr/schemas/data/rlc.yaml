@@ -271,6 +271,21 @@ mappings:
   comma_homogeneous:
     primary: Syntax
     modifier: Miss
+  pair_participle:
+    primary: Syntax
+    modifier: Miss
+  pair_relative:
+    primary: Syntax
+    modifier: Miss
+  pair_gerund:
+    primary: Syntax
+    modifier: Miss
+  pair_parenthetical:
+    primary: Syntax
+    modifier: Miss
+  pair_apposition:
+    primary: Syntax
+    modifier: Miss
   dash_subj_pred:
     primary: Syntax
     modifier: Miss

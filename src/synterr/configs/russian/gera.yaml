@@ -35,7 +35,8 @@ weights:
   conjunction: 0.003         # G:CONJ:WRONG 0.3%
 
   # Punctuation: 42.5% in GERA — dominant error type in school texts
-  comma_delete: 0.320        # P:COMMA ~32%
+  comma_delete: 0.220        # P:COMMA single ~22%
+  comma_pair_delete: 0.140   # P:COMMA pair ~14%
   dash_delete: 0.040         # P:DASH ~4%
 
   # Structural

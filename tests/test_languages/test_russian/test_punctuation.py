@@ -1,9 +1,11 @@
 from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.punctuation import (
     CommaDeleteHandler,
+    CommaPairDeleteHandler,
     DashDeleteHandler,
     _classify_comma,
     _classify_dash,
+    _find_comma_partner,
 )
 
 
@@ -375,3 +377,152 @@ class TestClassifyDash:
             _tok("—", "PUNCT", idx=1),
         ]
         assert _classify_dash(tokens, 1) == "dash_other"
+
+
+# ── CommaPairDeleteHandler ──────────────────────────────────────────────────
+
+class TestFindCommaPair:
+    """Test _find_comma_partner detection."""
+
+    def _participle_tokens(self):
+        # "Студент, читающий книгу, ушёл"
+        return [
+            _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
+                 features={"VerbForm": "Part"}),
+            _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
+            _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
+        ]
+
+    def test_participle_pair_found(self):
+        tokens = self._participle_tokens()
+        result = _find_comma_partner(tokens, 1)
+        assert result is not None
+        partner_idx, subtype = result
+        assert partner_idx == 4
+        assert subtype == "pair_participle"
+
+    def test_only_first_comma_triggers(self):
+        tokens = self._participle_tokens()
+        # Second comma should NOT trigger (idx > partner)
+        assert _find_comma_partner(tokens, 4) is None
+
+    def test_gerund_pair(self):
+        # "Он, напевая песню, шёл домой"
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("напевая", "VERB", idx=2, dep_rel="advcl", head_idx=5,
+                 features={"VerbForm": "Conv"}),
+            _tok("песню", "NOUN", idx=3, dep_rel="obj", head_idx=2),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
+            _tok("шёл", "VERB", idx=5, dep_rel="root", head_idx=None),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result is not None
+        assert result == (4, "pair_gerund")
+
+    def test_advcl_full_clause_not_paired(self):
+        # "Он уехал, когда стемнело, и не вернулся" — advcl but not Conv
+        tokens = [
+            _tok("уехал", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("когда", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok("стемнело", "VERB", idx=3, dep_rel="advcl", head_idx=0,
+                 features={"VerbForm": "Fin"}),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
+        ]
+        # advcl without VerbForm=Conv → not a gerund pair
+        assert _find_comma_partner(tokens, 1) is None
+
+    def test_parenthetical_pair(self):
+        # "Он, конечно, был прав"
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("конечно", "ADV", lemma="конечно", idx=2, dep_rel="parataxis", head_idx=5),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
+            _tok("был", "AUX", idx=4, dep_rel="cop", head_idx=5),
+            _tok("прав", "ADJ", idx=5, dep_rel="root", head_idx=None),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result is not None
+        assert result == (3, "pair_parenthetical")
+
+    def test_relative_clause_pair(self):
+        # "дом, который построил Джек, стоял"
+        tokens = [
+            _tok("дом", "NOUN", idx=0, dep_rel="nsubj", head_idx=6),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("который", "PRON", idx=2, dep_rel="obj", head_idx=3),
+            _tok("построил", "VERB", idx=3, dep_rel="acl:relcl", head_idx=0),
+            _tok("Джек", "PROPN", idx=4, dep_rel="nsubj", head_idx=3),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
+            _tok("стоял", "VERB", idx=6, dep_rel="root", head_idx=None),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result is not None
+        assert result == (5, "pair_relative")
+
+    def test_no_pair_single_comma(self):
+        # "знал, что придёт" — only one comma, no partner
+        tokens = [
+            _tok("знал", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("что", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok("придёт", "VERB", idx=3, dep_rel="ccomp", head_idx=0),
+        ]
+        assert _find_comma_partner(tokens, 1) is None
+
+
+class TestCommaPairDeleteHandler:
+    handler = CommaPairDeleteHandler()
+
+    def test_implements_protocol(self):
+        assert self.handler.name == "comma_pair_delete"
+        assert self.handler.category == "PUNCT"
+        assert self.handler.changes_length is True
+        assert len(self.handler.subtypes) == 5
+
+    def test_can_apply_on_first_comma_of_pair(self):
+        # "Студент, читающий книгу, ушёл"
+        tokens = [
+            _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
+                 features={"VerbForm": "Part"}),
+            _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
+            _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
+        ]
+        assert self.handler.can_apply(tokens, 1) is True
+        assert self.handler.can_apply(tokens, 4) is False  # second comma
+
+    def test_apply_deletes_both_commas(self):
+        tokens = [
+            _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
+                 features={"VerbForm": "Part"}),
+            _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
+            _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
+        ]
+        sentence = ["Студент", ",", "читающий", "книгу", ",", "ушёл"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+
+        assert result is not None
+        assert result.error_type == "pair_participle"
+        assert result.category == "PUNCT"
+        assert sentence == ["Студент", "читающий", "книгу", "ушёл"]  # both commas gone
+
+    def test_can_apply_false_for_single_comma(self):
+        tokens = [
+            _tok("знал", "VERB", idx=0),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("что", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok("придёт", "VERB", idx=3, dep_rel="ccomp", head_idx=0),
+        ]
+        assert self.handler.can_apply(tokens, 1) is False

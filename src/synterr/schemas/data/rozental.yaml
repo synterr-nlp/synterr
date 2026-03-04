@@ -792,6 +792,18 @@ mappings:
   comma_homogeneous:
     primary: pu_comma
 
+  # Punctuation handler subtypes — comma pairs (both commas deleted)
+  pair_participle:
+    primary: pu_comma
+  pair_relative:
+    primary: pu_clause
+  pair_gerund:
+    primary: pu_comma
+  pair_parenthetical:
+    primary: pu_comma
+  pair_apposition:
+    primary: pu_comma
+
   # Punctuation handler subtypes — dashes
   dash_subj_pred:
     primary: pu_dash
