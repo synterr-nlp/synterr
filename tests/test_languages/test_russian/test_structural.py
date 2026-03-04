@@ -31,7 +31,7 @@ class TestWordOmissionHandler:
 
         assert self.handler.can_apply(tokens, 0) is False
         assert self.handler.can_apply(tokens, 1) is True
-        assert self.handler.can_apply(tokens, 2) is True
+        assert self.handler.can_apply(tokens, 2) is False  # PUNCT handled by punct handlers
         assert self.handler.can_apply(tokens, 3) is True
         assert self.handler.can_apply(tokens, 4) is True
         assert self.handler.can_apply(tokens, 5) is True

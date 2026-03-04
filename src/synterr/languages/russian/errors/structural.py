@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     from synterr.core.protocol import AnalyzedToken
 
-OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ", "PUNCT"}
+OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ"}
 
 
 class WordOmissionHandler:

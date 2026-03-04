@@ -780,6 +780,24 @@ mappings:
   subj_verb_agr:
     primary: ag_subject_verb
 
+  # Punctuation handler subtypes — commas
+  comma_subordinate:
+    primary: pu_clause
+  comma_compound:
+    primary: pu_clause
+  comma_parenthetical:
+    primary: pu_comma
+  comma_isolation:
+    primary: pu_comma
+  comma_homogeneous:
+    primary: pu_comma
+
+  # Punctuation handler subtypes — dashes
+  dash_subj_pred:
+    primary: pu_dash
+  dash_other:
+    primary: pu_dash
+
 # =============================================================================
 # CROSS-REFERENCE: L1 → existing taxonomies (for documentation)
 # =============================================================================

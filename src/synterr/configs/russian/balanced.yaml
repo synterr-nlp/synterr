@@ -19,6 +19,10 @@ weights:
   preposition: 0.06
   conjunction: 0.06
 
+  # Punctuation: ~8%
+  comma_delete: 0.06
+  dash_delete: 0.02
+
   # Structural: ~16%
   word_omission: 0.08
   word_insertion: 0.08

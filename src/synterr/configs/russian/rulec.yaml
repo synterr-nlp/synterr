@@ -34,6 +34,10 @@ weights:
   preposition: 0.031 # 3.1%
   conjunction: 0.007 # 0.7%
 
+  # Punctuation (not attested in RULEC L2 learner data)
+  comma_delete: 0.0
+  dash_delete: 0.0
+
   # Structural
   word_omission: 0.146 # insert: 14.6%
   word_insertion: 0.082 # delete: 8.2%

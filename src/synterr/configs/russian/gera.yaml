@@ -11,7 +11,7 @@ error_probability: 0.7
 max_errors_per_sentence: 3
 
 # Error weights (normalized to implemented handlers)
-# Note: GERA is heavily skewed toward punctuation (42.5%) which we don't implement yet
+# Note: GERA is heavily skewed toward punctuation (42.5%); comma_delete + dash_delete cover ~36%
 weights:
   # Spelling: 20.3% in corpus (S:ORTH + S:TYPO + S:LETTER:CASE)
   spelling: 0.712
@@ -34,12 +34,16 @@ weights:
   preposition: 0.009         # G:PREP:WRONG 0.9%
   conjunction: 0.003         # G:CONJ:WRONG 0.3%
 
+  # Punctuation: 42.5% in GERA — dominant error type in school texts
+  comma_delete: 0.320        # P:COMMA ~32%
+  dash_delete: 0.040         # P:DASH ~4%
+
   # Structural
   word_omission: 0.032       # LACK 3.2%
   word_insertion: 0.000      # EXCESS 0%
 
 # Major unimplemented types in GERA:
 #
-# punctuation: 42.5%   - Dominant error type in school texts
+# punctuation (remaining): ~6.5% - colon, semicolon, quotes, etc.
 # lexical: 11.4%       - L:REP, L:OTHER, L:CONSTR
 # insert: 3.4%         - LACK

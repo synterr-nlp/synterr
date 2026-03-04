@@ -255,6 +255,29 @@ mappings:
     primary: Syntax
     modifier: Extra
 
+  # Punctuation (RLC has no dedicated punct tags; Syntax+Miss = closest)
+  comma_subordinate:
+    primary: Syntax
+    modifier: Miss
+  comma_compound:
+    primary: Syntax
+    modifier: Miss
+  comma_parenthetical:
+    primary: Syntax
+    modifier: Miss
+  comma_isolation:
+    primary: Syntax
+    modifier: Miss
+  comma_homogeneous:
+    primary: Syntax
+    modifier: Miss
+  dash_subj_pred:
+    primary: Syntax
+    modifier: Miss
+  dash_other:
+    primary: Syntax
+    modifier: Miss
+
 # ============================================================================
 # REFERENCE FREQUENCIES (from RLC-GEC corpus statistics, Table 2 in paper)
 # For documentation only - NOT used by synterr for sampling

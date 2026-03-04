@@ -271,6 +271,29 @@ mappings:
     primary: OTHER
     modifier: U
 
+  # Punctuation
+  comma_subordinate:
+    primary: PUNCT
+    modifier: U
+  comma_compound:
+    primary: PUNCT
+    modifier: U
+  comma_parenthetical:
+    primary: PUNCT
+    modifier: U
+  comma_isolation:
+    primary: PUNCT
+    modifier: U
+  comma_homogeneous:
+    primary: PUNCT
+    modifier: U
+  dash_subj_pred:
+    primary: PUNCT
+    modifier: U
+  dash_other:
+    primary: PUNCT
+    modifier: U
+
 # ============================================================================
 # REFERENCE: Tag frequency in RULEC-GEC (approximate)
 # ============================================================================
