@@ -39,73 +39,131 @@ FINITE_POS = frozenset({"VERB", "AUX"})
 DASH_CHARS = frozenset({"—", "–", "--"})
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
+# ── Dep-tree helpers ─────────────────────────────────────────────────────────
 
-def _has_finite_verb(tokens: Sequence[AnalyzedToken], start: int, end: int) -> bool:
-    """Check if a finite verb exists in tokens[start:end]."""
-    for i in range(max(0, start), min(end, len(tokens))):
-        tok = tokens[i]
-        if tok.pos in FINITE_POS and tok.get_feature("VerbForm") != "Conv":
-            return True
-    return False
+ISOLATION_DEPRELS = frozenset({"acl", "acl:relcl", "advcl"})
+CLAUSE_DEPRELS = frozenset({"ccomp", "advcl", "csubj", "csubj:pass"})
+
+
+def _get_head(tokens: Sequence[AnalyzedToken], tok: AnalyzedToken) -> AnalyzedToken | None:
+    """Follow head_idx to get the head token."""
+    if tok.head_idx is not None and 0 <= tok.head_idx < len(tokens):
+        return tokens[tok.head_idx]
+    return None
+
+
+def _has_own_subject(tokens: Sequence[AnalyzedToken], verb_idx: int) -> bool:
+    """Check if a verb has its own nsubj/nsubj:pass dependent."""
+    return any(
+        t.head_idx == verb_idx and t.dep_rel in ("nsubj", "nsubj:pass")
+        for t in tokens
+    )
+
+
+def _get_subtree_span(tokens: Sequence[AnalyzedToken], root_idx: int) -> tuple[int, int]:
+    """Get (min_idx, max_idx) of the subtree rooted at root_idx."""
+    visited = set()
+    stack = [root_idx]
+    while stack:
+        i = stack.pop()
+        if i in visited:
+            continue
+        visited.add(i)
+        for t in tokens:
+            if t.head_idx == i and t.idx not in visited and t.pos != "PUNCT":
+                stack.append(t.idx)
+    return (min(visited), max(visited)) if visited else (root_idx, root_idx)
 
 
 def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
-    """Classify a comma by syntactic context. Returns subtype name.
+    """Classify a comma by syntactic context using the dependency tree.
 
-    Priority: subordinate > compound > parenthetical > isolation > homogeneous.
+    Uses the comma's own head pointer as the primary signal, with POS/lemma
+    fallbacks when dep info is unavailable.
     """
     n = len(tokens)
-
-    # Look at the token after the comma
+    comma = tokens[idx]
     right = tokens[idx + 1] if idx + 1 < n else None
     left = tokens[idx - 1] if idx > 0 else None
 
-    # 1. Subordinate clause: comma before SCONJ
-    if right and right.pos == "SCONJ" and right.lemma in SUBORDINATE_CONJUNCTIONS:
+    # The comma's head in the dep tree is the key signal
+    comma_head = _get_head(tokens, comma) if comma.head_idx is not None else None
+
+    # ── 1. Dep-tree based classification (when head info available) ──────
+
+    if comma_head is not None:
+        # Parenthetical: comma's head has dep_rel=parataxis or discourse
+        if comma_head.dep_rel in ("parataxis", "discourse"):
+            return "comma_parenthetical"
+
+        # Isolation: comma's head is an acl/acl:relcl/advcl node
+        if comma_head.dep_rel in ISOLATION_DEPRELS:
+            return "comma_isolation"
+
+        # Subordinate/compound: comma's head is a conj or clausal node
+        if comma_head.dep_rel == "conj":
+            # conj linking two clauses (both have subjects) → compound
+            conj_head = _get_head(tokens, comma_head)
+            if (comma_head.pos in FINITE_POS
+                    and conj_head is not None and conj_head.pos in FINITE_POS
+                    and _has_own_subject(tokens, comma_head.idx)):
+                return "comma_compound"
+            # conj linking non-clausal items → homogeneous
+            return "comma_homogeneous"
+
+        # Comma head is a clausal complement (ccomp/advcl) → subordinate
+        if comma_head.dep_rel in CLAUSE_DEPRELS:
+            return "comma_subordinate"
+
+    # ── 2. POS/lemma fallbacks (when dep tree is absent or unhelpful) ────
+
+    # Subordinate: next token is SCONJ or has dep_rel=mark
+    if right and (right.dep_rel == "mark" or right.pos == "SCONJ"):
         return "comma_subordinate"
 
-    # Also check: comma after subordinate clause (SCONJ is to the left somewhere)
-    if right and right.pos == "SCONJ":
-        return "comma_subordinate"
+    # Compound: CCONJ between clauses
+    if right and right.pos == "CCONJ" and right.dep_rel == "cc":
+        # Check if the cc's head is a conj verb with its own subject
+        cc_head = _get_head(tokens, right)
+        if cc_head is not None and cc_head.pos in FINITE_POS:
+            if _has_own_subject(tokens, cc_head.idx):
+                return "comma_compound"
 
-    # 2. Compound sentence: comma before CCONJ with finite verbs on both sides
-    if right and right.pos == "CCONJ" and right.lemma in COMPOUND_CONJUNCTIONS:
-        if _has_finite_verb(tokens, 0, idx) and _has_finite_verb(tokens, idx + 1, n):
-            return "comma_compound"
-
-    # 3. Parenthetical word adjacent to comma
+    # Parenthetical: adjacent word in known list
     if right and right.lemma in PARENTHETICAL_WORDS:
         return "comma_parenthetical"
     if left and left.lemma in PARENTHETICAL_WORDS:
         return "comma_parenthetical"
 
-    # 4. Isolation: participial/gerund phrases, relative clauses
-    # Check immediate neighbors for dep_rel
-    if right and right.dep_rel in ("acl", "acl:relcl", "advcl"):
-        return "comma_isolation"
-    if left and left.dep_rel in ("acl", "acl:relcl", "advcl"):
-        return "comma_isolation"
-    # Participle or gerund immediately adjacent
-    if right and right.get_feature("VerbForm") in ("Part", "Conv"):
-        return "comma_isolation"
-    if left and left.get_feature("VerbForm") in ("Part", "Conv"):
-        return "comma_isolation"
-    # Closing comma of a participial/gerund phrase: the participle is further left,
-    # and the token to the right is the head it modifies (or continues the main clause).
-    # Scan left (up to 10 tokens) for a participle/gerund whose head is to the right.
+    # Isolation: adjacent participle/gerund or acl/advcl dep_rel
+    for neighbor in (right, left):
+        if neighbor is None:
+            continue
+        if neighbor.dep_rel in ISOLATION_DEPRELS:
+            return "comma_isolation"
+        if neighbor.get_feature("VerbForm") in ("Part", "Conv"):
+            return "comma_isolation"
+
+    # Isolation: closing comma — scan left for a participle whose subtree
+    # ends just before this comma
     if right is not None:
-        for i in range(max(0, idx - 10), idx):
+        for i in range(max(0, idx - 15), idx):
             t = tokens[i]
-            if t.get_feature("VerbForm") in ("Part", "Conv"):
-                # Check: participle's head is at or after the comma → closing comma
-                if t.head_idx is not None and t.head_idx >= idx:
-                    return "comma_isolation"
-                # Or: participle has dep_rel acl/advcl
-                if t.dep_rel in ("acl", "acl:relcl", "advcl"):
+            if t.dep_rel in ISOLATION_DEPRELS:
+                _, subtree_max = _get_subtree_span(tokens, t.idx)
+                # Comma sits right after the subtree → closing comma
+                if subtree_max == idx - 1:
                     return "comma_isolation"
 
-    # 5. Homogeneous members (fallback)
+    # Homogeneous: left and right share the same head (conj siblings)
+    if left and right and left.head_idx is not None and right.head_idx is not None:
+        if left.head_idx == right.head_idx:
+            return "comma_homogeneous"
+        # One is conj of the other
+        if left.head_idx == right.idx or right.head_idx == left.idx:
+            return "comma_homogeneous"
+
+    # ── 3. Fallback ──────────────────────────────────────────────────────
     return "comma_homogeneous"
 
 
