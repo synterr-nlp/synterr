@@ -7,11 +7,11 @@ Synterr: rule-based synthetic error generator for Russian GEC. Corrupts clean te
 ```
 src/synterr/
 ├── core/           # Pipeline, protocol, registry (language-agnostic)
-├── schemas/        # Taxonomies: RLC (35 tags), synterr (14 tags)
+├── schemas/        # Taxonomies: RLC (35 tags), rozental (8/29/99), errant
 ├── configs/        # Presets: rulec, gera, balanced (weights + subtype_weights)
 ├── languages/russian/
 │   ├── backends/   # stanza (default), natasha, spacy
-│   ├── errors/     # spelling.py (8 subtypes), morphological.py (7 handlers)
+│   ├── errors/     # spelling.py, morphological.py, lexical.py, structural.py, punctuation.py
 │   └── inflector.py
 └── tools/          # diff_viewer.html (error inspection UI)
 ```
@@ -44,6 +44,14 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | noun_case | noun_case | Gov | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
 | verb_person_number, verb_tense | (2) | AgrPers, Tense | MORPH |
+| paronym | paronym | Lex | OTHER |
+| preposition | preposition | Prep | OTHER |
+| conjunction | conjunction | Conj | OTHER |
+| word_omission | word_omission | Syntax+Miss | OTHER |
+| word_insertion | word_insertion | Syntax+Extra | OTHER |
+| comma_delete | 5 subtypes (subordinate, compound, parenthetical, isolation, homogeneous) | Syntax+Miss | PUNCT |
+| comma_pair_delete | 5 subtypes (participle, relative, gerund, parenthetical, apposition) | Syntax+Miss | PUNCT |
+| dash_delete | dash_subj_pred, dash_other | Syntax+Miss | PUNCT |
 
 ## Adding a Handler
 
@@ -96,10 +104,23 @@ subtype_weights:
     prefix_voicing: 15
 ```
 
+## Punctuation Heuristics
+
+Dep-tree classifier in `errors/punctuation.py`. See `docs/research/PUNCT_HEURISTICS.md` for full details.
+
+Comma's own `head_idx` in the dep tree is the primary signal:
+- `head.dep_rel = parataxis/discourse` → **parenthetical**
+- `head.dep_rel ∈ {acl, acl:relcl, advcl}` → **isolation** (обособление)
+- `head.dep_rel = conj` + both sides are clauses with subjects → **compound**
+- `head.dep_rel = conj` + non-clausal → **homogeneous**
+- `head.dep_rel ∈ {ccomp, advcl, csubj}` → **subordinate**
+
+Comma pair detection: find all commas sharing the same `head_idx`, check head's dep_rel against `PAIR_DEPRELS` map. Only first comma triggers. `advcl` pairs require `VerbForm=Conv` (gerunds only, not full clauses).
+
+POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma detection.
+
 ## Current State
 
-**v0.1.2**: Output formats, prefix voicing, configurable subtype weights, diff viewer, CI green
+**v0.2.0**: Lexical handlers (paronym, preposition, conjunction), structural (word_omission, word_insertion), punctuation (comma_delete, comma_pair_delete, dash_delete). Rozental schema (8 L0 / 29 L1 / 99 L2). 98 tests, 18 handlers.
 
-**Next (Artem → 0.2.0)**: paronym, preposition, conjunction, word_omission, word_insertion → 40% RLC coverage
-
-**Research**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`) — linguistically grounded case errors
+**Research**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`)
