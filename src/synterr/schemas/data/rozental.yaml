@@ -771,15 +771,10 @@ mappings:
     primary: sy_construction
   word_insertion:
     primary: lx_structural
-    modifier: Miss
+    modifier: Extra
   word_omission:
     primary: lx_structural
-    modifier: Extra
-  numeral_case:
-    primary: mo_numeral
-  subj_verb_agr:
-    primary: ag_subject_verb
-
+    modifier: Miss
   # Punctuation handler subtypes — commas
   comma_subordinate:
     primary: pu_clause
@@ -810,124 +805,5 @@ mappings:
   dash_other:
     primary: pu_dash
 
-# =============================================================================
-# CROSS-REFERENCE: L1 → existing taxonomies (for documentation)
-# =============================================================================
-
-cross_reference:
-  sp_root:
-    rlc: [Ortho, Altern]
-    rulec: ["Орфография"]
-    errant: [SPELL, ORTH]
-  sp_capitalization:
-    rlc: [Ortho]
-    rulec: ["Орфография"]
-    errant: [ORTH]
-  sp_affix:
-    rlc: [Ortho]
-    rulec: ["Орфография"]
-    errant: [SPELL, ORTH]
-  sp_pos:
-    rlc: [Ortho]
-    rulec: ["Орфография"]
-    errant: [SPELL]
-  sp_compounds:
-    rlc: [Ortho, "Hyphen+Ins", "Hyphen+Del"]
-    rulec: ["Орфография"]
-    errant: [SPELL, ORTH]
-  sp_function:
-    rlc: [Ortho, "Space+Ins", "Space+Del"]
-    rulec: ["Орфография"]
-    errant: [SPELL, PART, PREP, CONJ]
-  sp_foreign:
-    rlc: [Ortho, Graph, CS]
-    rulec: ["Орфография"]
-    errant: [SPELL, ORTH]
-  mo_noun_case:
-    rlc: [Gov, Infl]
-    rulec: ["Сущ.:Падеж"]
-    errant: [NOUN:CASE]
-  mo_noun_number:
-    rlc: [Num]
-    rulec: ["Сущ.:Число"]
-    errant: [NOUN:NUM]
-  mo_noun_gender:
-    rlc: [Gender]
-    rulec: ["Сущ.:Род"]
-    errant: []
-  mo_adj_form:
-    rlc: [Brev, Com, Infl]
-    rulec: ["Прил.:Др."]
-    errant: [ADJ:FORM]
-  mo_numeral:
-    rlc: [Num, Infl]
-    rulec: []
-    errant: [NOUN:INFL, NUM]
-  mo_pronoun:
-    rlc: [Ref, Refl]
-    rulec: ["Местоимение"]
-    errant: [PRON]
-  mo_verb_aspect:
-    rlc: [Asp]
-    rulec: ["Глагол:Вид"]
-    errant: [VERB:ASPECT]
-  mo_verb_form:
-    rlc: [Infl, Passive, Impers, Gerund]
-    rulec: ["Глагол:Залог", "Глагол:Др."]
-    errant: [VERB:FORM, VERB:INFL]
-  mo_verb_tense:
-    rlc: [Tense]
-    rulec: ["Глагол:Время"]
-    errant: [VERB:TENSE]
-  mo_verb_person_num:
-    rlc: [Infl]
-    rulec: ["Глагол:Число/Лицо"]
-    errant: [VERB:INFL]
-  ag_subject_verb:
-    rlc: [AgrNum, AgrPers]
-    rulec: ["Глагол:Число/Лицо"]
-    errant: [VERB:SVA]
-  ag_modifier_noun:
-    rlc: [AgrCase, AgrNum, AgrGender]
-    rulec: ["Прил.:Падеж", "Прил.:Число", "Прил.:Род"]
-    errant: ["ADJ:CASE", "ADJ:NUM", "ADJ:GEN"]
-  gv_government:
-    rlc: [Gov, Prep]
-    rulec: ["Предлог", "Сущ.:Падеж"]
-    errant: [PREP, NOUN:CASE]
-  sy_word_order:
-    rlc: [WO]
-    rulec: ["Обр.параллель"]
-    errant: [WO]
-  sy_construction:
-    rlc: [Constr, Syntax]
-    rulec: ["Заменить", "Параллель"]
-    errant: [OTHER]
-  pu_comma:
-    rlc: []
-    rulec: []
-    errant: [PUNCT]
-  pu_dash:
-    rlc: []
-    rulec: []
-    errant: [PUNCT]
-  pu_clause:
-    rlc: []
-    rulec: []
-    errant: [PUNCT]
-  pu_speech_quotes:
-    rlc: []
-    rulec: []
-    errant: [PUNCT]
-  pu_other:
-    rlc: []
-    rulec: []
-    errant: [PUNCT]
-  lx_word_choice:
-    rlc: [Lex, Idiom]
-    rulec: ["Лексика:замена"]
-    errant: [OTHER]
-  lx_structural:
-    rlc: [Constr]
-    rulec: ["Вставить", "Убрать"]
-    errant: [OTHER]
+# Cross-reference (L1 ↔ RLC/RULEC/ERRANT) maintained externally.
+# See: rozental_alignment.xlsx

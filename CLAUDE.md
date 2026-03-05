@@ -104,6 +104,17 @@ subtype_weights:
     prefix_voicing: 15
 ```
 
+## Confusion Matrices & Dep-Tree Agreement
+
+Morph handlers use empirical confusion matrices from RLC (N=2,760 case, 917 gender, 942 number) for weighted grammeme substitution instead of uniform random. Configured in preset YAMLs under `confusion_matrices:` with UD feature names as keys.
+
+Dep-tree agreement (requires `use_depparse: true`):
+- **Adj handlers**: Follow `amod` → head noun, use head's features as reference for matrix lookup
+- **VerbPersonNumber**: Find `nsubj` dependent → use subject's number as reference
+- All handlers fall back to own features when dep tree info unavailable
+
+Pipeline wires matrices via `handler.set_confusion_matrix(matrices)` (same pattern as `set_subtype_weights`).
+
 ## Punctuation Heuristics
 
 Dep-tree classifier in `errors/punctuation.py`. See `docs/research/PUNCT_HEURISTICS.md` for full details.
@@ -121,6 +132,8 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v0.2.0**: Lexical handlers (paronym, preposition, conjunction), structural (word_omission, word_insertion), punctuation (comma_delete, comma_pair_delete, dash_delete). Rozental schema (8 L0 / 29 L1 / 99 L2). 98 tests, 18 handlers.
+**v0.3.0**: Confusion-matrix-driven morph handlers (5 handlers upgraded), dep-tree-aware agreement errors (adj amod, verb nsubj). 115 tests, 18 handlers.
 
-**Research**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`)
+**v0.2.0**: Lexical handlers (paronym, preposition, conjunction), structural (word_omission, word_insertion), punctuation (comma_delete, comma_pair_delete, dash_delete). Rozental schema (8 L0 / 29 L1 / 99 L2).
+
+**Research**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`), confusion matrices (`docs/research/confusion_matrices.json`)
