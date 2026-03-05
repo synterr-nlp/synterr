@@ -57,6 +57,24 @@ subtype_weights:
     keyboard: 3             # Keyboard typos
     soft_sign: 2            # Soft sign errors
 
+# Empirical confusion matrices from RLC annotations (N=2,760 case, 917 gender, 942 number)
+# Source: docs/research/confusion_matrices.json
+confusion_matrices:
+  case:
+    Nom: {Gen: 0.52, Loc: 0.16, Ins: 0.14, Acc: 0.09, Dat: 0.08}
+    Acc: {Nom: 0.34, Gen: 0.32, Dat: 0.14, Loc: 0.14, Ins: 0.05}
+    Gen: {Nom: 0.53, Acc: 0.22, Loc: 0.12, Ins: 0.07, Dat: 0.06}
+    Dat: {Nom: 0.35, Gen: 0.27, Acc: 0.22, Loc: 0.09, Ins: 0.08}
+    Ins: {Nom: 0.43, Gen: 0.26, Acc: 0.15, Dat: 0.08, Loc: 0.08}
+    Loc: {Nom: 0.37, Gen: 0.31, Acc: 0.17, Ins: 0.08, Dat: 0.06}
+  gender:
+    Masc: {Fem: 0.62, Neut: 0.38}
+    Fem: {Masc: 0.68, Neut: 0.32}
+    Neut: {Masc: 0.42, Fem: 0.58}
+  number:
+    Sing: {Plur: 1.0}
+    Plur: {Sing: 1.0}
+
 # Unimplemented error types (for reference)
 # These are significant in RULEC-GEC but not yet in synterr:
 #

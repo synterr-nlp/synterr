@@ -15,6 +15,7 @@ from synterr.languages.russian.inflector import (
     UD_TO_PYMORPHY_PERSON,
     UD_TO_PYMORPHY_TENSE,
     inflect_word,
+    sample_confused_grammeme,
 )
 
 if TYPE_CHECKING:
@@ -40,6 +41,23 @@ def _get_pymorphy_parse(token: AnalyzedToken):
     return token.extra.get("pymorphy_parse")
 
 
+def _get_token_safe(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
+    """Safely get token by index, returning None if out of bounds."""
+    if 0 <= idx < len(tokens):
+        return tokens[idx]
+    return None
+
+
+def _find_dependent(
+    tokens: Sequence[AnalyzedToken], head_idx: int, dep_rel: str
+) -> AnalyzedToken | None:
+    """Find first token that depends on head_idx with given dep_rel."""
+    for token in tokens:
+        if token.head_idx == head_idx and token.dep_rel == dep_rel:
+            return token
+    return None
+
+
 class NounCaseErrorHandler:
     """Change noun case to create morphological error."""
 
@@ -47,6 +65,10 @@ class NounCaseErrorHandler:
     subtypes = ["noun_case"]
     category = "MORPH"
     changes_length = False
+    _confusion_matrices = None
+
+    def set_confusion_matrix(self, matrices: dict) -> None:
+        self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if noun case error can be applied."""
@@ -73,10 +95,22 @@ class NounCaseErrorHandler:
         if parse is None:
             return None
 
-        # Get current case and pick a different one
-        current_case = UD_TO_PYMORPHY_CASE.get(token.get_feature("Case"))
-        other_cases = [c for c in CASES if c != current_case]
-        target_case = rng.choice(other_cases)
+        current_case_ud = token.get_feature("Case")
+        current_case = UD_TO_PYMORPHY_CASE.get(current_case_ud)
+
+        # Use confusion matrix for weighted target selection
+        target_case = None
+        if self._confusion_matrices and "case" in self._confusion_matrices:
+            target_ud = sample_confused_grammeme(
+                current_case_ud, self._confusion_matrices["case"], rng
+            )
+            if target_ud:
+                target_case = UD_TO_PYMORPHY_CASE.get(target_ud)
+
+        # Fallback: random case
+        if target_case is None:
+            other_cases = [c for c in CASES if c != current_case]
+            target_case = rng.choice(other_cases)
 
         new_word = inflect_word(parse, {target_case}, word)
 
@@ -84,7 +118,6 @@ class NounCaseErrorHandler:
             sentence[idx] = new_word
             modified.add(idx)
 
-            # Generate transform tag with original case
             original_case = token.get_feature("Case", "Nom")
             return ErrorResult(
                 error_type="noun_case",
@@ -160,6 +193,10 @@ class AdjCaseErrorHandler:
     subtypes = ["adj_case"]
     category = "MORPH"
     changes_length = False
+    _confusion_matrices = None
+
+    def set_confusion_matrix(self, matrices: dict) -> None:
+        self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if adjective case error can be applied."""
@@ -186,9 +223,30 @@ class AdjCaseErrorHandler:
         if parse is None:
             return None
 
+        # Reference case: prefer head noun's case (dep tree) if available
+        ref_case_ud = token.get_feature("Case")
+        if token.dep_rel == "amod" and token.head_idx is not None:
+            head = _get_token_safe(tokens, token.head_idx)
+            if head and head.has_feature("Case"):
+                ref_case_ud = head.get_feature("Case")
+
         current_case = UD_TO_PYMORPHY_CASE.get(token.get_feature("Case"))
-        other_cases = [c for c in CASES if c != current_case]
-        target_case = rng.choice(other_cases)
+
+        # Use confusion matrix for weighted target selection
+        target_case = None
+        if self._confusion_matrices and "case" in self._confusion_matrices:
+            target_ud = sample_confused_grammeme(
+                ref_case_ud, self._confusion_matrices["case"], rng
+            )
+            if target_ud:
+                candidate = UD_TO_PYMORPHY_CASE.get(target_ud)
+                if candidate != current_case:
+                    target_case = candidate
+
+        # Fallback: random case
+        if target_case is None:
+            other_cases = [c for c in CASES if c != current_case]
+            target_case = rng.choice(other_cases)
 
         new_word = inflect_word(parse, {target_case}, word)
 
@@ -217,6 +275,10 @@ class AdjNumberErrorHandler:
     subtypes = ["adj_number"]
     category = "MORPH"
     changes_length = False
+    _confusion_matrices = None
+
+    def set_confusion_matrix(self, matrices: dict) -> None:
+        self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if adjective number error can be applied."""
@@ -242,7 +304,14 @@ class AdjNumberErrorHandler:
         if parse is None:
             return None
 
-        target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
+        # Reference number: prefer head noun's number (dep tree) if available
+        ref_number_ud = token.get_feature("Number")
+        if token.dep_rel == "amod" and token.head_idx is not None:
+            head = _get_token_safe(tokens, token.head_idx)
+            if head and head.has_feature("Number"):
+                ref_number_ud = head.get_feature("Number")
+
+        target_num = "plur" if ref_number_ud == "Sing" else "sing"
         new_word = inflect_word(parse, {target_num}, word)
 
         if new_word and new_word != word:
@@ -270,6 +339,10 @@ class AdjGenderErrorHandler:
     subtypes = ["adj_gender"]
     category = "MORPH"
     changes_length = False
+    _confusion_matrices = None
+
+    def set_confusion_matrix(self, matrices: dict) -> None:
+        self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if adjective gender error can be applied."""
@@ -301,9 +374,30 @@ class AdjGenderErrorHandler:
         if parse is None:
             return None
 
+        # Reference gender: prefer head noun's gender (dep tree) if available
+        ref_gender_ud = token.get_feature("Gender")
+        if token.dep_rel == "amod" and token.head_idx is not None:
+            head = _get_token_safe(tokens, token.head_idx)
+            if head and head.has_feature("Gender"):
+                ref_gender_ud = head.get_feature("Gender")
+
         current_gender = UD_TO_PYMORPHY_GENDER.get(token.get_feature("Gender"))
-        other_genders = [g for g in GENDERS if g != current_gender]
-        target_gender = rng.choice(other_genders)
+
+        # Use confusion matrix for weighted target selection
+        target_gender = None
+        if self._confusion_matrices and "gender" in self._confusion_matrices:
+            target_ud = sample_confused_grammeme(
+                ref_gender_ud, self._confusion_matrices["gender"], rng
+            )
+            if target_ud:
+                candidate = UD_TO_PYMORPHY_GENDER.get(target_ud)
+                if candidate != current_gender:
+                    target_gender = candidate
+
+        # Fallback: random gender
+        if target_gender is None:
+            other_genders = [g for g in GENDERS if g != current_gender]
+            target_gender = rng.choice(other_genders)
 
         new_word = inflect_word(parse, {target_gender}, word)
 
@@ -332,6 +426,10 @@ class VerbPersonNumberErrorHandler:
     subtypes = ["verb_person_number"]
     category = "MORPH"
     changes_length = False
+    _confusion_matrices = None
+
+    def set_confusion_matrix(self, matrices: dict) -> None:
+        self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if verb person/number error can be applied."""
@@ -359,6 +457,9 @@ class VerbPersonNumberErrorHandler:
         if parse is None:
             return None
 
+        # Find subject via dep tree (nsubj dependent)
+        subject = _find_dependent(tokens, idx, "nsubj")
+
         new_word = None
         transform_type = None
         original_value = None
@@ -367,11 +468,14 @@ class VerbPersonNumberErrorHandler:
         has_person = token.has_feature("Person")
 
         # Choose what to change based on available features
-        # Fixed: Previously past tense (Number but no Person) would fail 50% of the time
         if has_person and has_number:
             # Both available - randomly choose
             if rng.random() < 0.5:
-                target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
+                # Reference number: prefer subject's number if available
+                ref_number = token.get_feature("Number")
+                if subject and subject.has_feature("Number"):
+                    ref_number = subject.get_feature("Number")
+                target_num = "plur" if ref_number == "Sing" else "sing"
                 new_word = inflect_word(parse, {target_num}, word)
                 transform_type = "NUMBER"
                 original_value = token.get_feature("Number", "Sing")
@@ -384,7 +488,10 @@ class VerbPersonNumberErrorHandler:
                 original_value = token.get_feature("Person", "3")
         elif has_number:
             # Only number (past tense verbs) - always change number
-            target_num = "plur" if token.get_feature("Number") == "Sing" else "sing"
+            ref_number = token.get_feature("Number")
+            if subject and subject.has_feature("Number"):
+                ref_number = subject.get_feature("Number")
+            target_num = "plur" if ref_number == "Sing" else "sing"
             new_word = inflect_word(parse, {target_num}, word)
             transform_type = "NUMBER"
             original_value = token.get_feature("Number", "Sing")

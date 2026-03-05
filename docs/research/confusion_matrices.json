@@ -1,0 +1,150 @@
+{
+  "rlc_case": {
+    "Gen": {
+      "Dat": 55,
+      "Acc": 210,
+      "Nom": 498,
+      "Loc": 110,
+      "Ins": 67,
+      "Loc2": 3
+    },
+    "Nom": {
+      "Dat": 25,
+      "Loc": 48,
+      "Acc": 26,
+      "Ins": 41,
+      "Gen": 153,
+      "Gen2": 3,
+      "Loc2": 1
+    },
+    "Ins": {
+      "Nom": 184,
+      "Gen": 111,
+      "Acc": 63,
+      "Loc": 34,
+      "Dat": 33
+    },
+    "Dat": {
+      "Ins": 21,
+      "Nom": 92,
+      "Acc": 58,
+      "Gen": 71,
+      "Loc": 23
+    },
+    "Loc": {
+      "Dat": 26,
+      "Nom": 152,
+      "Gen": 130,
+      "Ins": 32,
+      "Acc": 72,
+      "Loc2": 3
+    },
+    "Acc": {
+      "Nom": 142,
+      "Loc": 59,
+      "Gen": 133,
+      "Ins": 20,
+      "Dat": 60,
+      "Loc2": 1
+    },
+    "Loc2": {
+      "Acc": 1,
+      "Nom": 1,
+      "Loc": 3
+    }
+  },
+  "rlc_gender": {
+    "Masc": {
+      "Neut": 78,
+      "Fem": 130
+    },
+    "Neut": {
+      "Fem": 146,
+      "Masc": 107
+    },
+    "Fem": {
+      "Masc": 309,
+      "Neut": 147
+    }
+  },
+  "rlc_number": {
+    "Plur": {
+      "Sing": 612
+    },
+    "Sing": {
+      "Plur": 330
+    }
+  },
+  "rulec_case": {
+    "Gen": {
+      "Nom": 335,
+      "Loc": 84,
+      "Ins": 65,
+      "Acc": 120,
+      "Dat": 34,
+      "Loc2": 1
+    },
+    "Loc": {
+      "Gen": 85,
+      "Acc": 39,
+      "Nom": 53,
+      "Ins": 16,
+      "Dat": 9
+    },
+    "Dat": {
+      "Nom": 42,
+      "Gen": 67,
+      "Ins": 14,
+      "Loc": 21,
+      "Acc": 17
+    },
+    "Ins": {
+      "Nom": 114,
+      "Loc": 21,
+      "Gen": 103,
+      "Acc": 41,
+      "Dat": 14
+    },
+    "Acc": {
+      "Ins": 12,
+      "Nom": 62,
+      "Gen": 83,
+      "Loc": 46,
+      "Dat": 12
+    },
+    "Nom": {
+      "Loc": 30,
+      "Gen": 94,
+      "Acc": 23,
+      "Dat": 17,
+      "Ins": 27
+    },
+    "Loc2": {
+      "Loc": 3,
+      "Nom": 1,
+      "Acc": 1
+    }
+  },
+  "rulec_gender": {
+    "Neut": {
+      "Fem": 29,
+      "Masc": 18
+    },
+    "Fem": {
+      "Neut": 32,
+      "Masc": 41
+    },
+    "Masc": {
+      "Fem": 20,
+      "Neut": 9
+    }
+  },
+  "rulec_number": {
+    "Plur": {
+      "Sing": 183
+    },
+    "Sing": {
+      "Plur": 80
+    }
+  }
+}

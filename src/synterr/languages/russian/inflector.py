@@ -56,6 +56,29 @@ PYMORPHY_TO_UD_PERSON = {v: k for k, v in UD_TO_PYMORPHY_PERSON.items()}
 PYMORPHY_TO_UD_TENSE = {v: k for k, v in UD_TO_PYMORPHY_TENSE.items()}
 
 
+def sample_confused_grammeme(
+    current_ud: str,
+    matrix: dict[str, dict[str, float]],
+    rng,
+) -> str | None:
+    """Sample a confused grammeme from an empirical confusion matrix.
+
+    Args:
+        current_ud: Current UD feature value (e.g., "Nom", "Masc", "Sing")
+        matrix: Confusion matrix {source_ud: {target_ud: weight, ...}, ...}
+        rng: Random number generator (random.Random instance or random module)
+
+    Returns:
+        Target UD value different from current, or None if not in matrix
+    """
+    row = matrix.get(current_ud)
+    if not row:
+        return None
+    targets = list(row.keys())
+    weights = list(row.values())
+    return rng.choices(targets, weights=weights, k=1)[0]
+
+
 def match_capitalization(original: str, new: str) -> str:
     """Match the capitalization pattern of original to new word.
 

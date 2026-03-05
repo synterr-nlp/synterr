@@ -76,6 +76,7 @@ class GenerationConfig:
     subtype_weights: dict[str, dict[str, float]] | None = None
     backend: str | None = None
     schema: str | None = None
+    confusion_matrices: dict[str, dict[str, dict[str, float]]] | None = None
 
     @classmethod
     def from_preset(cls, language: str, preset: str, **overrides) -> GenerationConfig:
@@ -123,6 +124,7 @@ class GenerationConfig:
             subtype_weights=data.get("subtype_weights"),
             backend=data.get("backend"),
             schema=data.get("schema"),
+            confusion_matrices=data.get("confusion_matrices"),
         )
 
         # Apply overrides
@@ -322,6 +324,12 @@ class ErrorPipeline:
                         # Call set_subtype_weights if handler supports it
                         if hasattr(handler, "set_subtype_weights"):
                             handler.set_subtype_weights(weights)
+
+            # Apply confusion matrices from config to handlers that support them
+            if self.config.confusion_matrices:
+                for handler in self._handlers:
+                    if hasattr(handler, "set_confusion_matrix"):
+                        handler.set_confusion_matrix(self.config.confusion_matrices)
 
         return self._handlers
 
