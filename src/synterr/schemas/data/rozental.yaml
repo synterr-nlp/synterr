@@ -775,6 +775,26 @@ mappings:
   word_omission:
     primary: lx_structural
     modifier: Miss
+  # Orthographic spelling handler subtypes
+  pre_pri:
+    primary: sp_affix
+  y_i_after_prefix:
+    primary: sp_affix
+  suffix_enk_onk:
+    primary: sp_pos
+  suffix_insk_ensk:
+    primary: sp_pos
+  suffix_its_ets:
+    primary: sp_pos
+  suffix_ek_ik:
+    primary: sp_pos
+  participle_suffix:
+    primary: sp_pos
+  vowel_after_ts:
+    primary: sp_pos
+  vowel_after_sibilant:
+    primary: sp_pos
+
   # Function spelling handler subtypes
   ne_attachment:
     primary: sp_function

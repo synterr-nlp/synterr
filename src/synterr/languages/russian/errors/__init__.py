@@ -33,6 +33,9 @@ def get_all_handlers() -> list[ErrorHandler]:
     from synterr.languages.russian.errors.function_spelling import (
         FunctionSpellingHandler,
     )
+    from synterr.languages.russian.errors.orthographic_spelling import (
+        OrthographicSpellingHandler,
+    )
     from synterr.languages.russian.errors.structural import (
         WordInsertionHandler,
         WordOmissionHandler,
@@ -42,6 +45,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         # Spelling
         SpellingErrorHandler(),
         FunctionSpellingHandler(),
+        OrthographicSpellingHandler(),
         # Morphological - Nouns
         NounCaseErrorHandler(),
         NounNumberErrorHandler(),

@@ -255,6 +255,26 @@ mappings:
     primary: Syntax
     modifier: Extra
 
+  # Orthographic spelling subtypes → RLC Ortho
+  pre_pri:
+    primary: Ortho
+  y_i_after_prefix:
+    primary: Ortho
+  suffix_enk_onk:
+    primary: Ortho
+  suffix_insk_ensk:
+    primary: Ortho
+  suffix_its_ets:
+    primary: Ortho
+  suffix_ek_ik:
+    primary: Ortho
+  participle_suffix:
+    primary: Ortho
+  vowel_after_ts:
+    primary: Ortho
+  vowel_after_sibilant:
+    primary: Ortho
+
   # Function spelling subtypes → RLC Ortho (не/ни, conjunctions, particles)
   ne_attachment:
     primary: Ortho

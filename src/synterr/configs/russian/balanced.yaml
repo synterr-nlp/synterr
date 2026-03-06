@@ -27,6 +27,9 @@ weights:
   # Function word spelling: ~6%
   function_spelling: 0.06
 
+  # Orthographic spelling: ~6%
+  orthographic_spelling: 0.06
+
   # Structural: ~16%
   word_omission: 0.08
   word_insertion: 0.08

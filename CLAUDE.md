@@ -42,6 +42,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 |---------|----------|---------|----------|
 | spelling | vowel_reduction, devoicing, prefix_voicing, tsa_confusion, cluster, double_consonant, keyboard, soft_sign | Ortho, Misspell | SPELL |
 | function_spelling | ne_attachment, ne_detachment, conjunction_split, conjunction_merge, taki_hyphen | Ortho | SPELL |
+| orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant | Ortho | SPELL |
 | noun_case | noun_case | Gov | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
 | verb_person_number, verb_tense | (2) | AgrPers, Tense | MORPH |
@@ -133,7 +134,9 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v0.3.1**: FunctionSpellingHandler (не/ни, conjunction split/merge, -таки). 145 tests, 19 handlers. LoRuGEC coverage 43/48 (90%).
+**v0.3.2**: OrthographicSpellingHandler (9 subtypes: пре/при, ы/и, suffixes, participles, ц/sibilant vowels). 178 tests, 20 handlers.
+
+**v0.3.1**: FunctionSpellingHandler (не/ни, conjunction split/merge, -таки).
 
 **v0.3.0**: Confusion-matrix-driven morph handlers (5 handlers upgraded), dep-tree-aware agreement errors (adj amod, verb nsubj).
 

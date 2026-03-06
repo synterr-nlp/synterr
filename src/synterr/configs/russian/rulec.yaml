@@ -42,6 +42,9 @@ weights:
   # Function word spelling (not separately attested in RULEC; estimated)
   function_spelling: 0.05
 
+  # Orthographic spelling (suffix/prefix rules)
+  orthographic_spelling: 0.05
+
   # Structural
   word_omission: 0.146 # insert: 14.6%
   word_insertion: 0.082 # delete: 8.2%
