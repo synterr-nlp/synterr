@@ -31,6 +31,13 @@ weights:
   # Orthographic spelling: ~6%
   orthographic_spelling: 0.06
 
+  # Compound word spelling: ~3%
+  compound_spelling: 0.03
+
+  # Semantics: ~4%
+  pleonasm: 0.02
+  collocation: 0.02
+
   # Structural: ~16%
   word_omission: 0.08
   word_insertion: 0.08

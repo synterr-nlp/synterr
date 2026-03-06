@@ -46,6 +46,13 @@ weights:
   # Orthographic spelling (suffix/prefix rules, part of S:ORTH)
   orthographic_spelling: 0.10
 
+  # Compound word spelling
+  compound_spelling: 0.02
+
+  # Semantics (low weight for L1 school texts)
+  pleonasm: 0.005
+  collocation: 0.005
+
   # Structural
   word_omission: 0.032       # LACK 3.2%
   word_insertion: 0.000      # EXCESS 0%

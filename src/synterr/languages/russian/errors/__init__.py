@@ -28,6 +28,9 @@ def get_all_handlers() -> list[ErrorHandler]:
     from synterr.languages.russian.errors.comma_insert import (
         CommaInsertHandler,
     )
+    from synterr.languages.russian.errors.compound_spelling import (
+        CompoundSpellingHandler,
+    )
     from synterr.languages.russian.errors.punctuation import (
         CommaDeleteHandler,
         CommaPairDeleteHandler,
@@ -39,6 +42,10 @@ def get_all_handlers() -> list[ErrorHandler]:
     from synterr.languages.russian.errors.orthographic_spelling import (
         OrthographicSpellingHandler,
     )
+    from synterr.languages.russian.errors.semantics import (
+        CollocationHandler,
+        PleonasmHandler,
+    )
     from synterr.languages.russian.errors.structural import (
         WordInsertionHandler,
         WordOmissionHandler,
@@ -49,6 +56,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         SpellingErrorHandler(),
         FunctionSpellingHandler(),
         OrthographicSpellingHandler(),
+        CompoundSpellingHandler(),
         # Morphological - Nouns
         NounCaseErrorHandler(),
         NounNumberErrorHandler(),
@@ -63,6 +71,9 @@ def get_all_handlers() -> list[ErrorHandler]:
         ParonymErrorHandler(),
         PrepositionErrorHandler(),
         ConjunctionErrorHandler(),
+        # Semantics
+        PleonasmHandler(),
+        CollocationHandler(),
         # Punctuation
         CommaDeleteHandler(),
         CommaPairDeleteHandler(),

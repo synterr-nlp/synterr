@@ -46,6 +46,13 @@ weights:
   # Orthographic spelling (suffix/prefix rules)
   orthographic_spelling: 0.05
 
+  # Compound word spelling (dashes, пол-, compound adj)
+  compound_spelling: 0.02
+
+  # Semantics
+  pleonasm: 0.01
+  collocation: 0.01
+
   # Structural
   word_omission: 0.146 # insert: 14.6%
   word_insertion: 0.082 # delete: 8.2%

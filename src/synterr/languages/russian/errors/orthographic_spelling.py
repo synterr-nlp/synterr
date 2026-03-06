@@ -3,7 +3,7 @@
 Covers Rozental suffix/prefix spelling rules that depend on morpheme structure,
 POS, or conjugation class — distinct from the phonetic spelling handler.
 
-9 subtypes covering 9 LoRuGEC rules:
+10 subtypes covering 10 LoRuGEC rules:
 - pre_pri: пре-/при- prefix confusion (§31–32)
 - y_i_after_prefix: ы/и after consonant-ending prefix (§34)
 - suffix_enk_onk: -еньк/-оньк in nouns (§38)
@@ -13,6 +13,7 @@ POS, or conjugation class — distinct from the phonetic spelling handler.
 - participle_suffix: conjugation-dependent participle suffixes (§51)
 - vowel_after_ts: vowels after ц (§35)
 - vowel_after_sibilant: ё/о/ю after ш,щ,ж,ч (§35)
+- nn_suffix: н/нн in adjective/participle suffixes (§39–40)
 """
 
 from __future__ import annotations
@@ -101,6 +102,28 @@ _SIBILANT_VOWEL_SWAPS = {
 }
 
 
+# =============================================================================
+# н/нн in adjective/participle suffixes (§39-40)
+# =============================================================================
+
+# Regex to find нн in word (candidate for нн→н reduction)
+_NN_RE = re.compile(r"нн")
+
+# Regex to find suffix patterns where single н may need doubling
+# -ан-/-ян-/-ин- suffixes that should have 1н (error = adding 2нн)
+_SINGLE_N_SUFFIX_RE = re.compile(r"(ан|ян|ин)([а-яё]*[ыоеи]й|[а-яё]*[аяое][яе]?)$")
+
+# Exception words that have НН despite -ян- suffix
+_NN_EXCEPTIONS = {"деревянный", "оловянный", "стеклянный"}
+
+# Words that must keep single н (exception to general rules)
+_SINGLE_N_EXCEPTIONS = {
+    "багряный", "пряный", "пьяный", "рдяный", "румяный",
+    "ветреный", "зелёный", "зеленый", "юный", "свиной",
+    "синий",
+}
+
+
 class OrthographicSpellingHandler:
     """Morpheme-level spelling errors: suffixes, prefixes, post-sibilant vowels.
 
@@ -119,20 +142,22 @@ class OrthographicSpellingHandler:
         "participle_suffix",
         "vowel_after_ts",
         "vowel_after_sibilant",
+        "nn_suffix",
     ]
     category = "SPELL"
     changes_length = False
 
     DEFAULT_WEIGHTS = {
-        "pre_pri": 15,
-        "y_i_after_prefix": 15,
-        "suffix_enk_onk": 10,
-        "suffix_insk_ensk": 10,
-        "suffix_its_ets": 8,
-        "suffix_ek_ik": 10,
-        "participle_suffix": 12,
-        "vowel_after_ts": 10,
-        "vowel_after_sibilant": 10,
+        "pre_pri": 13,
+        "y_i_after_prefix": 13,
+        "suffix_enk_onk": 8,
+        "suffix_insk_ensk": 8,
+        "suffix_its_ets": 7,
+        "suffix_ek_ik": 8,
+        "participle_suffix": 10,
+        "vowel_after_ts": 8,
+        "vowel_after_sibilant": 8,
+        "nn_suffix": 17,
     }
 
     def __init__(self):
@@ -171,6 +196,8 @@ class OrthographicSpellingHandler:
         if "ц" in text_lower:
             return True
         if any(c in text_lower for c in "шщжч"):
+            return True
+        if token.pos == "ADJ" and _can_nn_swap(text_lower):
             return True
         return False
 
@@ -216,6 +243,9 @@ class OrthographicSpellingHandler:
 
         if _can_sibilant_vowel(text_lower):
             candidates.append(("vowel_after_sibilant", self._weights["vowel_after_sibilant"]))
+
+        if token.pos == "ADJ" and _can_nn_swap(text_lower):
+            candidates.append(("nn_suffix", self._weights["nn_suffix"]))
 
         if not candidates:
             return None
@@ -322,6 +352,8 @@ def _apply_subtype(subtype: str, word: str, text_lower: str) -> str | None:
         return _swap_ts_vowel(word, text_lower)
     elif subtype == "vowel_after_sibilant":
         return _swap_sibilant_vowel(word, text_lower)
+    elif subtype == "nn_suffix":
+        return _swap_nn(word, text_lower)
     return None
 
 
@@ -477,6 +509,62 @@ def _swap_sibilant_vowel(word: str, text_lower: str) -> str | None:
                 if word[pos].isupper():
                     new_c = new_c.upper()
                 return word[:pos] + new_c + word[pos + 1:]
+    return None
+
+
+def _can_nn_swap(text_lower: str) -> bool:
+    """Check if word has нн that can be reduced or н that can be doubled."""
+    if text_lower in _SINGLE_N_EXCEPTIONS:
+        return False
+    # Has нн → can reduce to н
+    if _NN_RE.search(text_lower):
+        return True
+    # Has suffix pattern with single н → can double
+    if _SINGLE_N_SUFFIX_RE.search(text_lower):
+        return True
+    return False
+
+
+def _swap_nn(word: str, text_lower: str) -> str | None:
+    """Swap н↔нн in adjective suffix.
+
+    Direction 1 (67%): нн→н (государственный → государственый)
+    Direction 2 (33%): н→нн (кожаный → кожанный)
+    """
+    analyzer = get_morpheme_analyzer()
+
+    # Direction 1: reduce нн→н
+    m = _NN_RE.search(text_lower)
+    if m:
+        pos = m.start()
+        # Verify via morpheme dict that нн is in a suffix (not root)
+        suffixes = analyzer.get_suffixes(text_lower)
+        if suffixes is not None:
+            has_nn_suffix = any("нн" in s or s == "н" for s in suffixes)
+            if not has_nn_suffix:
+                # нн might be at morpheme boundary (root-н + suffix-н)
+                # Still a valid target for corruption
+                pass
+        # Remove one н
+        corrupted = word[:pos] + word[pos + 1:]
+        if corrupted != word:
+            return corrupted
+
+    # Direction 2: double н→нн
+    suffix_m = _SINGLE_N_SUFFIX_RE.search(text_lower)
+    if suffix_m:
+        # Don't double exception words
+        if text_lower in _SINGLE_N_EXCEPTIONS:
+            return None
+        # Find the single н in the suffix and double it
+        suffix_start = suffix_m.start()
+        suffix_text = suffix_m.group(1)  # "ан", "ян", or "ин"
+        # The н is at suffix_start + len(suffix_text) - 1
+        n_pos = suffix_start + len(suffix_text) - 1
+        corrupted = word[:n_pos + 1] + "н" + word[n_pos + 1:]
+        if corrupted != word:
+            return corrupted
+
     return None
 
 

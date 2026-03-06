@@ -66,11 +66,12 @@ SPLIT_TO_SOLID: dict[tuple[str, str], str] = {
 
 # не/ни + POS combinations where attachment/detachment is confusable
 # POS tags where не can be written solid (не + word → неword)
-NE_ATTACHABLE_POS = {"NOUN", "ADJ", "ADV"}
+# VERB included: "не хочу" → "нехочу" is a common LoRuGEC error (§69)
+NE_ATTACHABLE_POS = {"NOUN", "ADJ", "ADV", "VERB"}
 
 # POS tags where не- can be a real detachable prefix
-# VERB excluded: не+verb is already separate in correct Russian (§69)
-NE_DETACHABLE_POS = {"ADJ", "NOUN", "ADV"}
+# VERB included: "невзлюбил" → "не взлюбил" (§69 exceptions: ненавидеть, негодовать, etc.)
+NE_DETACHABLE_POS = {"ADJ", "NOUN", "ADV", "VERB"}
 
 # -таки: should be hyphenated after certain words
 # Error: remove hyphen or detach
@@ -282,6 +283,7 @@ class FunctionSpellingHandler:
 
         particle = sentence[idx]  # не or ни
         particle_lower = particle.lower()
+        next_tok = tokens[idx + 1]
         next_word = sentence[idx + 1]
 
         if not next_word.isalpha():
@@ -293,10 +295,13 @@ class FunctionSpellingHandler:
             return None
 
         merged_lower = particle_lower + next_word.lower()
-        # Only merge if the result is a real word (prevents некошка, нестол)
-        analyzer = get_morpheme_analyzer()
-        if not analyzer.word_is_known(merged_lower):
-            return None
+        # For VERB: skip word_is_known — merging is intentionally wrong (§69)
+        # "не хочу" → "нехочу" is a real learner error
+        if next_tok.pos != "VERB":
+            # Only merge if the result is a real word (prevents некошка, нестол)
+            analyzer = get_morpheme_analyzer()
+            if not analyzer.word_is_known(merged_lower):
+                return None
 
         merged = merged_lower
         if particle[0].isupper():
@@ -334,15 +339,19 @@ class FunctionSpellingHandler:
 
         remainder_lower = text_lower[2:]
 
-        # Validate: remainder must be a real word (prevents нефть→не фть)
         analyzer = get_morpheme_analyzer()
-        if not analyzer.word_is_known(remainder_lower):
-            return None
 
         # Validate: не/ни must be a real prefix (prevents нервный→не рвный)
         has_pfx = analyzer.has_prefix(text_lower, prefix)
         if has_pfx is False:
             return None  # Not a prefix per morpheme dict (невежда, нервный)
+
+        # For VERB with confirmed prefix: allow split even if remainder is not
+        # independently known (невзлюбить→не взлюбить: "взлюбить" may not exist alone)
+        if token.pos != "VERB" or has_pfx is not True:
+            # Validate: remainder must be a real word (prevents нефть→не фть)
+            if not analyzer.word_is_known(remainder_lower):
+                return None
 
         rest = text[2:]  # preserve original case of the rest
 

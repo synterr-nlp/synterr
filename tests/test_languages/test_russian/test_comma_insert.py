@@ -27,7 +27,7 @@ class TestProtocol:
         assert self.handler.name == "comma_insert"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 3
+        assert len(self.handler.subtypes) == 4
 
 
 class TestCommaBeforeKak:
@@ -130,13 +130,25 @@ class TestCommaInSetPhrase:
 class TestCommaBetweenConjunctions:
     """Insert comma between adjacent conjunctions."""
 
-    def test_can_apply_i_kogda(self):
+    def test_can_apply_i_kogda_with_correlative(self):
         handler = CommaInsertHandler()
         tokens = [
             _tok("и", pos="CCONJ", idx=0),
             _tok("когда", pos="SCONJ", idx=1),
+            _tok("мы", pos="PRON", idx=2),
+            _tok("пришли", pos="VERB", idx=3),
+            _tok("то", pos="PART", idx=4),
         ]
         assert handler.can_apply(tokens, 0)
+
+    def test_cannot_apply_without_correlative(self):
+        handler = CommaInsertHandler()
+        tokens = [
+            _tok("и", pos="CCONJ", idx=0),
+            _tok("когда", pos="SCONJ", idx=1),
+            _tok("мы", pos="PRON", idx=2),
+        ]
+        assert not handler.can_apply(tokens, 0)
 
     def test_insert_comma_i_kogda(self):
         h = _force_subtype("comma_between_conjunctions")
@@ -144,11 +156,13 @@ class TestCommaBetweenConjunctions:
             _tok("и", pos="CCONJ", idx=0),
             _tok("когда", pos="SCONJ", idx=1),
             _tok("мы", pos="PRON", idx=2),
+            _tok("пришли", pos="VERB", idx=3),
+            _tok("то", pos="PART", idx=4),
         ]
-        sentence = ["и", "когда", "мы"]
+        sentence = ["и", "когда", "мы", "пришли", "то"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is not None
-        assert sentence == ["и", ",", "когда", "мы"]
+        assert sentence == ["и", ",", "когда", "мы", "пришли", "то"]
 
     def test_no_when_not_adjacent_conjunctions(self):
         handler = CommaInsertHandler()
@@ -158,15 +172,17 @@ class TestCommaBetweenConjunctions:
         ]
         assert not handler.can_apply(tokens, 0)
 
-    def test_a_chto(self):
+    def test_a_chto_with_correlative(self):
         h = _force_subtype("comma_between_conjunctions")
         tokens = [
             _tok("а", pos="CCONJ", idx=0),
             _tok("что", pos="SCONJ", idx=1),
+            _tok("он", pos="PRON", idx=2),
+            _tok("так", pos="ADV", idx=3),
         ]
-        sentence = ["а", "что"]
+        sentence = ["а", "что", "он", "так"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence == ["а", ",", "что"]
+        assert sentence == ["а", ",", "что", "он", "так"]
 
 
 class TestCanApplyEdgeCases:

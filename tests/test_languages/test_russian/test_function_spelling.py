@@ -158,15 +158,15 @@ class TestNeAttachment:
         ]
         assert handler.can_apply(tokens, 0)
 
-    def test_cannot_apply_ne_before_verb(self):
-        """не before VERB is not attachable (не is always separate with verbs)."""
+    def test_can_apply_ne_before_verb(self):
+        """не before VERB IS attachable (LoRuGEC rule 25: не хочу → нехочу)."""
         handler = FunctionSpellingHandler()
         tokens = [
             _tok("не", pos="PART", idx=0),
             _tok("пришёл", pos="VERB", idx=1),
         ]
-        # VERB is not in NE_ATTACHABLE_POS
-        assert not handler.can_apply(tokens, 0)
+        # VERB is in NE_ATTACHABLE_POS since LoRuGEC rule 25
+        assert handler.can_apply(tokens, 0)
 
     def test_attach_ne_to_noun(self):
         h = FunctionSpellingHandler()

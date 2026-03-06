@@ -36,6 +36,23 @@ def _find_tokens_by_pos(
     return [t.idx for t in tokens if t.pos in pos and t.idx not in modified]
 
 
+def _is_adj_or_participle(token: AnalyzedToken) -> bool:
+    """Check if token is adjective or participle (VerbForm=Part).
+
+    Participles agree with head nouns in case/number/gender just like adjectives.
+    Stanza may tag them as ADJ (SynTagRus) or VERB with VerbForm=Part.
+    """
+    if token.pos == "ADJ":
+        return True
+    if token.pos == "VERB" and token.get_feature("VerbForm") == "Part":
+        return True
+    return False
+
+
+# dep_rels used by participles/adjectives pointing at their head noun
+_MODIFIER_DEPRELS = {"amod", "acl", "acl:relcl"}
+
+
 def _get_pymorphy_parse(token: AnalyzedToken):
     """Get pymorphy parse object from token."""
     return token.extra.get("pymorphy_parse")
@@ -187,7 +204,7 @@ class NounNumberErrorHandler:
 
 
 class AdjCaseErrorHandler:
-    """Change adjective case."""
+    """Change adjective/participle case."""
 
     name = "adj_case"
     subtypes = ["adj_case"]
@@ -199,9 +216,9 @@ class AdjCaseErrorHandler:
         self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        """Check if adjective case error can be applied."""
+        """Check if adjective/participle case error can be applied."""
         token = tokens[idx]
-        if token.pos != "ADJ":
+        if not _is_adj_or_participle(token):
             return False
         parse = _get_pymorphy_parse(token)
         return parse is not None and token.has_feature("Case")
@@ -225,7 +242,7 @@ class AdjCaseErrorHandler:
 
         # Reference case: prefer head noun's case (dep tree) if available
         ref_case_ud = token.get_feature("Case")
-        if token.dep_rel == "amod" and token.head_idx is not None:
+        if token.dep_rel in _MODIFIER_DEPRELS and token.head_idx is not None:
             head = _get_token_safe(tokens, token.head_idx)
             if head and head.has_feature("Case"):
                 ref_case_ud = head.get_feature("Case")
@@ -269,7 +286,7 @@ class AdjCaseErrorHandler:
 
 
 class AdjNumberErrorHandler:
-    """Change adjective number."""
+    """Change adjective/participle number."""
 
     name = "adj_number"
     subtypes = ["adj_number"]
@@ -281,9 +298,9 @@ class AdjNumberErrorHandler:
         self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        """Check if adjective number error can be applied."""
+        """Check if adjective/participle number error can be applied."""
         token = tokens[idx]
-        if token.pos != "ADJ":
+        if not _is_adj_or_participle(token):
             return False
         parse = _get_pymorphy_parse(token)
         return parse is not None and token.has_feature("Number")
@@ -306,7 +323,7 @@ class AdjNumberErrorHandler:
 
         # Reference number: prefer head noun's number (dep tree) if available
         ref_number_ud = token.get_feature("Number")
-        if token.dep_rel == "amod" and token.head_idx is not None:
+        if token.dep_rel in _MODIFIER_DEPRELS and token.head_idx is not None:
             head = _get_token_safe(tokens, token.head_idx)
             if head and head.has_feature("Number"):
                 ref_number_ud = head.get_feature("Number")
@@ -333,7 +350,7 @@ class AdjNumberErrorHandler:
 
 
 class AdjGenderErrorHandler:
-    """Change adjective gender."""
+    """Change adjective/participle gender."""
 
     name = "adj_gender"
     subtypes = ["adj_gender"]
@@ -345,12 +362,12 @@ class AdjGenderErrorHandler:
         self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        """Check if adjective gender error can be applied."""
+        """Check if adjective/participle gender error can be applied."""
         token = tokens[idx]
-        if token.pos != "ADJ":
+        if not _is_adj_or_participle(token):
             return False
         parse = _get_pymorphy_parse(token)
-        # Gender only applies to singular adjectives
+        # Gender only applies to singular adjectives/participles
         return (
             parse is not None
             and token.has_feature("Gender")
@@ -376,7 +393,7 @@ class AdjGenderErrorHandler:
 
         # Reference gender: prefer head noun's gender (dep tree) if available
         ref_gender_ud = token.get_feature("Gender")
-        if token.dep_rel == "amod" and token.head_idx is not None:
+        if token.dep_rel in _MODIFIER_DEPRELS and token.head_idx is not None:
             head = _get_token_safe(tokens, token.head_idx)
             if head and head.has_feature("Gender"):
                 ref_gender_ud = head.get_feature("Gender")

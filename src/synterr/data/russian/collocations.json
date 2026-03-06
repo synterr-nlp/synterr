@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "description": "Collocation error lexicon: correct verb -> wrong verb for specific noun collocates",
+    "source": "LoRuGEC rule 34 (Лексическая сочетаемость) + standard ЕГЭ collocation lists",
+    "format": "correct_verb -> [{wrong: incorrect_verb, collocate: noun/phrase that triggers}]",
+    "usage": "Find correct_verb + collocate in text, replace verb with wrong to create collocation error"
+  },
+  "принять": [
+    {"wrong": "сделать", "collocate": "решение"},
+    {"wrong": "предпринять", "collocate": "меры"}
+  ],
+  "играть": [
+    {"wrong": "иметь", "collocate": "роль"},
+    {"wrong": "нести", "collocate": "роль"}
+  ],
+  "иметь": [
+    {"wrong": "играть", "collocate": "значение"},
+    {"wrong": "нести", "collocate": "значение"}
+  ],
+  "вызвать": [
+    {"wrong": "создать", "collocate": "реакцию"},
+    {"wrong": "оказать", "collocate": "реакцию"},
+    {"wrong": "навлечь", "collocate": "реакцию"}
+  ],
+  "заслужить": [
+    {"wrong": "приобрести", "collocate": "уважение"}
+  ],
+  "выдвинуть": [
+    {"wrong": "сделать", "collocate": "гипотезу"},
+    {"wrong": "поставить", "collocate": "гипотезу"}
+  ],
+  "одержать": [
+    {"wrong": "завоевать", "collocate": "победу"},
+    {"wrong": "получить", "collocate": "победу"}
+  ],
+  "совершить": [
+    {"wrong": "делать", "collocate": "поступок"},
+    {"wrong": "сделать", "collocate": "поступок"}
+  ],
+  "бросить": [
+    {"wrong": "кинуть", "collocate": "взгляд"}
+  ],
+  "установить": [
+    {"wrong": "завоевать", "collocate": "рекорд"},
+    {"wrong": "поставить", "collocate": "рекорд"}
+  ],
+  "оказать": [
+    {"wrong": "дать", "collocate": "поддержку"},
+    {"wrong": "предоставить", "collocate": "поддержку"},
+    {"wrong": "нанести", "collocate": "влияние"}
+  ],
+  "принести": [
+    {"wrong": "дать", "collocate": "славу"},
+    {"wrong": "дать", "collocate": "пользу"}
+  ],
+  "придавать": [
+    {"wrong": "уделять", "collocate": "значение"}
+  ],
+  "низкий": [
+    {"wrong": "дешёвый", "collocate": "цена"}
+  ],
+  "высокий": [
+    {"wrong": "дорогой", "collocate": "цена"}
+  ],
+  "закадычный": [
+    {"wrong": "заядлый", "collocate": "друг"}
+  ],
+  "загладить": [
+    {"wrong": "искупить", "collocate": "вину"}
+  ],
+  "нанести": [
+    {"wrong": "оказать", "collocate": "ущерб"},
+    {"wrong": "причинить", "collocate": "вред"}
+  ],
+  "произвести": [
+    {"wrong": "оказать", "collocate": "впечатление"}
+  ]
+}
