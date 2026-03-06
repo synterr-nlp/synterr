@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pickle
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
@@ -139,6 +140,114 @@ def get_pronoun_list() -> list[str]:
         "сам",
         "самый",
     ]
+
+
+@lru_cache(maxsize=1)
+def get_morpheme_dict() -> dict[str, list[str]]:
+    """Load morpheme dictionary (from morpholog/Tikhonov, 93k entries).
+
+    Returns dict mapping word → list of morpheme strings.
+    Convention: 'при-' = prefix, '-к' = suffix, '+а' = ending, bare = root.
+    """
+    data_path = _get_package_data_path() / "morpheme_dict.pickle"
+    if data_path.exists():
+        with data_path.open("rb") as f:
+            return pickle.load(f)
+    return {}
+
+
+class MorphemeAnalyzer:
+    """Morpheme analysis with dictionary lookup + pymorphy3 validation.
+
+    Usage:
+        analyzer = get_morpheme_analyzer()
+        analyzer.has_prefix("привычка", "при")   # True
+        analyzer.has_prefix("природа", "при")    # False (per Tikhonov)
+        analyzer.word_is_known("несчастье")       # True
+        analyzer.word_is_known("некошка")          # False
+    """
+
+    def __init__(self) -> None:
+        self._dict: dict[str, list[str]] | None = None
+        self._pymorphy = None
+
+    @property
+    def morpheme_dict(self) -> dict[str, list[str]]:
+        if self._dict is None:
+            self._dict = get_morpheme_dict()
+        return self._dict
+
+    @property
+    def pymorphy(self):
+        if self._pymorphy is None:
+            self._pymorphy = get_morph_analyzer()
+        return self._pymorphy
+
+    def get_morphemes(self, word: str) -> list[tuple[str, str]] | None:
+        """Parse morpheme dict entry into [(text, type), ...].
+
+        Returns None if word not in dictionary.
+        Types: PREF, ROOT, SUFF, END, LINK, POST.
+        """
+        entry = self.morpheme_dict.get(word.lower())
+        if not entry or not isinstance(entry, list) or entry == [""]:
+            return None
+        result = []
+        for m in entry:
+            if not isinstance(m, str) or not m:
+                continue
+            # Skip garbage entries (raw wikitext)
+            if "\n" in m or "=" in m and len(m) > 10:
+                return None
+            if m.endswith("-") and not m.startswith("-"):
+                result.append((m[:-1], "PREF"))
+            elif m.startswith("-"):
+                result.append((m[1:], "SUFF"))
+            elif m.startswith("+"):
+                result.append((m[1:], "END"))
+            elif "=" in m:
+                result.append((m.replace("=", ""), "LINK"))
+            else:
+                result.append((m, "ROOT"))
+        return result if result else None
+
+    def has_prefix(self, word: str, prefix: str) -> bool | None:
+        """Check if word has a specific prefix. Returns None if unknown."""
+        morphemes = self.get_morphemes(word)
+        if morphemes is None:
+            return None
+        return any(text == prefix and typ == "PREF" for text, typ in morphemes)
+
+    def has_any_prefix(self, word: str) -> bool | None:
+        """Check if word has any prefix. Returns None if unknown."""
+        morphemes = self.get_morphemes(word)
+        if morphemes is None:
+            return None
+        return any(typ == "PREF" for _, typ in morphemes)
+
+    def has_suffix(self, word: str, suffix: str) -> bool | None:
+        """Check if word has a specific suffix. Returns None if unknown."""
+        morphemes = self.get_morphemes(word)
+        if morphemes is None:
+            return None
+        return any(text == suffix and typ == "SUFF" for text, typ in morphemes)
+
+    def get_suffixes(self, word: str) -> list[str] | None:
+        """Return list of suffixes for a word. Returns None if unknown."""
+        morphemes = self.get_morphemes(word)
+        if morphemes is None:
+            return None
+        return [text for text, typ in morphemes if typ == "SUFF"]
+
+    def word_is_known(self, word: str) -> bool:
+        """Check if word exists in OpenCorpora dictionary (strict)."""
+        return self.pymorphy.word_is_known(word.lower())
+
+
+@lru_cache(maxsize=1)
+def get_morpheme_analyzer() -> MorphemeAnalyzer:
+    """Get shared MorphemeAnalyzer instance (cached singleton)."""
+    return MorphemeAnalyzer()
 
 
 def _get_package_data_path() -> Path:

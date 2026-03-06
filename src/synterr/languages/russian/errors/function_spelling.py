@@ -14,6 +14,7 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.resources import get_morpheme_analyzer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -44,7 +45,7 @@ SOLID_TO_SPLIT: dict[str, tuple[str, str]] = {
     "зачем": ("за", "чем"),
     "затем": ("за", "тем"),
     "почему": ("по", "чему"),
-    "отчасти": ("от", "части"),
+    # "отчасти" removed: not a §61 conjunction confusion (it's §56 наречие)
 }
 
 # Reverse: split → solid (for detecting two-word sequences to merge)
@@ -59,15 +60,17 @@ SPLIT_TO_SOLID: dict[tuple[str, str], str] = {
     ("при", "чём"): "причём",
     ("при", "чем"): "причем",
     ("при", "том"): "притом",
-    ("и", "так"): "итак",
+    # ("и", "так") removed: "и так" is far more common than conjunction "итак",
+    # merging it produces correct text most of the time
 }
 
 # не/ни + POS combinations where attachment/detachment is confusable
 # POS tags where не can be written solid (не + word → неword)
 NE_ATTACHABLE_POS = {"NOUN", "ADJ", "ADV"}
 
-# POS tags where не should always be separate (corrupt by merging)
-NE_DETACHABLE_POS = {"VERB", "ADJ", "NOUN", "ADV"}
+# POS tags where не- can be a real detachable prefix
+# VERB excluded: не+verb is already separate in correct Russian (§69)
+NE_DETACHABLE_POS = {"ADJ", "NOUN", "ADV"}
 
 # -таки: should be hyphenated after certain words
 # Error: remove hyphen or detach
@@ -141,8 +144,8 @@ class FunctionSpellingHandler:
         ):
             return True
 
-        # -таки patterns
-        if "таки" in text_lower:
+        # -таки patterns (avoid matching "атаки", "такие", etc.)
+        if "-таки" in text_lower:
             return True
         if text_lower == "таки" and idx > 0:
             return True
@@ -184,7 +187,7 @@ class FunctionSpellingHandler:
         ):
             candidates.append(("ne_detachment", self._weights["ne_detachment"]))
 
-        if "таки" in text_lower or (text_lower == "таки" and idx > 0):
+        if "-таки" in text_lower or (text_lower == "таки" and idx > 0):
             candidates.append(("taki_hyphen", self._weights["taki_hyphen"]))
 
         if not candidates:
@@ -278,15 +281,24 @@ class FunctionSpellingHandler:
             return None
 
         particle = sentence[idx]  # не or ни
+        particle_lower = particle.lower()
         next_word = sentence[idx + 1]
 
         if not next_word.isalpha():
             return None
 
-        # Merge: не + счастье → несчастье (but we're creating the ERROR,
-        # so the input is correct "не счастье" and we merge to "несчастье")
-        merged = particle.lower() + next_word.lower()
-        # Preserve capitalization if particle was capitalized
+        # ни only forms solid words in closed-class pronouns/adverbs (никто, нигде)
+        # Don't productively attach ни to arbitrary words
+        if particle_lower == "ни":
+            return None
+
+        merged_lower = particle_lower + next_word.lower()
+        # Only merge if the result is a real word (prevents некошка, нестол)
+        analyzer = get_morpheme_analyzer()
+        if not analyzer.word_is_known(merged_lower):
+            return None
+
+        merged = merged_lower
         if particle[0].isupper():
             merged = merged[0].upper() + merged[1:]
 
@@ -320,12 +332,23 @@ class FunctionSpellingHandler:
         if prefix not in ("не", "ни"):
             return None
 
+        remainder_lower = text_lower[2:]
+
+        # Validate: remainder must be a real word (prevents нефть→не фть)
+        analyzer = get_morpheme_analyzer()
+        if not analyzer.word_is_known(remainder_lower):
+            return None
+
+        # Validate: не/ни must be a real prefix (prevents нервный→не рвный)
+        has_pfx = analyzer.has_prefix(text_lower, prefix)
+        if has_pfx is False:
+            return None  # Not a prefix per morpheme dict (невежда, нервный)
+
         rest = text[2:]  # preserve original case of the rest
 
         # Preserve case of prefix
         if text[0].isupper():
             particle = prefix[0].upper() + prefix[1:]
-            # Lowercase the rest since it's now a separate word
             rest = rest[0].lower() + rest[1:] if rest else rest
         else:
             particle = prefix

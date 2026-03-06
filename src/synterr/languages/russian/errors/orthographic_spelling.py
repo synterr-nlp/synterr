@@ -22,6 +22,7 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.resources import get_morpheme_analyzer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -95,7 +96,8 @@ _SIBILANTS = set("шщжчШЩЖЧ")
 
 _SIBILANT_VOWEL_SWAPS = {
     "ё": "о", "о": "ё",
-    "ю": "у", "у": "ю",  # foreign words: жюри↔жури, брошюра↔брошура, парашют↔парашут
+    # ю↔у removed: only applies to 3 loanwords (жюри, брошюра, парашют)
+    # and produces impossible errors on native words (чудо→чюдо, шутка→шютка)
 }
 
 
@@ -160,9 +162,9 @@ class OrthographicSpellingHandler:
             return True
         if "инск" in text_lower or "енск" in text_lower:
             return True
-        if "ице" in text_lower or "ецо" in text_lower or "ица" in text_lower or "еца" in text_lower or "ьице" in text_lower or "ьеце" in text_lower:
+        if _can_its_ets(text_lower):
             return True
-        if re.search(r"[еи]к[аеуоиы]?$", text_lower):
+        if _can_ek_ik(text_lower):
             return True
         if token.pos in ("VERB", "ADJ") and _has_participle_pattern(text_lower):
             return True
@@ -251,12 +253,12 @@ def _can_yi_swap(text_lower: str) -> bool:
 
 
 def _can_its_ets(text_lower: str) -> bool:
-    # Neuter nouns with -ице/-ецо/-ица/-еца or -ьице/-ьеце patterns
-    return bool(re.search(r"[иеь][цч][еиоа]", text_lower))
+    # Nouns with -ице/-ецо/-ица/-еца patterns (ц only, not ч)
+    return bool(re.search(r"[ие]ц[еиоа]", text_lower))
 
 
 def _can_ek_ik(text_lower: str) -> bool:
-    return bool(re.search(r"[еиё][кч][аеуоиы]?$", text_lower))
+    return bool(re.search(r"[еи]к[аеуоиы]?$", text_lower))
 
 
 def _can_ts_vowel(text_lower: str) -> bool:
@@ -277,11 +279,24 @@ def _can_sibilant_vowel(text_lower: str) -> bool:
     return False
 
 
+_PARTICIPLE_ENDING_RE = re.compile(
+    r"(ущ|ющ|ащ|ящ)(ий|ая|ее|ие|его|ей|ему|им|их|ими|ем)(ся)?$"  # active present
+    r"|(ем|им)(ый|ая|ое|ые|ого|ой|ому|ым|ых|ыми|ом)$"  # passive present
+    r"|(енн|янн|анн)(ый|ая|ое|ые|ого|ой|ому|ым|ых|ыми|ом)$"  # passive past
+)
+
+
 def _has_participle_pattern(text_lower: str) -> bool:
-    for orig, _ in _PARTICIPLE_SWAPS:
-        if orig in text_lower:
-            return True
-    return False
+    if not _PARTICIPLE_ENDING_RE.search(text_lower):
+        return False
+    # Verify via morpheme dict: the matched suffix must be a real suffix
+    analyzer = get_morpheme_analyzer()
+    suffixes = analyzer.get_suffixes(text_lower)
+    if suffixes is None:
+        return True  # Unknown word — allow (could be a rare participle)
+    # Check if any participle suffix is present in the morpheme analysis
+    participle_suffixes = {"ущ", "ющ", "ащ", "ящ", "ем", "им", "енн", "янн", "анн", "нн"}
+    return bool(participle_suffixes & set(suffixes))
 
 
 # =============================================================================
@@ -311,12 +326,20 @@ def _apply_subtype(subtype: str, word: str, text_lower: str) -> str | None:
 
 
 def _swap_pre_pri(word: str, text_lower: str) -> str | None:
-    """Swap пре↔при prefix."""
+    """Swap пре↔при prefix — only if morpheme dict confirms a real prefix."""
     m = _PRE_PRI_RE.match(text_lower)
     if not m:
         return None
+    prefix_lower = word[:3].lower()
+    # Check morpheme dict: only swap if the word actually has пре-/при- prefix
+    analyzer = get_morpheme_analyzer()
+    has_pfx = analyzer.has_prefix(text_lower, prefix_lower)
+    if has_pfx is False:
+        return None  # Not a prefix (природа, прекрасный)
+    if has_pfx is None:
+        # Unknown word in morpheme dict — skip to avoid gibberish (президент etc.)
+        return None
     prefix = word[:3]
-    prefix_lower = prefix.lower()
     if prefix_lower == "пре":
         new_prefix = _match_case("при", prefix)
     elif prefix_lower == "при":
@@ -327,18 +350,25 @@ def _swap_pre_pri(word: str, text_lower: str) -> str | None:
 
 
 def _swap_yi_prefix(word: str, text_lower: str) -> str | None:
-    """Swap и↔ы after prefix boundary."""
+    """Swap и↔ы after prefix boundary — verified via morpheme dict."""
+    analyzer = get_morpheme_analyzer()
     for pfx in sorted(_ALL_PREFIXES_YI, key=len, reverse=True):
         if text_lower.startswith(pfx) and len(text_lower) > len(pfx):
             pos = len(pfx)
             char = word[pos]
             char_lower = char.lower()
+            if char_lower not in ("и", "ы"):
+                continue
+            # Verify this is a real prefix, not part of the root
+            has_pfx = analyzer.has_prefix(text_lower, pfx)
+            if has_pfx is False:
+                continue  # Not a prefix (сирень, обида)
+            if has_pfx is None and len(pfx) <= 2:
+                continue  # Short prefix (с, об, из) on unknown word — too risky
             if char_lower == "и":
                 new_char = "Ы" if char.isupper() else "ы"
-            elif char_lower == "ы":
-                new_char = "И" if char.isupper() else "и"
             else:
-                continue
+                new_char = "И" if char.isupper() else "и"
             return word[:pos] + new_char + word[pos + 1:]
     return None
 
@@ -384,15 +414,22 @@ def _swap_its_ets(word: str, text_lower: str) -> str | None:
 
 
 def _swap_ek_ik(word: str, text_lower: str) -> str | None:
-    """Swap -ек↔-ик (and -ёк↔-ик) in diminutive suffixes."""
-    # Find the suffix position: look for [еиё]к near end of word
-    m = re.search(r"[еиё]к[аеуоиы]?$", text_lower)
+    """Swap -ек↔-ик in diminutive suffixes — verified via morpheme dict."""
+    m = re.search(r"[еи]к[аеуоиы]?$", text_lower)
     if not m:
+        return None
+    # Verify -ик/-ек is a real suffix, not part of the root (человек, кулик)
+    analyzer = get_morpheme_analyzer()
+    suffixes = analyzer.get_suffixes(text_lower)
+    if suffixes is not None and "ик" not in suffixes and "ек" not in suffixes and "к" not in suffixes:
+        return None  # No matching suffix (человек, парик, кулик)
+    if suffixes is None:
+        # Unknown word — skip to avoid false positives
         return None
     pos = m.start()
     orig_vowel = word[pos]
     orig_lower = orig_vowel.lower()
-    if orig_lower in ("е", "ё"):
+    if orig_lower == "е":
         new_vowel = "И" if orig_vowel.isupper() else "и"
     elif orig_lower == "и":
         new_vowel = "Е" if orig_vowel.isupper() else "е"
