@@ -37,6 +37,7 @@ weights:
   # Punctuation (not attested in RULEC L2 learner data)
   comma_delete: 0.0
   comma_pair_delete: 0.0
+  comma_insert: 0.0
   dash_delete: 0.0
 
   # Function word spelling (not separately attested in RULEC; estimated)

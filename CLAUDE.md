@@ -53,6 +53,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | word_insertion | word_insertion | Syntax+Extra | OTHER |
 | comma_delete | 5 subtypes (subordinate, compound, parenthetical, isolation, homogeneous) | Syntax+Miss | PUNCT |
 | comma_pair_delete | 5 subtypes (participle, relative, gerund, parenthetical, apposition) | Syntax+Miss | PUNCT |
+| comma_insert | comma_before_kak, comma_in_set_phrase, comma_between_conjunctions | Syntax+Extra | PUNCT |
 | dash_delete | dash_subj_pred, dash_other | Syntax+Miss | PUNCT |
 
 ## Adding a Handler
@@ -134,7 +135,9 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v0.3.2**: OrthographicSpellingHandler (9 subtypes: пре/при, ы/и, suffixes, participles, ц/sibilant vowels). 178 tests, 20 handlers.
+**v0.3.3**: CommaInsertHandler (extra commas: before как, in set phrases, between conjunctions). 193 tests, 21 handlers.
+
+**v0.3.2**: OrthographicSpellingHandler (9 subtypes: пре/при, ы/и, suffixes, participles, ц/sibilant vowels).
 
 **v0.3.1**: FunctionSpellingHandler (не/ни, conjunction split/merge, -таки).
 

@@ -831,6 +831,17 @@ mappings:
   pair_apposition:
     primary: pu_comma
 
+  # Comma insert handler subtypes (extra commas)
+  comma_before_kak:
+    primary: pu_clause
+    modifier: Extra
+  comma_in_set_phrase:
+    primary: pu_comma
+    modifier: Extra
+  comma_between_conjunctions:
+    primary: pu_other
+    modifier: Extra
+
   # Punctuation handler subtypes — dashes
   dash_subj_pred:
     primary: pu_dash

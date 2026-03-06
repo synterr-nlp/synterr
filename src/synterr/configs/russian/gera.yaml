@@ -37,6 +37,7 @@ weights:
   # Punctuation: 42.5% in GERA — dominant error type in school texts
   comma_delete: 0.220        # P:COMMA single ~22%
   comma_pair_delete: 0.140   # P:COMMA pair ~14%
+  comma_insert: 0.060        # P:COMMA extra ~6%
   dash_delete: 0.040         # P:DASH ~4%
 
   # Function word spelling (S:ORTH subsumes these in GERA)

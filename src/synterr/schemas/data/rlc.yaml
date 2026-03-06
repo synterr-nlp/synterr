@@ -287,6 +287,17 @@ mappings:
   taki_hyphen:
     primary: Ortho
 
+  # Comma insert subtypes → RLC Syntax+Extra
+  comma_before_kak:
+    primary: Syntax
+    modifier: Extra
+  comma_in_set_phrase:
+    primary: Syntax
+    modifier: Extra
+  comma_between_conjunctions:
+    primary: Syntax
+    modifier: Extra
+
   # Punctuation (RLC has no dedicated punct tags; Syntax+Miss = closest)
   comma_subordinate:
     primary: Syntax
