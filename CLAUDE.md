@@ -41,6 +41,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
 | spelling | vowel_reduction, devoicing, prefix_voicing, tsa_confusion, cluster, double_consonant, keyboard, soft_sign | Ortho, Misspell | SPELL |
+| function_spelling | ne_attachment, ne_detachment, conjunction_split, conjunction_merge, taki_hyphen | Ortho | SPELL |
 | noun_case | noun_case | Gov | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
 | verb_person_number, verb_tense | (2) | AgrPers, Tense | MORPH |
@@ -132,7 +133,9 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v0.3.0**: Confusion-matrix-driven morph handlers (5 handlers upgraded), dep-tree-aware agreement errors (adj amod, verb nsubj). 115 tests, 18 handlers.
+**v0.3.1**: FunctionSpellingHandler (не/ни, conjunction split/merge, -таки). 145 tests, 19 handlers. LoRuGEC coverage 43/48 (90%).
+
+**v0.3.0**: Confusion-matrix-driven morph handlers (5 handlers upgraded), dep-tree-aware agreement errors (adj amod, verb nsubj).
 
 **v0.2.0**: Lexical handlers (paronym, preposition, conjunction), structural (word_omission, word_insertion), punctuation (comma_delete, comma_pair_delete, dash_delete). Rozental schema (8 L0 / 29 L1 / 99 L2).
 

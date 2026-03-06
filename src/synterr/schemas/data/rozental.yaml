@@ -775,6 +775,18 @@ mappings:
   word_omission:
     primary: lx_structural
     modifier: Miss
+  # Function spelling handler subtypes
+  ne_attachment:
+    primary: sp_function
+  ne_detachment:
+    primary: sp_function
+  conjunction_split:
+    primary: sp_function
+  conjunction_merge:
+    primary: sp_function
+  taki_hyphen:
+    primary: sp_function
+
   # Punctuation handler subtypes — commas
   comma_subordinate:
     primary: pu_clause

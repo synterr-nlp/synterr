@@ -24,6 +24,9 @@ weights:
   comma_pair_delete: 0.03
   dash_delete: 0.01
 
+  # Function word spelling: ~6%
+  function_spelling: 0.06
+
   # Structural: ~16%
   word_omission: 0.08
   word_insertion: 0.08

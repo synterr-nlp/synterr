@@ -39,6 +39,9 @@ weights:
   comma_pair_delete: 0.140   # P:COMMA pair ~14%
   dash_delete: 0.040         # P:DASH ~4%
 
+  # Function word spelling (S:ORTH subsumes these in GERA)
+  function_spelling: 0.10
+
   # Structural
   word_omission: 0.032       # LACK 3.2%
   word_insertion: 0.000      # EXCESS 0%

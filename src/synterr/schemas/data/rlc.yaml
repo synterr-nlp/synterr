@@ -255,6 +255,18 @@ mappings:
     primary: Syntax
     modifier: Extra
 
+  # Function spelling subtypes → RLC Ortho (не/ни, conjunctions, particles)
+  ne_attachment:
+    primary: Ortho
+  ne_detachment:
+    primary: Ortho
+  conjunction_split:
+    primary: Ortho
+  conjunction_merge:
+    primary: Ortho
+  taki_hyphen:
+    primary: Ortho
+
   # Punctuation (RLC has no dedicated punct tags; Syntax+Miss = closest)
   comma_subordinate:
     primary: Syntax
