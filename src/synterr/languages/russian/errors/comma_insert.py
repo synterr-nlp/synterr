@@ -1,9 +1,13 @@
 """Russian comma insertion handler — insert commas where they don't belong.
 
 Covers LoRuGEC rules about EXTRA commas (the error = spurious comma):
-- Before "как" when it means "в качестве" or is part of idiom (§114-115)
-- Inside phraseological/set expressions: ни...ни, и...и, etc. (§101)
-- Between adjacent conjunctions at clause boundaries (§133-138)
+- Before "как" when it means "в качестве" (no comma per §93 Прим.) or is part of
+  idiom (§114). Uses dep-tree: only targets "как" with dep_rel=case/fixed/flat
+  (adjunct/apposition sense), NOT advcl/ccomp/mark (subordinate clause).
+- Inside frozen phraseological expressions: ни слуху ни духу, и стар и млад, etc.
+  (§87 п.5). Uses a curated lexicon from Rozental — NOT all repeated conjunctions.
+- Between adjacent conjunctions at clause boundaries (§110). Only fires when a
+  "то/так/но" correlative follows the subordinate clause (making the comma wrong).
 
 This handler inserts comma tokens into the sentence (changes_length=True).
 """
@@ -23,29 +27,100 @@ if TYPE_CHECKING:
 
 
 # =============================================================================
-# "как" patterns: insert comma before "как" in contexts where it's wrong
+# "как" patterns: dep_rel-based filtering
 # =============================================================================
 
-# POS of words that often precede "как" WITHOUT a comma (в качестве, приравнивание)
-_KAK_NO_COMMA_PREV_POS = {"ADP", "VERB", "NOUN", "ADJ", "ADV"}
+# dep_rels where "как" introduces a subordinate/comparative clause → comma IS correct
+# We must NOT insert a comma here (it would produce correct punctuation, not an error)
+_KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl"}
 
 # =============================================================================
-# Phraseological/set expression patterns
-# Repeated conjunctions (и...и, ни...ни, или...или, то...то)
-# where comma between pair members is incorrect
+# Frozen phraseological expressions from Rozental §87 п.5
+# These are the ONLY repeated-conjunction patterns where comma is wrong.
+# Format: frozenset of the content words between the conjunctions.
 # =============================================================================
 
-_REPEATED_CONJUNCTIONS = {"и", "ни", "или", "либо", "то"}
+_FROZEN_PHRASES: dict[str, list[tuple[str, ...]]] = {
+    "и": [
+        ("день", "ночь"), ("смех", "горе"), ("стар", "млад"),
+        ("там", "тут"), ("так", "сяк"), ("то", "другое"),
+        ("то", "дело"), ("тот", "другой"), ("взад", "вперёд"),
+        ("туда", "сюда"), ("направо", "налево"), ("вкривь", "вкось"),
+        ("холод", "голод"), ("свет", "тьма"),
+    ],
+    "ни": [
+        ("слуху", "духу"), ("бе", "ме"), ("больше", "меньше"),
+        ("рыба", "мясо"), ("свет", "заря"), ("то", "сё"),
+        ("тот", "другой"), ("жив", "мёртв"), ("себе", "людям"),
+        ("туда", "сюда"), ("два", "полтора"), ("дать", "взять"),
+        ("взад", "вперёд"), ("там", "тут"), ("так", "сяк"),
+        ("много", "мало"), ("стать", "сесть"), ("шатко", "валко"),
+        ("пуха", "пера"), ("ответа", "привета"), ("кола", "двора"),
+        ("конца", "краю"), ("начала", "конца"),
+    ],
+}
 
 # =============================================================================
-# Adjacent conjunction patterns
-# At junction of two conjunctions: "и когда" → "и , когда"
+# Adjacent conjunction patterns (§110)
 # =============================================================================
 
 _COORDINATING = {"и", "а", "но", "да", "или", "либо", "же", "однако", "зато"}
-_SUBORDINATING = {"что", "когда", "если", "хотя", "чтобы", "пока", "как",
-                  "потому", "поскольку", "пусть", "будто", "словно", "точно",
-                  "раз", "ибо", "ведь", "коль"}
+_SUBORDINATING = {"что", "когда", "если", "хотя", "чтобы", "пока",
+                  "потому", "поскольку", "пусть", "будто", "словно", "точно"}
+
+# Correlative words that follow a subordinate clause and signal NO comma at junction
+_CORRELATIVES = {"то", "так", "но"}
+
+
+def _matches_frozen_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Check if tokens starting at idx match a frozen phrase from §87 п.5."""
+    conj = tokens[idx].text.lower()
+    phrases = _FROZEN_PHRASES.get(conj)
+    if not phrases:
+        return False
+    # Find second occurrence of the same conjunction
+    for j in range(idx + 2, min(idx + 5, len(tokens))):
+        if tokens[j].text.lower() == conj:
+            # No comma already between them
+            if any(tokens[k].text == "," for k in range(idx + 1, j)):
+                return False
+            # Collect content words between the two conjunctions
+            between = tuple(
+                tokens[k].text.lower() for k in range(idx + 1, j)
+                if tokens[k].pos != "PUNCT"
+            )
+            if len(between) != 1:
+                continue
+            # Collect content word after the second conjunction
+            after_words = []
+            for k in range(j + 1, min(j + 3, len(tokens))):
+                if tokens[k].pos != "PUNCT":
+                    after_words.append(tokens[k].text.lower())
+                    break
+            if not after_words:
+                continue
+            pair = (between[0], after_words[0])
+            if pair in phrases:
+                return True
+    return False
+
+
+def _has_correlative_after(tokens: Sequence[AnalyzedToken], subord_idx: int) -> bool:
+    """Check if a subordinate clause starting at subord_idx is followed by то/так/но.
+
+    Per §110: comma between conjunctions is NOT placed when the subordinate
+    clause has a correlative word (то/так/но) after it. So we insert a comma
+    (creating an error) only when such a correlative IS present.
+    """
+    # Scan forward for a correlative, but not too far (within ~15 tokens)
+    for j in range(subord_idx + 1, min(subord_idx + 15, len(tokens))):
+        tok = tokens[j]
+        if tok.text.lower() in _CORRELATIVES and tok.pos in ("CCONJ", "PART", "ADV"):
+            return True
+        # Stop at sentence-ending punctuation
+        if tok.text in (".", "!", "?", ";"):
+            break
+    return False
 
 
 class CommaInsertHandler:
@@ -85,27 +160,24 @@ class CommaInsertHandler:
         token = tokens[idx]
         text_lower = token.text.lower()
 
-        # "как" not already preceded by comma
+        # "как" not already preceded by comma, and NOT a clause-introducing "как"
         if text_lower == "как" and idx > 0:
             prev = tokens[idx - 1]
-            if prev.text != "," and prev.pos in _KAK_NO_COMMA_PREV_POS:
-                return True
+            if prev.text != ",":
+                # Use dep_rel to filter: skip if "как" introduces a subordinate clause
+                if token.dep_rel not in _KAK_CLAUSE_DEPRELS:
+                    return True
 
-        # Repeated conjunction: first occurrence of и/ни/или followed later by same
-        if text_lower in _REPEATED_CONJUNCTIONS:
-            # Check if there's another occurrence of same conjunction later
-            for j in range(idx + 2, len(tokens)):
-                if tokens[j].text.lower() == text_lower:
-                    # And no comma right after current token
-                    if idx + 1 < len(tokens) and tokens[idx + 1].text != ",":
-                        return True
-                    break
+        # Frozen phrase: check if conjunction + content words match a known phrase
+        if text_lower in _FROZEN_PHRASES and _matches_frozen_phrase(tokens, idx):
+            return True
 
-        # Adjacent conjunctions: coordinating + subordinating with no comma between
+        # Adjacent conjunctions: only when "то/так/но" correlative follows
         if text_lower in _COORDINATING and idx + 1 < len(tokens):
             next_lower = tokens[idx + 1].text.lower()
             if next_lower in _SUBORDINATING:
-                return True
+                if _has_correlative_after(tokens, idx + 1):
+                    return True
 
         return False
 
@@ -125,19 +197,15 @@ class CommaInsertHandler:
 
         if text_lower == "как" and idx > 0:
             prev = tokens[idx - 1]
-            if prev.text != "," and prev.pos in _KAK_NO_COMMA_PREV_POS:
+            if prev.text != "," and token.dep_rel not in _KAK_CLAUSE_DEPRELS:
                 candidates.append(("comma_before_kak", self._weights["comma_before_kak"]))
 
-        if text_lower in _REPEATED_CONJUNCTIONS:
-            for j in range(idx + 2, len(tokens)):
-                if tokens[j].text.lower() == text_lower:
-                    if idx + 1 < len(tokens) and tokens[idx + 1].text != ",":
-                        candidates.append(("comma_in_set_phrase", self._weights["comma_in_set_phrase"]))
-                    break
+        if text_lower in _FROZEN_PHRASES and _matches_frozen_phrase(tokens, idx):
+            candidates.append(("comma_in_set_phrase", self._weights["comma_in_set_phrase"]))
 
         if text_lower in _COORDINATING and idx + 1 < len(tokens):
             next_lower = tokens[idx + 1].text.lower()
-            if next_lower in _SUBORDINATING:
+            if next_lower in _SUBORDINATING and _has_correlative_after(tokens, idx + 1):
                 candidates.append(("comma_between_conjunctions", self._weights["comma_between_conjunctions"]))
 
         if not candidates:
@@ -149,7 +217,7 @@ class CommaInsertHandler:
         if chosen == "comma_before_kak":
             return self._insert_before_kak(sentence, idx)
         elif chosen == "comma_in_set_phrase":
-            return self._insert_in_set_phrase(sentence, idx)
+            return self._insert_in_set_phrase(sentence, idx, tokens)
         elif chosen == "comma_between_conjunctions":
             return self._insert_between_conjunctions(sentence, idx)
 
@@ -171,15 +239,13 @@ class CommaInsertHandler:
         )
 
     def _insert_in_set_phrase(
-        self, sentence: list[str], idx: int
+        self, sentence: list[str], idx: int, tokens: Sequence[AnalyzedToken]
     ) -> ErrorResult | None:
-        """Insert comma after first conjunction in repeated pair: и стар и млад → и стар , и млад."""
-        # Find the next word after the conjunction that isn't the same conjunction
-        # Insert comma before the second occurrence of the conjunction
-        text_lower = sentence[idx].lower()
-        # Find second occurrence
-        for j in range(idx + 2, len(sentence)):
-            if sentence[j].lower() == text_lower:
+        """Insert comma in frozen phrase: ни слуху ни духу → ни слуху , ни духу."""
+        conj = sentence[idx].lower()
+        # Find second occurrence of the conjunction
+        for j in range(idx + 2, min(idx + 5, len(tokens))):
+            if tokens[j].text.lower() == conj:
                 # Insert comma before second conjunction
                 sentence.insert(j, ",")
                 return ErrorResult(
