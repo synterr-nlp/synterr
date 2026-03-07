@@ -125,7 +125,11 @@ Citations:
 **morpholog** — Tikhonov morpheme dictionary (93k entries), used via pickle.
 © [morpholog package](https://pypi.org/project/morpholog/). Based on А.Н. Тихонов, *Морфемно-орфографический словарь*.
 
-**russtress** — Russian word stress prediction.
+**Zaliznyak 2010** — Grammatical Dictionary of Russian, 6th edition (106k entries with exact stress).
+© А.А. Зализняк. Data provided by [gramdict/zalizniak-2010](https://github.com/gramdict/zalizniak-2010) under CC BY-NC 4.0.
+Published with permission of the rights holder А.А. Зализняк.
+
+**russtress** — Russian word stress prediction (fallback for words not in Zaliznyak).
 https://github.com/MashaPo/russtress
 Citation: Ponomareva M., Milintsevich K., Chernyak E., & Starostin A. (2017). Automated Word Stress Detection in Russian. In *Proceedings of the First Workshop on Subword and Character Level Models in NLP*, pp. 31–35. https://doi.org/10.18653/v1/W17-4104
 

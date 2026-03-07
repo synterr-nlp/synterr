@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Build unified morpheme+stress dictionary.
 
-Merges:
-1. Existing morpheme_dict.pickle (93k, cleaned)
-2. Existing stress_dict.json (49k)
-3. New stress annotations from russtress (batch_stress.py output)
-4. New morpheme annotations from Morphberta (batch_morphemes.py output)
+Merges (in priority order for stress):
+1. Zaliznyak 2010 stress (extract_zalizniak_stress.py output, 76k, exact)
+2. Existing stress_dict.json (russtress, 49k, ML-predicted)
+3. Extra stress annotations from russtress (batch_stress.py output, 53k)
+
+Morpheme sources (in priority order):
+1. Existing morpheme_dict.pickle (Tikhonov, 93k, cleaned)
+2. Morphberta-K neural segmentation (batch_morphemes.py output, 29k)
 
 Output format (JSON):
 {
@@ -14,13 +17,14 @@ Output format (JSON):
   ...
 }
 
-Keys: "s" = stress char index (-1 = unknown), "m" = morphemes (null = unknown)
+Keys: "s" = stress char index (-1 = unknown), "m" = morphemes (absent = unknown)
 Morpheme types: R=root, P=prefix, S=suffix, E=ending, L=link
 
 Usage:
     uv run python scripts/build_unified_dict.py \
-        --stress-extra /tmp/stress_results.json \
-        --morphemes-extra /tmp/morphberta_results.json \
+        --zalizniak scripts/zalizniak_stress.json \
+        --stress-extra scripts/stress_results.json \
+        --morphemes-extra scripts/morpheme_results.json \
         --output src/synterr/data/russian/unified_dict.json
 """
 
@@ -73,6 +77,7 @@ def parse_morpholog_entry(entry: list) -> list[list[str]] | None:
 def main():
     parser = argparse.ArgumentParser(description="Build unified morpheme+stress dict")
     parser.add_argument("--output", "-o", required=True, help="Output JSON file")
+    parser.add_argument("--zalizniak", help="Zaliznyak stress JSON (extract_zalizniak_stress.py)")
     parser.add_argument("--stress-extra", help="Extra stress results JSON from batch_stress.py")
     parser.add_argument("--morphemes-extra", help="Extra morpheme results JSON from Morphberta")
     args = parser.parse_args()
@@ -86,12 +91,19 @@ def main():
     with open(src / "stress_dict.json", encoding="utf-8") as f:
         stress_raw = json.load(f)
 
+    # Load Zaliznyak stress (highest priority)
+    stress_zal = {}
+    if args.zalizniak:
+        with open(args.zalizniak, encoding="utf-8") as f:
+            stress_zal = json.load(f)
+        print(f"  Loaded {len(stress_zal)} Zaliznyak stress annotations")
+
     # Load extras if provided
     stress_extra = {}
     if args.stress_extra:
         with open(args.stress_extra, encoding="utf-8") as f:
             stress_extra = json.load(f)
-        print(f"  Loaded {len(stress_extra)} extra stress annotations")
+        print(f"  Loaded {len(stress_extra)} extra russtress annotations")
 
     morphemes_extra = {}
     if args.morphemes_extra:
@@ -103,6 +115,7 @@ def main():
     all_words = set()
     all_words.update(w for w in morph_raw if isinstance(w, str) and w.isalpha() and len(w) >= 2)
     all_words.update(w for w in stress_raw if isinstance(w, str) and w.isalpha() and len(w) >= 2)
+    all_words.update(stress_zal.keys())
     all_words.update(stress_extra.keys())
     all_words.update(morphemes_extra.keys())
 
@@ -112,17 +125,24 @@ def main():
     unified = {}
     has_stress = 0
     has_morph = 0
+    stress_sources = {"zalizniak": 0, "russtress_orig": 0, "russtress_extra": 0}
 
     for word in sorted(all_words):
         entry = {}
 
-        # Stress: prefer existing, then extra
-        if word in stress_raw and stress_raw[word] >= 0:
+        # Stress priority: Zaliznyak (exact) > russtress original > russtress extra
+        if word in stress_zal and stress_zal[word] >= 0:
+            entry["s"] = stress_zal[word]
+            has_stress += 1
+            stress_sources["zalizniak"] += 1
+        elif word in stress_raw and stress_raw[word] >= 0:
             entry["s"] = stress_raw[word]
             has_stress += 1
+            stress_sources["russtress_orig"] += 1
         elif word in stress_extra and stress_extra[word] >= 0:
             entry["s"] = stress_extra[word]
             has_stress += 1
+            stress_sources["russtress_extra"] += 1
         else:
             entry["s"] = -1
 
@@ -143,6 +163,8 @@ def main():
     both = sum(1 for e in unified.values() if e.get("s", -1) >= 0 and e.get("m"))
     print(f"\nUnified dict: {len(unified)} entries")
     print(f"  Has stress: {has_stress} ({has_stress*100//len(unified)}%)")
+    for src_name, count in stress_sources.items():
+        print(f"    from {src_name}: {count}")
     print(f"  Has morphemes: {has_morph} ({has_morph*100//len(unified)}%)")
     print(f"  Has both: {both} ({both*100//len(unified)}%)")
 
