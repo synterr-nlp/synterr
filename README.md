@@ -125,9 +125,9 @@ Citations:
 **morpholog** — Tikhonov morpheme dictionary (93k entries), used via pickle.
 © [morpholog package](https://pypi.org/project/morpholog/). Based on А.Н. Тихонов, *Морфемно-орфографический словарь*.
 
-**Zaliznyak 2010** — Grammatical Dictionary of Russian, 6th edition (106k entries with exact stress).
-© А.А. Зализняк. Data provided by [gramdict/zalizniak-2010](https://github.com/gramdict/zalizniak-2010) under CC BY-NC 4.0.
-Published with permission of the rights holder А.А. Зализняк.
+**Zaliznyak 2010** — *Грамматический словарь русского языка*, А.А. Зализняк, 6th edition (106k entries with exact stress).
+Rights holder: А.А. Зализняк. Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/).
+Source: [gramdict/zalizniak-2010](https://github.com/gramdict/zalizniak-2010). Digitized from proofs prepared by Е.А. Гришина, published by С. Слепов with permission of the rights holder.
 
 **russtress** — Russian word stress prediction (fallback for words not in Zaliznyak).
 https://github.com/MashaPo/russtress
