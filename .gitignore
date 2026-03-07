@@ -43,3 +43,9 @@ lenta_sents.txt
 # Scraped / intermediate files
 rozental-contents.html
 handoff.md
+
+# Internal viewer (contains copyrighted Rozental text)
+tools/diff_viewer_internal.html
+
+# Review data (generated, not tracked)
+tools/review/

@@ -11,7 +11,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 900px;
+            max-width: 960px;
             margin: 0 auto;
             padding: 20px;
             background: #f5f5f5;
@@ -156,6 +156,7 @@
             font-size: 0.8rem;
             margin-right: 8px;
             margin-bottom: 8px;
+            vertical-align: top;
         }
 
         .error-type {
@@ -168,10 +169,39 @@
             font-size: 0.75rem;
         }
 
+        .error-schema {
+            color: #007bff;
+            font-size: 0.7rem;
+            font-family: monospace;
+        }
+
         .category-SPELL { border-left: 3px solid #dc3545; }
         .category-MORPH { border-left: 3px solid #007bff; }
         .category-PUNCT { border-left: 3px solid #6c757d; }
         .category-OTHER { border-left: 3px solid #ffc107; }
+        .category-AGR   { border-left: 3px solid #17a2b8; }
+        .category-GOV   { border-left: 3px solid #6610f2; }
+        .category-SYNT  { border-left: 3px solid #fd7e14; }
+        .category-LEX   { border-left: 3px solid #e83e8c; }
+
+        .rule-text {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-left: 3px solid #dee2e6;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #495057;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .rule-text .rule-header {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
 
         .metadata {
             font-size: 0.8rem;
@@ -197,20 +227,16 @@
             font-size: 0.85em;
         }
 
-        /* Annotation buttons placeholder */
         .annotation-bar {
-            display: none; /* Enable when annotation is needed */
+            display: flex;
             gap: 8px;
             padding: 12px;
             background: #fff;
             border-radius: 8px;
             margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .annotation-bar.active {
-            display: flex;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .annotation-bar button {
@@ -226,10 +252,34 @@
             background: #f0f0f0;
         }
 
-        .annotation-bar button.selected {
-            background: #007bff;
+        .annotation-bar button.selected-correct {
+            background: #28a745;
             color: #fff;
-            border-color: #007bff;
+            border-color: #28a745;
+        }
+
+        .annotation-bar button.selected-wrong_error {
+            background: #dc3545;
+            color: #fff;
+            border-color: #dc3545;
+        }
+
+        .annotation-bar button.selected-non_error {
+            background: #fd7e14;
+            color: #fff;
+            border-color: #fd7e14;
+        }
+
+        .annotation-bar button.selected-ambiguous {
+            background: #6c757d;
+            color: #fff;
+            border-color: #6c757d;
+        }
+
+        .annotation-progress {
+            font-size: 0.8rem;
+            color: #666;
+            margin-left: auto;
         }
 
         .stats {
@@ -269,7 +319,7 @@
     <div class="dropzone" id="dropzone">
         <p>Drop a JSONL file here or click to select</p>
         <p style="font-size: 0.85rem; color: #888; margin-top: 8px;">
-            Generated with <code>result.to_jsonl()</code>
+            Generated with <code>uv run python scripts/generate_review.py</code>
         </p>
         <input type="file" id="fileInput" accept=".jsonl,.json,.txt">
     </div>
@@ -283,12 +333,25 @@
                 <option value="">All</option>
                 <option value="SPELL">SPELL</option>
                 <option value="MORPH">MORPH</option>
+                <option value="AGR">AGR</option>
+                <option value="GOV">GOV</option>
                 <option value="PUNCT">PUNCT</option>
+                <option value="SYNT">SYNT</option>
+                <option value="LEX">LEX</option>
                 <option value="OTHER">OTHER</option>
             </select>
             <label>Error type:</label>
             <select id="typeFilter">
                 <option value="">All</option>
+            </select>
+            <label>Annotation:</label>
+            <select id="annotationFilter">
+                <option value="">All</option>
+                <option value="unannotated">Unannotated</option>
+                <option value="correct">Correct</option>
+                <option value="wrong_error">Wrong error</option>
+                <option value="non_error">Non-error</option>
+                <option value="ambiguous">Ambiguous</option>
             </select>
         </div>
 
@@ -301,26 +364,38 @@
             <button id="resetBtn" style="margin-left: auto;">Load new file</button>
         </div>
 
-        <!-- Annotation bar - enable by adding 'active' class -->
         <div class="annotation-bar" id="annotationBar">
-            <button data-label="correct">Correct</button>
-            <button data-label="incorrect">Incorrect</button>
-            <button data-label="ambiguous">Ambiguous</button>
+            <button data-label="correct"><kbd>1</kbd> Correct</button>
+            <button data-label="wrong_error"><kbd>2</kbd> Wrong error</button>
+            <button data-label="non_error"><kbd>3</kbd> Non-error</button>
+            <button data-label="ambiguous"><kbd>4</kbd> Ambiguous</button>
             <button id="exportBtn" style="margin-left: auto;">Export annotations</button>
+            <span class="annotation-progress" id="annotationProgress"></span>
         </div>
 
         <div class="card" id="sentenceCard">
             <div class="sentence" id="sentenceDisplay"></div>
             <div class="errors-list" id="errorsList"></div>
+            <div class="rule-text" id="ruleText" style="display: none;"></div>
             <div class="metadata" id="metadata"></div>
         </div>
 
         <div class="keyboard-hint">
             <kbd>&larr;</kbd> / <kbd>&rarr;</kbd> navigate &nbsp;&nbsp;
-            <kbd>1</kbd>-<kbd>3</kbd> annotate &nbsp;&nbsp;
-            <kbd>e</kbd> toggle errors only
+            <kbd>1</kbd> correct &nbsp;&nbsp;
+            <kbd>2</kbd> wrong error &nbsp;&nbsp;
+            <kbd>3</kbd> non-error &nbsp;&nbsp;
+            <kbd>4</kbd> ambiguous &nbsp;&nbsp;
+            <kbd>e</kbd> errors only
         </div>
     </div>
+
+    <!-- Rule texts: populated by build_internal_viewer.py (INTERNAL ONLY) -->
+    <script>
+        // L2 tag → {title, text} mapping. Empty = no rule text shown.
+        // Populated in internal viewer build. DO NOT commit populated version.
+        const RULE_TEXTS = {};
+    </script>
 
     <script>
         let data = [];
@@ -334,6 +409,7 @@
         const viewer = document.getElementById('viewer');
         const sentenceDisplay = document.getElementById('sentenceDisplay');
         const errorsList = document.getElementById('errorsList');
+        const ruleText = document.getElementById('ruleText');
         const metadata = document.getElementById('metadata');
         const counter = document.getElementById('counter');
         const stats = document.getElementById('stats');
@@ -344,6 +420,8 @@
         const resetBtn = document.getElementById('resetBtn');
         const categoryFilter = document.getElementById('categoryFilter');
         const typeFilter = document.getElementById('typeFilter');
+        const annotationFilter = document.getElementById('annotationFilter');
+        const annotationProgress = document.getElementById('annotationProgress');
 
         // Drag and drop
         dropzone.addEventListener('dragover', (e) => {
@@ -416,6 +494,7 @@
         function applyFilters() {
             const cat = categoryFilter.value;
             const type = typeFilter.value;
+            const ann = annotationFilter.value;
 
             filteredData = data.filter(item => {
                 const errors = item.errors || [];
@@ -423,7 +502,14 @@
                 // If errors only mode, skip items with no errors
                 if (errorsOnlyMode && errors.length === 0) return false;
 
-                // If no filters, include all
+                // Annotation filter
+                if (ann) {
+                    const itemAnn = annotations[item._index];
+                    if (ann === 'unannotated' && itemAnn) return false;
+                    if (ann !== 'unannotated' && itemAnn !== ann) return false;
+                }
+
+                // If no category/type filters, include all
                 if (!cat && !type) return true;
 
                 // Check if any error matches filters
@@ -442,12 +528,14 @@
         function updateStats() {
             const totalErrors = data.reduce((sum, item) => sum + (item.errors?.length || 0), 0);
             const withErrors = data.filter(item => (item.errors?.length || 0) > 0).length;
+            const annotated = Object.keys(annotations).length;
 
             stats.innerHTML = `
                 <strong>${data.length}</strong> sentences &nbsp;|&nbsp;
                 <strong>${withErrors}</strong> with errors &nbsp;|&nbsp;
                 <strong>${totalErrors}</strong> total errors &nbsp;|&nbsp;
-                Showing <strong>${filteredData.length}</strong> after filters
+                Showing <strong>${filteredData.length}</strong> after filters &nbsp;|&nbsp;
+                Annotated: <strong>${annotated}</strong>/${data.length}
             `;
         }
 
@@ -455,10 +543,12 @@
             if (filteredData.length === 0) {
                 sentenceDisplay.innerHTML = '<em>No sentences match the current filters</em>';
                 errorsList.innerHTML = '';
+                ruleText.style.display = 'none';
                 metadata.innerHTML = '';
                 counter.textContent = '0 / 0';
                 prevBtn.disabled = true;
                 nextBtn.disabled = true;
+                updateAnnotationProgress();
                 return;
             }
 
@@ -466,7 +556,6 @@
             const errors = item.errors || [];
 
             // Build token display
-            const originalTokens = item.original.split(' ');
             const corruptedTokens = item.corrupted.split(' ');
 
             // Create error lookup by start_idx
@@ -492,14 +581,21 @@
 
             sentenceDisplay.innerHTML = html;
 
-            // Render errors list
+            // Render errors list with schema tags
             if (errors.length > 0) {
                 let errHtml = '<h3>Errors</h3>';
                 errors.forEach(err => {
+                    let schemaInfo = '';
+                    if (err.schema_l2_tag) {
+                        schemaInfo = `<span class="error-schema">${err.schema_l2_tag}</span>`;
+                    } else if (err.schema_tag) {
+                        schemaInfo = `<span class="error-schema">${err.schema_tag}</span>`;
+                    }
                     errHtml += `
                         <span class="error-item category-${err.category}">
                             <span class="error-type">${err.type}</span>
                             <span class="error-category">${err.category}</span>
+                            ${schemaInfo}
                         </span>
                     `;
                 });
@@ -507,6 +603,9 @@
             } else {
                 errorsList.innerHTML = '<h3>No errors (clean sentence)</h3>';
             }
+
+            // Render rule text if available
+            renderRuleText(errors);
 
             // Render metadata
             let metaHtml = '';
@@ -527,6 +626,36 @@
 
             // Update annotation buttons
             updateAnnotationButtons();
+            updateAnnotationProgress();
+        }
+
+        function renderRuleText(errors) {
+            if (Object.keys(RULE_TEXTS).length === 0) {
+                ruleText.style.display = 'none';
+                return;
+            }
+
+            // Collect rule texts for all errors
+            const rules = [];
+            errors.forEach(err => {
+                const tag = err.schema_l2_tag || err.schema_tag;
+                if (tag && RULE_TEXTS[tag]) {
+                    rules.push(RULE_TEXTS[tag]);
+                }
+            });
+
+            if (rules.length === 0) {
+                ruleText.style.display = 'none';
+                return;
+            }
+
+            let html = '';
+            rules.forEach(rule => {
+                html += `<div class="rule-header">${rule.title}</div>`;
+                html += `<div>${rule.text}</div>`;
+            });
+            ruleText.innerHTML = html;
+            ruleText.style.display = 'block';
         }
 
         function updateAnnotationButtons() {
@@ -535,8 +664,17 @@
 
             const annotation = annotations[item._index];
             document.querySelectorAll('.annotation-bar button[data-label]').forEach(btn => {
-                btn.classList.toggle('selected', btn.dataset.label === annotation);
+                btn.className = '';
+                if (btn.dataset.label === annotation) {
+                    btn.classList.add('selected-' + annotation);
+                }
             });
+        }
+
+        function updateAnnotationProgress() {
+            const total = data.length;
+            const done = Object.keys(annotations).length;
+            annotationProgress.textContent = `${done}/${total} annotated`;
         }
 
         function navigate(delta) {
@@ -564,13 +702,24 @@
                 annotations[item._index] = label;
             }
             updateAnnotationButtons();
+            updateAnnotationProgress();
+            updateStats();
+
+            // Auto-advance on annotation
+            if (annotations[item._index] && currentIndex < filteredData.length - 1) {
+                setTimeout(() => navigate(1), 150);
+            }
         }
 
         function exportAnnotations() {
-            const result = data.map((item, idx) => ({
-                ...item,
-                annotation: annotations[idx] || null
-            })).filter(item => item.annotation);
+            const result = data.map((item, idx) => {
+                const ann = annotations[idx];
+                if (!ann) return null;
+                const exported = {...item};
+                delete exported._index;
+                exported.annotation = ann;
+                return exported;
+            }).filter(Boolean);
 
             const blob = new Blob([result.map(r => JSON.stringify(r)).join('\n')],
                                   {type: 'application/json'});
@@ -602,6 +751,7 @@
 
         categoryFilter.addEventListener('change', applyFilters);
         typeFilter.addEventListener('change', applyFilters);
+        annotationFilter.addEventListener('change', applyFilters);
 
         // Annotation buttons
         document.querySelectorAll('.annotation-bar button[data-label]').forEach(btn => {
@@ -611,7 +761,7 @@
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT') return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
             switch (e.key) {
                 case 'ArrowLeft':
@@ -624,9 +774,12 @@
                     annotate('correct');
                     break;
                 case '2':
-                    annotate('incorrect');
+                    annotate('wrong_error');
                     break;
                 case '3':
+                    annotate('non_error');
+                    break;
+                case '4':
                     annotate('ambiguous');
                     break;
                 case 'e':
