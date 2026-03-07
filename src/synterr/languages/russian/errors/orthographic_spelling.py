@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from random import Random
 
     from synterr.core.protocol import AnalyzedToken
+    from synterr.languages.russian.resources import MorphemeAnalyzer
 
 
 # =============================================================================
@@ -162,6 +163,13 @@ class OrthographicSpellingHandler:
 
     def __init__(self):
         self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+        self._analyzer = None
+
+    @property
+    def analyzer(self):
+        if self._analyzer is None:
+            self._analyzer = get_morpheme_analyzer()
+        return self._analyzer
 
     def set_subtype_weights(self, weights: dict[str, float]) -> None:
         self._weights = self.DEFAULT_WEIGHTS.copy()
@@ -253,7 +261,20 @@ class OrthographicSpellingHandler:
         subtypes, weights = zip(*candidates)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
-        corrupted = _apply_subtype(chosen, word, text_lower)
+        # Look up stress: try exact form first, then lemma
+        analyzer = self.analyzer
+        lemma = token.lemma.lower() if token.lemma else text_lower
+        stress_pos = analyzer.get_stress(text_lower)
+        if stress_pos < 0:
+            stress_pos = analyzer.get_stress(lemma)
+            if stress_pos >= 0:
+                stressed_syllable = _stressed_syllable(lemma, stress_pos)
+            else:
+                stressed_syllable = -1
+        else:
+            stressed_syllable = _stressed_syllable(text_lower, stress_pos)
+
+        corrupted = _apply_subtype(chosen, word, text_lower, stressed_syllable, analyzer, lemma)
         if corrupted is None or corrupted == word:
             return None
 
@@ -333,7 +354,36 @@ def _has_participle_pattern(text_lower: str) -> bool:
 # Corruption logic per subtype
 # =============================================================================
 
-def _apply_subtype(subtype: str, word: str, text_lower: str) -> str | None:
+_VOWELS_LOWER = set("аеёиоуыэюя")
+
+
+def _stressed_syllable(word: str, stress_pos: int) -> int:
+    """Return 0-indexed syllable number of the stressed vowel."""
+    syllable = -1
+    for i, c in enumerate(word.lower()):
+        if c in _VOWELS_LOWER:
+            syllable += 1
+            if i >= stress_pos:
+                return syllable
+    return syllable
+
+
+def _syllable_at_pos(word: str, char_pos: int) -> int:
+    """Return 0-indexed syllable number for a character position."""
+    syllable = -1
+    for i, c in enumerate(word.lower()):
+        if c in _VOWELS_LOWER:
+            syllable += 1
+        if i >= char_pos:
+            return syllable
+    return syllable
+
+
+def _apply_subtype(
+    subtype: str, word: str, text_lower: str,
+    stressed_syllable: int = -1, analyzer: MorphemeAnalyzer | None = None,
+    lemma: str | None = None,
+) -> str | None:
     if subtype == "pre_pri":
         return _swap_pre_pri(word, text_lower)
     elif subtype == "y_i_after_prefix":
@@ -349,9 +399,9 @@ def _apply_subtype(subtype: str, word: str, text_lower: str) -> str | None:
     elif subtype == "participle_suffix":
         return _swap_participle(word, text_lower)
     elif subtype == "vowel_after_ts":
-        return _swap_ts_vowel(word, text_lower)
+        return _swap_ts_vowel(word, text_lower, stressed_syllable, analyzer, lemma)
     elif subtype == "vowel_after_sibilant":
-        return _swap_sibilant_vowel(word, text_lower)
+        return _swap_sibilant_vowel(word, text_lower, stressed_syllable, analyzer, lemma)
     elif subtype == "nn_suffix":
         return _swap_nn(word, text_lower)
     return None
@@ -484,28 +534,73 @@ def _swap_participle(word: str, text_lower: str) -> str | None:
     return None
 
 
-def _swap_ts_vowel(word: str, text_lower: str) -> str | None:
-    """Swap vowel after ц."""
+def _swap_ts_vowel(
+    word: str, text_lower: str, stressed_syllable: int = -1,
+    analyzer: MorphemeAnalyzer | None = None, lemma: str | None = None,
+) -> str | None:
+    """Swap vowel after ц.
+
+    §35: After ц, о under stress / е without stress (suffixes/endings).
+    Skip swap if:
+    - the target vowel is stressed (unambiguous)
+    - both ц and the vowel are inside the root (not a suffix/ending rule)
+    """
     for i, c in enumerate(text_lower):
         if c == "ц" and i + 1 < len(text_lower):
             next_c = text_lower[i + 1]
             if next_c in _TS_VOWEL_SWAPS:
-                new_c = _TS_VOWEL_SWAPS[next_c]
                 pos = i + 1
+                # Skip if this vowel is on the stressed syllable
+                if stressed_syllable >= 0:
+                    vowel_syllable = _syllable_at_pos(text_lower, pos)
+                    if vowel_syllable == stressed_syllable:
+                        continue
+                # Skip if both ц and the vowel are in the root
+                # §35 applies to suffixes/endings only (цирк is root, not target)
+                if analyzer is not None:
+                    ts_type = analyzer.char_in_morpheme_type(text_lower, i, "ROOT", lemma)
+                    vowel_type = analyzer.char_in_morpheme_type(text_lower, pos, "ROOT", lemma)
+                    if ts_type is True and vowel_type is True:
+                        continue  # Both in root — skip (церемония, цирк)
+                new_c = _TS_VOWEL_SWAPS[next_c]
                 if word[pos].isupper():
                     new_c = new_c.upper()
                 return word[:pos] + new_c + word[pos + 1:]
     return None
 
 
-def _swap_sibilant_vowel(word: str, text_lower: str) -> str | None:
-    """Swap vowel after sibilant (ш,щ,ж,ч)."""
+def _swap_sibilant_vowel(
+    word: str, text_lower: str, stressed_syllable: int = -1,
+    analyzer: MorphemeAnalyzer | None = None, lemma: str | None = None,
+) -> str | None:
+    """Swap vowel after sibilant (ш,щ,ж,ч).
+
+    §35: After sibilants, о/ё are distinguished by morpheme position:
+    - suffix/ending: о under stress (девчонка, горячо)
+    - root: ё (шёпот, жёлтый) — but learners confuse freely
+    Skip when both sibilant and vowel are in the root AND the vowel is
+    unstressed (no real confusion — e.g., "шоколад" is just the root).
+    Allow when sibilant is in root but vowel crosses into suffix/ending.
+    """
     for i, c in enumerate(text_lower):
         if c in "шщжч" and i + 1 < len(text_lower):
             next_c = text_lower[i + 1]
             if next_c in _SIBILANT_VOWEL_SWAPS:
-                new_c = _SIBILANT_VOWEL_SWAPS[next_c]
                 pos = i + 1
+                # Skip if both sibilant and vowel are deep in the root
+                # (шоколад, жокей — no ё/о confusion)
+                # But allow root-boundary cases (шёпот — ё in root IS confused)
+                if analyzer is not None:
+                    sib_in_root = analyzer.char_in_morpheme_type(text_lower, i, "ROOT", lemma)
+                    vowel_in_root = analyzer.char_in_morpheme_type(text_lower, pos, "ROOT", lemma)
+                    if sib_in_root is True and vowel_in_root is True:
+                        # Both in root — only allow if vowel is stressed
+                        # (stressed root ё/о IS a real confusion: шёпот↔шопот)
+                        if stressed_syllable >= 0:
+                            vowel_syllable = _syllable_at_pos(text_lower, pos)
+                            if vowel_syllable != stressed_syllable:
+                                continue  # Unstressed root vowel — skip
+                new_c = _SIBILANT_VOWEL_SWAPS[next_c]
                 if word[pos].isupper():
                     new_c = new_c.upper()
                 return word[:pos] + new_c + word[pos + 1:]

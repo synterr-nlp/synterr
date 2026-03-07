@@ -22,3 +22,24 @@ coverage.xml
 
 # OS
 .DS_Store
+
+# Neural models (large, licensed externally)
+models/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+
+# Evaluation / scratch data
+eval_punct.jsonl
+lenta_sample.txt
+lenta_sents.txt
+
+# Scraped / intermediate files
+rozental-contents.html
+handoff.md

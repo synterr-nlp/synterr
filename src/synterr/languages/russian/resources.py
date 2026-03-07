@@ -93,22 +93,41 @@ def get_morph_analyzer():
 
 
 @lru_cache(maxsize=1)
+def get_unified_dict() -> dict[str, dict]:
+    """Load unified morpheme+stress dictionary.
+
+    Format: {"word": {"s": stress_pos, "m": [["text", "TYPE"], ...]}, ...}
+    Keys: "s" = stress char index (-1 = unknown), "m" = morphemes (absent = unknown)
+    Morpheme types: R=root, P=prefix, S=suffix, E=ending, L=link
+
+    Merges morpheme_dict.pickle (Tikhonov, 93k) + stress_dict.json (russtress, 49k)
+    + Morphberta-K neural segmentation + extended russtress annotations.
+    """
+    data_path = _get_package_data_path() / "unified_dict.json"
+    if data_path.exists():
+        with data_path.open(encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+@lru_cache(maxsize=1)
 def get_stress_dict() -> dict[str, int]:
     """Load stress dictionary for vowel reduction.
 
-    The dictionary maps words to the 0-indexed position of the stressed vowel.
-    Built from 50k frequency list using russtress (Python 3.10 + TensorFlow).
+    Reads from unified_dict.json ("s" field), falls back to stress_dict.json.
 
     Returns:
         Dict mapping word to stress position (-1 if unknown)
     """
-    data_path = _get_package_data_path() / "stress_dict.json"
+    unified = get_unified_dict()
+    if unified:
+        return {w: entry.get("s", -1) for w, entry in unified.items()}
 
+    data_path = _get_package_data_path() / "stress_dict.json"
     if data_path.exists():
         with data_path.open(encoding="utf-8") as f:
             return json.load(f)
 
-    # Return empty dict if not found (vowel reduction will be skipped)
     return {}
 
 
@@ -159,23 +178,37 @@ def get_morpheme_dict() -> dict[str, list[str]]:
 class MorphemeAnalyzer:
     """Morpheme analysis with dictionary lookup + pymorphy3 validation.
 
+    Uses unified_dict.json (preferred) with fallback to morpheme_dict.pickle.
+
     Usage:
         analyzer = get_morpheme_analyzer()
         analyzer.has_prefix("привычка", "при")   # True
         analyzer.has_prefix("природа", "при")    # False (per Tikhonov)
         analyzer.word_is_known("несчастье")       # True
         analyzer.word_is_known("некошка")          # False
+        analyzer.get_stress("церемония")          # 5
+        analyzer.morpheme_at_char("церемония", 0) # ("церемониj", "R")
     """
 
+    # Unified dict type codes → old-style type names
+    _UNIFIED_TYPE_MAP = {"R": "ROOT", "P": "PREF", "S": "SUFF", "E": "END", "L": "LINK"}
+
     def __init__(self) -> None:
-        self._dict: dict[str, list[str]] | None = None
+        self._unified: dict[str, dict] | None = None
+        self._legacy_dict: dict[str, list[str]] | None = None
         self._pymorphy = None
 
     @property
-    def morpheme_dict(self) -> dict[str, list[str]]:
-        if self._dict is None:
-            self._dict = get_morpheme_dict()
-        return self._dict
+    def unified(self) -> dict[str, dict]:
+        if self._unified is None:
+            self._unified = get_unified_dict()
+        return self._unified
+
+    @property
+    def legacy_dict(self) -> dict[str, list[str]]:
+        if self._legacy_dict is None:
+            self._legacy_dict = get_morpheme_dict()
+        return self._legacy_dict
 
     @property
     def pymorphy(self):
@@ -184,19 +217,29 @@ class MorphemeAnalyzer:
         return self._pymorphy
 
     def get_morphemes(self, word: str) -> list[tuple[str, str]] | None:
-        """Parse morpheme dict entry into [(text, type), ...].
+        """Parse morphemes into [(text, type), ...].
 
         Returns None if word not in dictionary.
-        Types: PREF, ROOT, SUFF, END, LINK, POST.
+        Types: PREF, ROOT, SUFF, END, LINK.
         """
-        entry = self.morpheme_dict.get(word.lower())
-        if not entry or not isinstance(entry, list) or entry == [""]:
+        w = word.lower()
+
+        # Try unified dict first
+        entry = self.unified.get(w)
+        if entry and "m" in entry:
+            return [
+                (text, self._UNIFIED_TYPE_MAP.get(typ, "ROOT"))
+                for text, typ in entry["m"]
+            ]
+
+        # Fall back to legacy morpheme_dict.pickle
+        legacy = self.legacy_dict.get(w)
+        if not legacy or not isinstance(legacy, list) or legacy == [""]:
             return None
         result = []
-        for m in entry:
+        for m in legacy:
             if not isinstance(m, str) or not m:
                 continue
-            # Skip garbage entries (raw wikitext)
             if "\n" in m or "=" in m and len(m) > 10:
                 return None
             if m.endswith("-") and not m.startswith("-"):
@@ -210,6 +253,52 @@ class MorphemeAnalyzer:
             else:
                 result.append((m, "ROOT"))
         return result if result else None
+
+    def get_stress(self, word: str) -> int:
+        """Get stress position for word. Returns -1 if unknown."""
+        entry = self.unified.get(word.lower())
+        if entry:
+            return entry.get("s", -1)
+        return -1
+
+    def morpheme_at_char(
+        self, word: str, char_pos: int, lemma: str | None = None,
+    ) -> tuple[str, str] | None:
+        """Return (morpheme_text, type) containing the character at char_pos.
+
+        Tries exact word first, then lemma (morpheme structure of root/prefix
+        is stable across inflections — only the ending changes).
+
+        Returns None if word not in dictionary.
+        """
+        morphemes = self.get_morphemes(word)
+        if morphemes is None and lemma:
+            morphemes = self.get_morphemes(lemma)
+        if morphemes is None:
+            return None
+        offset = 0
+        for text, typ in morphemes:
+            end = offset + len(text)
+            if offset <= char_pos < end:
+                return (text, typ)
+            offset = end
+        # char_pos beyond morpheme boundaries (inflected ending differs)
+        # — treat as ending
+        if morphemes:
+            return (word[char_pos:], "END")
+        return None
+
+    def char_in_morpheme_type(
+        self, word: str, char_pos: int, morph_type: str, lemma: str | None = None,
+    ) -> bool | None:
+        """Check if char at position is inside a morpheme of given type.
+
+        Returns None if word not in dictionary, True/False otherwise.
+        """
+        result = self.morpheme_at_char(word, char_pos, lemma)
+        if result is None:
+            return None
+        return result[1] == morph_type
 
     def has_prefix(self, word: str, prefix: str) -> bool | None:
         """Check if word has a specific prefix. Returns None if unknown."""

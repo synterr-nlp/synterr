@@ -112,6 +112,23 @@ Based on error taxonomies from:
 - [RULEC-GEC](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00251) — Rozovskaya & Roth 2019
 - [RuBLiMP](https://github.com/RussianNLP/RuBLiMP) — Minimal pairs benchmark (borrowed aspect pairs)
 
+## Third-Party Resources
+
+synterr uses the following external resources for morpheme and stress analysis:
+
+**Morphberta-K** — RuRoBERTa-based morpheme segmentation model (99% F1).
+© 2025 НП «Национальный корпус русского языка». Licensed for research and non-commercial use under the [НКРЯ License Agreement](https://ruscorpora.ru/page/license-neuro/).
+Citations:
+- Morozov D., Garipov T., Lyashevskaya O., Savchuk S., Iomdin B., & Glazkova A. (2024). Automatic Morpheme Segmentation for Russian: Can an Algorithm Replace Experts? *Journal of Language and Education*, 10(4), 71–84. https://doi.org/10.17323/jle.2024.22237
+- Morozov D., Astapenka L., Glazkova A., Garipov T., & Lyashevskaya O. (2025). BERT-like Models for Slavic Morpheme Segmentation. In *Proceedings of ACL 2025* (Vol. 1: Long Papers), pp. 6795–6815. https://doi.org/10.18653/v1/2025.acl-long.337
+
+**morpholog** — Tikhonov morpheme dictionary (93k entries), used via pickle.
+© [morpholog package](https://pypi.org/project/morpholog/). Based on А.Н. Тихонов, *Морфемно-орфографический словарь*.
+
+**russtress** — Russian word stress prediction.
+https://github.com/MashaPo/russtress
+Citation: Ponomareva M., Milintsevich K., Chernyak E., & Starostin A. (2017). Automated Word Stress Detection in Russian. In *Proceedings of the First Workshop on Subword and Character Level Models in NLP*, pp. 31–35. https://doi.org/10.18653/v1/W17-4104
+
 ## License
 
 MIT

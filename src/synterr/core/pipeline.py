@@ -154,12 +154,14 @@ class GeneratedSentence:
     def to_tsv(self) -> str:
         """Format as parallel TSV (src<TAB>tgt) for seq2seq training.
 
+        src = corrupted (model input), tgt = original (model target).
+
         Returns:
-            Tab-separated original and corrupted sentences
+            Tab-separated corrupted and original sentences
         """
         original = " ".join(self.original_tokens)
         corrupted = " ".join(self.corrupted_tokens)
-        return f"{original}\t{corrupted}"
+        return f"{corrupted}\t{original}"
 
     def to_jsonl(
         self,

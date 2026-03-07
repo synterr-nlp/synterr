@@ -338,6 +338,13 @@ def cmd_corrupt(
 @click.option("--error-prob", type=float, help="Probability of introducing errors (0-1)")
 @click.option("--depparse/--no-depparse", default=False, help="Enable dependency parsing")
 @click.option("--batch-size", type=int, default=100, help="Batch size for processing")
+@click.option(
+    "--output-format", "-f",
+    type=click.Choice(["gector", "tsv", "jsonl", "chat"]),
+    default="gector",
+    help="Output format: gector (token tags), tsv (src\\ttgt), jsonl (rich JSON), chat (instruction-tuning JSONL)",
+)
+@click.option("--system-prompt", default=None, help="System prompt for chat format (default: built-in GEC prompt)")
 def cmd_generate(
     lang: str,
     input_path: str,
@@ -354,6 +361,8 @@ def cmd_generate(
     error_prob: float | None,
     depparse: bool,
     batch_size: int,
+    output_format: str,
+    system_prompt: str | None,
 ) -> None:
     """Generate synthetic errors from corpus.
 
@@ -464,6 +473,10 @@ def cmd_generate(
     written = 0
     errors_count = 0
 
+    # Default system prompt for chat format
+    if output_format == "chat" and system_prompt is None:
+        system_prompt = "Исправь грамматические ошибки в тексте. Верни только исправленный текст."
+
     with (
         output_file.open("w", encoding="utf-8") as out,
         click.progressbar(
@@ -473,10 +486,33 @@ def cmd_generate(
         ) as results,
     ):
         for result in results:
-            if result.formatted:
-                out.write(result.formatted + "\n")
+            if not result.errors and output_format != "tsv":
+                # Skip unchanged sentences for non-tsv formats
                 written += 1
-                errors_count += len(result.errors)
+                continue
+
+            if output_format == "gector":
+                if result.formatted:
+                    out.write(result.formatted + "\n")
+            elif output_format == "tsv":
+                out.write(result.to_tsv() + "\n")
+            elif output_format == "jsonl":
+                out.write(result.to_jsonl(seed=seed, backend=backend, schema=schema) + "\n")
+            elif output_format == "chat":
+                import json
+                original = " ".join(result.original_tokens)
+                corrupted = " ".join(result.corrupted_tokens)
+                record = {
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": corrupted},
+                        {"role": "assistant", "content": original},
+                    ]
+                }
+                out.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+            written += 1
+            errors_count += len(result.errors)
 
     click.echo(f"Wrote {written} sentences with {errors_count} total errors to {output_file}")
 

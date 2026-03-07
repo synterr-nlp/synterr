@@ -555,11 +555,14 @@ class SpellingErrorHandler:
         return None
 
     def _double_consonant(self, word: str, rng: Random | None = None) -> PhoneticError | None:
-        """Add or remove double consonants."""
-        rng = rng if rng is not None else random_module
+        """Remove one consonant from a double pair.
+
+        Only reduces existing doubles (аппарат→апарат, коллега→колега).
+        Adding doubles to words that don't have them produces gibberish
+        (парки→паррки) and is not a real error pattern.
+        """
         word_lower = word.lower()
 
-        # Try to remove double
         for double, single in DOUBLE_CONSONANTS.items():
             if double in word_lower:
                 pos = word_lower.find(double)
@@ -567,17 +570,6 @@ class SpellingErrorHandler:
                 retained_char = single.upper() if word[pos].isupper() else single
                 corrupted = word[:pos] + retained_char + word[pos + 2 :]
                 return PhoneticError(word, corrupted, "double_consonant", pos)
-
-        # Try to add double (only for certain consonants mid-word)
-        for i, char in enumerate(word_lower[1:-1], 1):
-            can_double = (
-                char in "нслмпрткф" and word_lower[i - 1] != char and word_lower[i + 1] != char
-            )
-            if can_double and rng.random() < 0.3:
-                # Preserve case when inserting double
-                insert_char = char.upper() if word[i].isupper() else char
-                corrupted = word[:i] + insert_char + word[i:]
-                return PhoneticError(word, corrupted, "double_consonant", i)
 
         return None
 

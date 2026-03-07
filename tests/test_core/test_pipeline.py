@@ -396,9 +396,9 @@ class TestGeneratedSentenceFormats:
         )
 
     def test_to_tsv_with_error(self, sentence_with_error):
-        """TSV format should show src<TAB>tgt."""
+        """TSV format should show corrupted<TAB>original (input→target)."""
         result = sentence_with_error.to_tsv()
-        assert result == "Мама мыла раму\tМама мыла раме"
+        assert result == "Мама мыла раме\tМама мыла раму"
 
     def test_to_tsv_no_errors(self, sentence_no_errors):
         """TSV format with no errors should have identical src and tgt."""

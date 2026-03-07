@@ -15,6 +15,7 @@ import re
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.resources import get_morpheme_analyzer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -87,6 +88,22 @@ _HYPHENATED_COMPOUNDS: set[str] = {
 }
 
 
+def _is_pol_compound(text_lower: str) -> bool:
+    """Check if word is a real пол- compound (полвека, полдня), not полный/получить."""
+    m = _POL_MERGED_RE.match(text_lower)
+    if not m:
+        return False
+    remainder = m.group(1)
+    # Real пол- compounds: remainder is a noun in genitive (полвека, полдня, полгода)
+    # False positives: полный, получить, полоса, положение, etc.
+    # Use pymorphy to check if the full word parses as a normal word
+    analyzer = get_morpheme_analyzer()
+    if analyzer.word_is_known(text_lower):
+        # "полный", "получили" etc. are real words — not пол- compounds
+        return False
+    return True
+
+
 class CompoundSpellingHandler:
     """Corrupt compound word spelling: dashes, пол-, compound adjectives.
 
@@ -131,7 +148,7 @@ class CompoundSpellingHandler:
 
         # Rule 44: пол- compounds
         text_lower = text.lower()
-        if _POL_DASH_RE.match(text_lower) or _POL_MERGED_RE.match(text_lower):
+        if _POL_DASH_RE.match(text_lower) or _is_pol_compound(text_lower):
             return True
 
         # Rule 36: hyphenated compound adjective
@@ -165,7 +182,7 @@ class CompoundSpellingHandler:
                 or _ORDINAL_SUFFIX_RE.match(text)):
             candidates.append(("num_dash", self._weights["num_dash"]))
 
-        if _POL_DASH_RE.match(text_lower) or _POL_MERGED_RE.match(text_lower):
+        if _POL_DASH_RE.match(text_lower) or _is_pol_compound(text_lower):
             candidates.append(("pol_spelling", self._weights["pol_spelling"]))
 
         if "-" in text:
