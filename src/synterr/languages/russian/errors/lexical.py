@@ -71,6 +71,8 @@ class ParonymErrorHandler:
         new_word_lemma = rng.choice(self.paronyms.get(token.lemma))
         new_word_parse = self._morph.parse(new_word_lemma)[0]
         new_word = inflect_word(new_word_parse, grammemes, word)
+        if new_word is None:
+            return None
         new_word = match_capitalization(word, new_word)
 
         sentence[idx] = new_word
