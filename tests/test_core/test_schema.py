@@ -105,11 +105,13 @@ class TestL2Mappings:
     def test_noun_case_l2(self):
         assert self.schema.get_l2_tag_for_subtype("noun_case") == "mo_noun_case_other"
 
-    def test_adj_case_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("adj_case") == "ag_mn_adj_case"
+    def test_adj_case_no_l2(self):
+        """adj_case has no L2 — Rozental §191-197 splits by syntax, not grammeme."""
+        assert self.schema.get_l2_tag_for_subtype("adj_case") is None
 
-    def test_adj_gender_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("adj_gender") == "ag_mn_adj_gender"
+    def test_adj_gender_no_l2(self):
+        """adj_gender has no L2 — same reason as adj_case."""
+        assert self.schema.get_l2_tag_for_subtype("adj_gender") is None
 
     def test_verb_person_number_no_l2(self):
         """verb_person_number has no L2 match — §171 is under mo_verb_form, not mo_verb_person_num."""

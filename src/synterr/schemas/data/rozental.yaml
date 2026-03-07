@@ -759,13 +759,10 @@ mappings:
   # Morphological handler subtypes — adjectives (RECLASSIFIED as agreement)
   adj_case:
     primary: ag_modifier_noun
-    l2_tag: ag_mn_adj_case
   adj_number:
     primary: ag_modifier_noun
-    l2_tag: ag_mn_adj_number
   adj_gender:
     primary: ag_modifier_noun
-    l2_tag: ag_mn_adj_gender
 
   # Morphological handler subtypes — verbs
   verb_person_number:

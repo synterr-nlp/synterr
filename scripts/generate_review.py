@@ -32,7 +32,7 @@ ALL_HANDLERS = [
 ]
 
 
-def get_sentences(path: str | None = None, n: int = 500) -> list[str]:
+def get_sentences(path: str | None = None, n: int = 10000) -> list[str]:
     if path:
         with open(path, encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()][:n]
@@ -104,11 +104,11 @@ def generate_for_handler(
 
 def main():
     parser = argparse.ArgumentParser(description="Generate JSONL review data per handler")
-    parser.add_argument("-e", "--handler", help="Single handler name")
-    parser.add_argument("--all", action="store_true", help="All handlers")
+    parser.add_argument("-e", "--handler", help="Single handler name (default: all)")
+    parser.add_argument("--all", action="store_true", help="All handlers (default)")  # kept for compat
     parser.add_argument("-o", "--output", default="tools/review", help="Output directory")
     parser.add_argument("-i", "--input", help="Input sentences file")
-    parser.add_argument("-n", "--max-sentences", type=int, default=500, help="Max input sentences")
+    parser.add_argument("-n", "--max-sentences", type=int, default=10000, help="Max input sentences")
     parser.add_argument("--max-per-handler", type=int, default=100, help="Max examples per handler")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--schema", default="rozental", help="Schema name")
@@ -120,10 +120,7 @@ def main():
     sentences = get_sentences(args.input, args.max_sentences)
     print(f"Loaded {len(sentences)} sentences\n")
 
-    handlers = ALL_HANDLERS if args.all else ([args.handler] if args.handler else [])
-    if not handlers:
-        parser.print_help()
-        return
+    handlers = [args.handler] if args.handler else ALL_HANDLERS
 
     total = 0
     for h in handlers:
