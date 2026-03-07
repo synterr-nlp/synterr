@@ -723,36 +723,49 @@ mappings:
   # Spelling handler subtypes
   vowel_reduction:
     primary: sp_root
+    l2_tag: sp_root_checked
   devoicing:
     primary: sp_root
+    l2_tag: sp_root_voiced_voiceless
   tsa_confusion:
     primary: sp_pos
+    l2_tag: sp_verb_endings
   cluster:
     primary: sp_root
+    l2_tag: sp_root_silent
   double_consonant:
     primary: sp_root
+    l2_tag: sp_root_double
   keyboard:
     primary: sp_root
   soft_sign:
     primary: sp_affix
+    l2_tag: sp_affix_hard_soft_sign
   prefix_voicing:
     primary: sp_affix
+    l2_tag: sp_affix_prefix
 
   # Morphological handler subtypes — nouns
   noun_case:
     primary: mo_noun_case
+    l2_tag: mo_noun_case_other
   noun_number:
     primary: mo_noun_number
+    l2_tag: mo_noun_num_nom_pl
   noun_gender:
     primary: mo_noun_gender
+    l2_tag: mo_noun_gender_fluctuation
 
   # Morphological handler subtypes — adjectives (RECLASSIFIED as agreement)
   adj_case:
     primary: ag_modifier_noun
+    l2_tag: ag_mn_adj_case
   adj_number:
     primary: ag_modifier_noun
+    l2_tag: ag_mn_adj_number
   adj_gender:
     primary: ag_modifier_noun
+    l2_tag: ag_mn_adj_gender
 
   # Morphological handler subtypes — verbs
   verb_person_number:
@@ -761,92 +774,127 @@ mappings:
     primary: mo_verb_tense
   verb_aspect:
     primary: mo_verb_aspect
+    l2_tag: mo_verb_asp_pair
 
-  # Future handlers
+  # Lexical/structural handler subtypes
   paronym:
     primary: lx_word_choice
+    l2_tag: lx_paronym
   preposition:
     primary: gv_government
+    l2_tag: gv_prep_choice
   conjunction:
     primary: sy_construction
   word_insertion:
     primary: lx_structural
     modifier: Extra
+    l2_tag: lx_word_extra
   word_omission:
     primary: lx_structural
     modifier: Miss
+    l2_tag: lx_word_missing
+
   # Orthographic spelling handler subtypes
   pre_pri:
     primary: sp_affix
+    l2_tag: sp_affix_prefix
   y_i_after_prefix:
     primary: sp_affix
+    l2_tag: sp_affix_prefix
   suffix_enk_onk:
     primary: sp_pos
+    l2_tag: sp_noun_endings
   suffix_insk_ensk:
     primary: sp_pos
+    l2_tag: sp_adj_endings
   suffix_its_ets:
     primary: sp_pos
+    l2_tag: sp_noun_endings
   suffix_ek_ik:
     primary: sp_pos
+    l2_tag: sp_noun_endings
   participle_suffix:
     primary: sp_pos
+    l2_tag: sp_participle_endings
   vowel_after_ts:
     primary: sp_pos
+    l2_tag: sp_pos_sibilant
   vowel_after_sibilant:
     primary: sp_pos
+    l2_tag: sp_pos_sibilant
 
   # Function spelling handler subtypes
   ne_attachment:
     primary: sp_function
+    l2_tag: sp_ne_ni
   ne_detachment:
     primary: sp_function
+    l2_tag: sp_ne_ni
   conjunction_split:
     primary: sp_function
+    l2_tag: sp_conjunction_spelling
   conjunction_merge:
     primary: sp_function
+    l2_tag: sp_conjunction_spelling
   taki_hyphen:
     primary: sp_function
+    l2_tag: sp_particle_spelling
 
   # Punctuation handler subtypes — commas
   comma_subordinate:
     primary: pu_clause
+    l2_tag: pu_clause_subordinate
   comma_compound:
     primary: pu_clause
+    l2_tag: pu_clause_compound
   comma_parenthetical:
     primary: pu_comma
+    l2_tag: pu_comma_parenthetical
   comma_isolation:
     primary: pu_comma
+    l2_tag: pu_comma_isolation
   comma_homogeneous:
     primary: pu_comma
+    l2_tag: pu_comma_homogeneous
 
   # Punctuation handler subtypes — comma pairs (both commas deleted)
   pair_participle:
     primary: pu_comma
+    l2_tag: pu_comma_isolation
   pair_relative:
     primary: pu_clause
+    l2_tag: pu_clause_subordinate
   pair_gerund:
     primary: pu_comma
+    l2_tag: pu_comma_isolation
   pair_parenthetical:
     primary: pu_comma
+    l2_tag: pu_comma_parenthetical
   pair_apposition:
     primary: pu_comma
+    l2_tag: pu_comma_clarifying
 
   # Comma insert handler subtypes (extra commas)
   comma_before_kak:
     primary: pu_clause
     modifier: Extra
+    l2_tag: pu_clause_comparative
   comma_in_set_phrase:
     primary: pu_comma
     modifier: Extra
+    l2_tag: pu_comma_parenthetical
   comma_between_conjunctions:
     primary: pu_other
     modifier: Extra
+    l2_tag: pu_combinations
 
   # Punctuation handler subtypes — dashes
   dash_subj_pred:
     primary: pu_dash
+    l2_tag: pu_dash_subj_pred
   dash_other:
     primary: pu_dash
+    l2_tag: pu_dash_other
 
 # Cross-reference (L1 ↔ RLC/RULEC/ERRANT) maintained externally.
 # See: rozental_alignment.xlsx

@@ -183,21 +183,27 @@ class GeneratedSentence:
         """
         import json
 
+        errors_list = []
+        for err in self.errors:
+            err_dict: dict = {
+                "type": err.error_type,
+                "category": err.category,
+                "start_idx": err.start_idx,
+                "end_idx": err.end_idx,
+                "original": err.original,
+                "corrupted": err.corrupted,
+                "fix_tag": err.fix_tag,
+            }
+            if err.schema_tag is not None:
+                err_dict["schema_tag"] = err.schema_tag
+            if err.schema_l2_tag is not None:
+                err_dict["schema_l2_tag"] = err.schema_l2_tag
+            errors_list.append(err_dict)
+
         record: dict = {
             "original": " ".join(self.original_tokens),
             "corrupted": " ".join(self.corrupted_tokens),
-            "errors": [
-                {
-                    "type": err.error_type,
-                    "category": err.category,
-                    "start_idx": err.start_idx,
-                    "end_idx": err.end_idx,
-                    "original": err.original,
-                    "corrupted": err.corrupted,
-                    "fix_tag": err.fix_tag,
-                }
-                for err in self.errors
-            ],
+            "errors": errors_list,
         }
 
         if id is not None:
@@ -407,6 +413,8 @@ class ErrorPipeline:
                         original=err.original,
                         corrupted=err.corrupted,
                         fix_tag=err.fix_tag,
+                        schema_tag=err.schema_tag,
+                        schema_l2_tag=err.schema_l2_tag,
                     )
                 )
             else:
@@ -482,6 +490,7 @@ class ErrorPipeline:
             result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
 
             if result is not None:
+                self._enrich_error_with_schema(result)
                 errors.append(result)
                 modified.add(idx)
 
@@ -498,6 +507,7 @@ class ErrorPipeline:
                     change_idx, delta = self._get_length_change_info(result, idx)
                     if delta != 0:
                         errors = self._adjust_indices_for_length_change(errors, change_idx, delta)
+                    self._enrich_error_with_schema(result)
                     errors.append(result)
 
         return sentence, errors
@@ -544,6 +554,46 @@ class ErrorPipeline:
 
         return TOKEN_SEP.join(parts)
 
+    def _extract_subtype(self, error_type: str) -> str:
+        """Extract handler subtype from error_type string.
+
+        Handlers encode error_type as "{handler_name}_{subtype}" for multi-subtype
+        handlers, or just "{subtype}" for single-subtype handlers. This reverses
+        that to find the schema mapping key.
+
+        Args:
+            error_type: Error type from ErrorResult (e.g., "spelling_vowel_reduction")
+
+        Returns:
+            Subtype string that matches a schema mapping key
+        """
+        # Direct match first
+        if self.schema is not None and error_type in self.schema.mappings:
+            return error_type
+
+        # Try stripping handler name prefixes
+        for handler in self.handlers:
+            prefix = handler.name + "_"
+            if error_type.startswith(prefix):
+                subtype = error_type[len(prefix):]
+                if self.schema is None or subtype in self.schema.mappings:
+                    return subtype
+
+        return error_type
+
+    def _enrich_error_with_schema(self, error: ErrorResult) -> None:
+        """Set schema_tag and schema_l2_tag on an ErrorResult."""
+        if self.schema is None:
+            return
+
+        subtype = self._extract_subtype(error.error_type)
+        tag = self.schema.get_tag_for_subtype(subtype)
+        if tag:
+            error.schema_tag = tag
+        l2 = self.schema.get_l2_tag_for_subtype(subtype)
+        if l2:
+            error.schema_l2_tag = l2
+
     def _get_category_label(self, category: str, error_type: str | None = None) -> str:
         """Get detection category label.
 
@@ -559,10 +609,7 @@ class ErrorPipeline:
         """
         # If schema is loaded, try to get category from schema
         if self.schema is not None and error_type is not None:
-            # Extract subtype from error_type
-            # For spelling: "spelling_vowel_reduction" -> "vowel_reduction"
-            # For morphological: "noun_case" -> "noun_case"
-            subtype = error_type[9:] if error_type.startswith("spelling_") else error_type
+            subtype = self._extract_subtype(error_type)
 
             schema_category = self.schema.get_detection_category(subtype)
             if schema_category != "OTHER" or subtype in self.schema.mappings:
@@ -746,6 +793,7 @@ class ErrorPipeline:
         if result is None:
             return None
 
+        self._enrich_error_with_schema(result)
         errors = [result]
         formatted = self._format_output(sentence, errors)
 

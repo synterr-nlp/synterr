@@ -135,6 +135,8 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
+**v0.3.4**: L2 rozental schema wired into generation. 100 fine-grained tags loaded, 47/51 handler subtypes have L2 mappings. JSONL output includes `schema_tag` (L1) and `schema_l2_tag` (L2). Fixed subtype extraction for multi-prefix handler names.
+
 **v0.3.3**: CommaInsertHandler (extra commas: before как, in set phrases, between conjunctions). 193 tests, 21 handlers.
 
 **v0.3.2**: OrthographicSpellingHandler (9 subtypes: пре/при, ы/и, suffixes, participles, ц/sibilant vowels).

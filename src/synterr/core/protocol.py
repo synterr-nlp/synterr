@@ -82,6 +82,8 @@ class ErrorResult:
     original: str
     corrupted: str
     fix_tag: str
+    schema_tag: str | None = None
+    schema_l2_tag: str | None = None
 
 
 @runtime_checkable

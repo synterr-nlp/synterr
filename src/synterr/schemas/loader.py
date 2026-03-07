@@ -34,6 +34,16 @@ class SchemaModifier:
 
 
 @dataclass
+class FineGrainedTag:
+    """An L2 fine-grained tag in a hierarchical schema (e.g., Rozental)."""
+
+    name: str
+    parent: str
+    description: str = ""
+    paras: str = ""
+
+
+@dataclass
 class SubtypeMapping:
     """Mapping from handler subtype to schema tag(s).
 
@@ -46,6 +56,7 @@ class SubtypeMapping:
     primary: str
     modifier: str | None = None
     secondary: list[str] = field(default_factory=list)
+    l2_tag: str | None = None
 
     def get_full_tag(self) -> str:
         """Get the full tag name including modifier."""
@@ -71,6 +82,7 @@ class Schema:
     primary_tags: dict[str, SchemaTag]
     modifiers: dict[str, SchemaModifier]
     mappings: dict[str, SubtypeMapping]
+    fine_grained_tags: dict[str, FineGrainedTag] = field(default_factory=dict)
 
     # For backward compatibility, also expose as 'tags'
     @property
@@ -117,6 +129,20 @@ class Schema:
         """
         mapping = self.mappings.get(subtype)
         return mapping.modifier if mapping else None
+
+    def get_l2_tag_for_subtype(self, subtype: str) -> str | None:
+        """Get L2 fine-grained tag for a handler subtype.
+
+        Args:
+            subtype: Handler subtype name
+
+        Returns:
+            L2 tag name (e.g., "sp_root_checked") or None
+        """
+        mapping = self.mappings.get(subtype)
+        if mapping and mapping.l2_tag and mapping.l2_tag in self.fine_grained_tags:
+            return mapping.l2_tag
+        return None
 
     def get_detection_category(self, subtype: str) -> str:
         """Get detection category for a handler subtype.
@@ -248,6 +274,23 @@ def _parse_modifiers(data: dict) -> dict[str, SchemaModifier]:
     return modifiers
 
 
+def _parse_fine_grained_tags(data: dict) -> dict[str, FineGrainedTag]:
+    """Parse fine-grained (L2) tags from schema data."""
+    tags = {}
+    fg_data = data.get("fine_grained_tags", {})
+
+    for tag_name, tag_info in fg_data.items():
+        if isinstance(tag_info, dict):
+            tags[tag_name] = FineGrainedTag(
+                name=tag_name,
+                parent=tag_info.get("parent", ""),
+                description=tag_info.get("description", ""),
+                paras=tag_info.get("paras", ""),
+            )
+
+    return tags
+
+
 def _parse_mappings(data: dict) -> dict[str, SubtypeMapping]:
     """Parse handler subtype mappings.
 
@@ -273,6 +316,7 @@ def _parse_mappings(data: dict) -> dict[str, SubtypeMapping]:
                 primary=mapping_info.get("primary", ""),
                 modifier=mapping_info.get("modifier"),
                 secondary=mapping_info.get("secondary", []),
+                l2_tag=mapping_info.get("l2_tag"),
             )
         elif isinstance(mapping_info, list):
             # Flat list format: [primary, secondary1, secondary2]
@@ -329,6 +373,9 @@ def load_schema(name_or_path: str) -> Schema:
     # Parse mappings
     mappings = _parse_mappings(data)
 
+    # Parse fine-grained (L2) tags
+    fine_grained_tags = _parse_fine_grained_tags(data)
+
     return Schema(
         name=data.get("name", Path(path).stem),
         version=data.get("version", "1.0"),
@@ -337,6 +384,7 @@ def load_schema(name_or_path: str) -> Schema:
         primary_tags=primary_tags,
         modifiers=modifiers,
         mappings=mappings,
+        fine_grained_tags=fine_grained_tags,
     )
 
 

@@ -10,6 +10,7 @@ Supports compositional schemas like RLC where:
 """
 
 from synterr.schemas.loader import (
+    FineGrainedTag,
     Schema,
     SchemaModifier,
     SchemaTag,
@@ -20,6 +21,7 @@ from synterr.schemas.loader import (
 )
 
 __all__ = [
+    "FineGrainedTag",
     "Schema",
     "SchemaTag",
     "SchemaModifier",
