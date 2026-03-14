@@ -34,9 +34,8 @@ if TYPE_CHECKING:
 
 # dep_rels where "как" takes a comma (clause/comparative) → comma IS correct
 # We must NOT insert a comma here (it would produce correct punctuation, not an error)
-# advmod: comparative "как" ("высокий, как отец") — comma correct 60% of the time
 # cc: coordinating "как... так и..." — comma usually correct
-_KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl", "advmod", "cc"}
+_KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl", "cc"}
 
 # =============================================================================
 # Frozen phraseological expressions from Rozental §87 п.5
@@ -302,8 +301,17 @@ class CommaInsertHandler:
         if text_lower == "как" and idx > 0:
             prev = tokens[idx - 1]
             if prev.text != ",":
-                # Use dep_rel to filter: skip if "как" introduces a subordinate clause
-                if token.dep_rel not in _KAK_CLAUSE_DEPRELS:
+                if token.dep_rel in _KAK_CLAUSE_DEPRELS:
+                    pass  # Clause-introducing — comma is correct, don't insert
+                elif token.dep_rel == "advmod" and token.head_idx is not None:
+                    # advmod как: Stanza mislabels clause-introducing как as advmod
+                    # ("непонятно, как можно" — comma correct, should skip).
+                    # If head is a verb → likely clause context → skip.
+                    # If head is noun/adv → fixed phrase (как минимум) → insert.
+                    head = tokens[token.head_idx] if 0 <= token.head_idx < len(tokens) else None
+                    if head is None or head.pos not in ("VERB", "AUX"):
+                        return True
+                else:
                     return True
 
         # Frozen phrase: check if conjunction + content words match a known phrase
@@ -339,8 +347,18 @@ class CommaInsertHandler:
 
         if text_lower == "как" and idx > 0:
             prev = tokens[idx - 1]
-            if prev.text != "," and token.dep_rel not in _KAK_CLAUSE_DEPRELS:
-                candidates.append(("comma_before_kak", self._weights["comma_before_kak"]))
+            if prev.text != ",":
+                allow = False
+                if token.dep_rel in _KAK_CLAUSE_DEPRELS:
+                    pass  # clause — comma correct
+                elif token.dep_rel == "advmod" and token.head_idx is not None:
+                    head = tokens[token.head_idx] if 0 <= token.head_idx < len(tokens) else None
+                    if head is not None and head.pos not in ("VERB", "AUX"):
+                        allow = True  # fixed phrase — no comma
+                else:
+                    allow = True
+                if allow:
+                    candidates.append(("comma_before_kak", self._weights["comma_before_kak"]))
 
         if text_lower in _FROZEN_PHRASES and _matches_frozen_phrase(tokens, idx):
             candidates.append(("comma_in_set_phrase", self._weights["comma_in_set_phrase"]))
