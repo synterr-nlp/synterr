@@ -34,6 +34,9 @@ weights:
   # Compound word spelling: ~3%
   compound_spelling: 0.03
 
+  # Adverb spelling: ~3%
+  adverb_spelling: 0.03
+
   # Semantics: ~4%
   pleonasm: 0.02
   collocation: 0.02
@@ -54,6 +57,9 @@ weights:
   # Morphological - Verbs: ~17%
   verb_person_number: 0.09
   verb_tense: 0.08
+
+  # Morphological - Numerals: ~1%
+  numeral_declension: 0.01
 
 # No confusion matrices: this preset is corpus-agnostic.
 # Morph handlers fall back to uniform random substitution.

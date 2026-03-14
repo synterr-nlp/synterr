@@ -340,9 +340,9 @@ def cmd_corrupt(
 @click.option("--batch-size", type=int, default=100, help="Batch size for processing")
 @click.option(
     "--output-format", "-f",
-    type=click.Choice(["gector", "tsv", "jsonl", "chat"]),
+    type=click.Choice(["gector", "tsv", "jsonl", "chat", "sft"]),
     default="gector",
-    help="Output format: gector (token tags), tsv (src\\ttgt), jsonl (rich JSON), chat (instruction-tuning JSONL)",
+    help="Output format: gector (token tags), tsv (src\\ttgt), jsonl (rich JSON), chat (instruction-tuning), sft ({src,tgt} JSONL)",
 )
 @click.option("--system-prompt", default=None, help="System prompt for chat format (default: built-in GEC prompt)")
 def cmd_generate(
@@ -488,7 +488,6 @@ def cmd_generate(
         for result in results:
             if not result.errors and output_format != "tsv":
                 # Skip unchanged sentences for non-tsv formats
-                written += 1
                 continue
 
             if output_format == "gector":
@@ -509,6 +508,12 @@ def cmd_generate(
                         {"role": "assistant", "content": original},
                     ]
                 }
+                out.write(json.dumps(record, ensure_ascii=False) + "\n")
+            elif output_format == "sft":
+                import json
+                original = " ".join(result.original_tokens)
+                corrupted = " ".join(result.corrupted_tokens)
+                record = {"src": corrupted, "tgt": original}
                 out.write(json.dumps(record, ensure_ascii=False) + "\n")
 
             written += 1

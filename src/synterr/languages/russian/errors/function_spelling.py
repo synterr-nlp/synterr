@@ -343,11 +343,16 @@ class FunctionSpellingHandler:
 
         # Validate: не/ни must be a real prefix (prevents нервный→не рвный)
         has_pfx = analyzer.has_prefix(text_lower, prefix)
+        if has_pfx is None:
+            # Word not in morpheme dict at all — don't guess
+            # This prevents неделя→не деля, невеста→не веста, etc.
+            return None
         if has_pfx is False:
-            # Morpheme dict says not a prefix — but check if remainder is a
-            # real word as fallback (dict segmentation can be wrong: несчастье)
+            # Morpheme dict says not a prefix — but dict can be wrong
+            # (несчастье segmented without не- prefix). Allow if remainder
+            # is a real word.
             if not analyzer.word_is_known(remainder_lower):
-                return None  # Not a prefix AND remainder is not a word (невежда)
+                return None
 
         # For VERB with confirmed prefix: allow split even if remainder is not
         # independently known (невзлюбить→не взлюбить: "взлюбить" may not exist alone)

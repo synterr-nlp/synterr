@@ -193,7 +193,7 @@ class OrthographicSpellingHandler:
                     return True
         if "еньк" in text_lower or "оньк" in text_lower:
             return True
-        if "инск" in text_lower or "енск" in text_lower:
+        if token.pos != "PROPN" and ("инск" in text_lower or "енск" in text_lower):
             return True
         if _can_its_ets(text_lower):
             return True
@@ -234,7 +234,7 @@ class OrthographicSpellingHandler:
         if "еньк" in text_lower or "оньк" in text_lower:
             candidates.append(("suffix_enk_onk", self._weights["suffix_enk_onk"]))
 
-        if "инск" in text_lower or "енск" in text_lower:
+        if token.pos != "PROPN" and _can_insk_ensk(text_lower):
             candidates.append(("suffix_insk_ensk", self._weights["suffix_insk_ensk"]))
 
         if _can_its_ets(text_lower):
@@ -303,9 +303,31 @@ def _can_yi_swap(text_lower: str) -> bool:
     return False
 
 
+def _can_insk_ensk(text_lower: str) -> bool:
+    """Check if word has -инск-/-енск- as a real suffix (not root-internal)."""
+    if "инск" not in text_lower and "енск" not in text_lower:
+        return False
+    analyzer = get_morpheme_analyzer()
+    suffixes = analyzer.get_suffixes(text_lower)
+    if suffixes is None:
+        return False
+    # Morpheme dict segments as ["ин", "ск"] or ["ен-", "ск"] — check for
+    # suffix chain containing ин/ен + ск
+    clean = [s.strip("-") for s in suffixes]
+    has_sk = "ск" in clean
+    has_in_en = any(s in ("ин", "ен") for s in clean)
+    return has_sk and has_in_en
+
+
 def _can_its_ets(text_lower: str) -> bool:
-    # Nouns with -ице/-ецо/-ица/-еца patterns (ц only, not ч)
-    return bool(re.search(r"[ие]ц[еиоа]", text_lower))
+    # Nouns with -ице/-ецо/-ица/-еца patterns — only if suffix contains иц/ец
+    if not re.search(r"[ие]ц[еиоа]", text_lower):
+        return False
+    analyzer = get_morpheme_analyzer()
+    suffixes = analyzer.get_suffixes(text_lower)
+    if suffixes is None:
+        return False  # Unknown word — skip to avoid false positives
+    return any(s in ("иц", "ец", "ице", "ица", "ецо", "еца") for s in suffixes)
 
 
 def _can_ek_ik(text_lower: str) -> bool:
@@ -482,7 +504,15 @@ def _swap_insk_ensk(word: str, text_lower: str) -> str | None:
 
 def _swap_its_ets(word: str, text_lower: str) -> str | None:
     """Swap vowel before ц in suffix patterns: -ице↔-ецо, -ица↔-еца, -ьице↔-ьеце."""
-    # Find ц and check the vowel before it
+    # Verify suffix contains иц/ец via morpheme dict
+    analyzer = get_morpheme_analyzer()
+    suffixes = analyzer.get_suffixes(text_lower)
+    if suffixes is None:
+        return None
+    has_suffix = any(s in ("иц", "ец", "ице", "ица", "ецо", "еца") for s in suffixes)
+    if not has_suffix:
+        return None
+    # Find ц preceded by и/е and swap
     for i, c in enumerate(text_lower):
         if c == "ц" and i > 0:
             prev = text_lower[i - 1]

@@ -152,7 +152,7 @@ class CompoundSpellingHandler:
             return True
 
         # Rule 36: hyphenated compound adjective
-        if "-" in text and text_lower.rstrip("а-яё") == "":
+        if "-" in text and all(c == "-" or "\u0430" <= c <= "\u044f" or c == "ё" for c in text_lower):
             # Check if it's a known hyphenated compound
             if text_lower in _HYPHENATED_COMPOUNDS:
                 return True

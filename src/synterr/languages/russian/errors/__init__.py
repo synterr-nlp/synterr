@@ -21,8 +21,12 @@ def get_all_handlers() -> list[ErrorHandler]:
         AdjNumberErrorHandler,
         NounCaseErrorHandler,
         NounNumberErrorHandler,
+        NumeralDeclensionHandler,
         VerbPersonNumberErrorHandler,
         VerbTenseErrorHandler,
+    )
+    from synterr.languages.russian.errors.adverb_spelling import (
+        AdverbSpellingHandler,
     )
     from synterr.languages.russian.errors.spelling import SpellingErrorHandler
     from synterr.languages.russian.errors.comma_insert import (
@@ -57,6 +61,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         FunctionSpellingHandler(),
         OrthographicSpellingHandler(),
         CompoundSpellingHandler(),
+        AdverbSpellingHandler(),
         # Morphological - Nouns
         NounCaseErrorHandler(),
         NounNumberErrorHandler(),
@@ -67,6 +72,8 @@ def get_all_handlers() -> list[ErrorHandler]:
         # Morphological - Verbs
         VerbPersonNumberErrorHandler(),
         VerbTenseErrorHandler(),
+        # Morphological - Numerals
+        NumeralDeclensionHandler(),
         # Lexical
         ParonymErrorHandler(),
         PrepositionErrorHandler(),

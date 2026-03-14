@@ -29,6 +29,9 @@ weights:
   verb_person_number: 0.052  # 2.4%
   verb_tense: 0.023          # 1.0%
 
+  # Morphological - Numerals
+  numeral_declension: 0.005
+
   # Lexical
   paronym: 0.122 # lexical: 12.2%
   preposition: 0.031 # 3.1%
@@ -48,6 +51,9 @@ weights:
 
   # Compound word spelling (dashes, пол-, compound adj)
   compound_spelling: 0.02
+
+  # Adverb spelling (solid/hyphen/separate)
+  adverb_spelling: 0.02
 
   # Semantics
   pleonasm: 0.01

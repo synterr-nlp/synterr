@@ -303,7 +303,7 @@ class TestDashDeleteHandler:
         assert self.handler.name == "dash_delete"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 2
+        assert len(self.handler.subtypes) == 3
 
     def test_can_apply_dash_only(self):
         tokens = [
@@ -363,13 +363,13 @@ class TestClassifyDash:
         ]
         assert _classify_dash(tokens, 1) == "dash_subj_pred"
 
-    def test_other_verb_verb(self):
+    def test_asyndetic_verb_verb(self):
         tokens = [
             _tok("пришёл", "VERB", idx=0),
             _tok("—", "PUNCT", idx=1),
             _tok("увидел", "VERB", idx=2),
         ]
-        assert _classify_dash(tokens, 1) == "dash_other"
+        assert _classify_dash(tokens, 1) == "dash_asyndetic"
 
     def test_other_at_end(self):
         tokens = [

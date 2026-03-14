@@ -37,6 +37,7 @@ L2_TO_PARAS: dict[str, tuple[str, list[str]]] = {
     "sp_pos_sibilant": ("ortho_vi.txt", ["§ 35"]),
     "sp_noun_endings": ("ortho_vii.txt", ["§ 38"]),
     "sp_adj_endings": ("ortho_viii.txt", ["§ 39"]),
+    "sp_adj_suffixes": ("ortho_viii.txt", ["§ 40"]),
     "sp_verb_endings": ("ortho_xii.txt", ["§ 48"]),
     "sp_participle_endings": ("ortho_xiii.txt", ["§ 51"]),
     # sp_function children

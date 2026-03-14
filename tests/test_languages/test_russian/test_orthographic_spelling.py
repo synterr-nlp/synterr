@@ -127,17 +127,26 @@ class TestSuffixInskEnsk:
 
     def test_ensk_to_insk(self):
         h = _force_subtype("suffix_insk_ensk")
-        tokens = [_tok("сестренский", pos="ADJ")]
-        sentence = ["сестренский"]
+        tokens = [_tok("керченский", pos="ADJ")]
+        sentence = ["керченский"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "сестринский"
+        assert sentence[0] == "керчинский"
 
     def test_insk_to_ensk(self):
         h = _force_subtype("suffix_insk_ensk")
-        tokens = [_tok("Сходнинский", pos="ADJ")]
-        sentence = ["Сходнинский"]
+        tokens = [_tok("ялтинский", pos="ADJ")]
+        sentence = ["ялтинский"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "Сходненский"
+        assert sentence[0] == "ялтенский"
+
+    def test_propn_not_swapped(self):
+        """Proper nouns like Минск should NOT be corrupted."""
+        h = _force_subtype("suffix_insk_ensk")
+        tokens = [_tok("Минск", pos="PROPN")]
+        sentence = ["Минск"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "Минск"
 
 
 class TestSuffixItsEts:
@@ -145,17 +154,26 @@ class TestSuffixItsEts:
 
     def test_ets_to_its(self):
         h = _force_subtype("suffix_its_ets")
-        tokens = [_tok("маслеце")]
-        sentence = ["маслеце"]
+        tokens = [_tok("пальтецо")]
+        sentence = ["пальтецо"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "маслице"
+        assert sentence[0] == "пальтицо"
 
     def test_its_to_ets(self):
         h = _force_subtype("suffix_its_ets")
-        tokens = [_tok("письмицо")]
-        sentence = ["письмицо"]
+        tokens = [_tok("креслице")]
+        sentence = ["креслице"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "письмецо"
+        assert sentence[0] == "креслеце"
+
+    def test_root_ица_not_swapped(self):
+        """лицами has иц in root, not suffix — should NOT be swapped."""
+        h = _force_subtype("suffix_its_ets")
+        tokens = [_tok("лицами")]
+        sentence = ["лицами"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "лицами"
 
 
 class TestSuffixEkIk:

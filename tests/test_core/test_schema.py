@@ -87,7 +87,7 @@ class TestL2Mappings:
         assert self.schema.get_l2_tag_for_subtype("suffix_enk_onk") == "sp_noun_endings"
 
     def test_suffix_insk_ensk_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("suffix_insk_ensk") == "sp_adj_endings"
+        assert self.schema.get_l2_tag_for_subtype("suffix_insk_ensk") == "sp_adj_suffixes"
 
     # --- Function spelling subtypes ---
 

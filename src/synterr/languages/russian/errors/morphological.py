@@ -598,3 +598,99 @@ class VerbTenseErrorHandler:
             )
 
         return None
+
+
+# =============================================================================
+# Numeral declension errors
+# =============================================================================
+
+# полтора (masc/neut), полторы (fem) → use "полтора" in oblique cases (should be "полутора")
+# полтораста → "полутораста" in oblique cases
+# Genitive/Dative/Instrumental/Prepositional all use "полутора"/"полутораста".
+# LoRuGEC rules: "Склонение числительных полтора, полторы, полтораста"
+#                "Склонение количественных числительных"
+
+_POLTORA_FORMS: dict[str, dict[str, list[str]]] = {
+    # lemma → {correct_case_form: [wrong_substitutions]}
+    "полтора": {
+        "полтора": ["полутора"],       # Nom/Acc → oblique form (rare error direction)
+        "полутора": ["полтора"],       # Oblique → Nom/Acc form (common L2 error)
+    },
+    "полторы": {
+        "полторы": ["полутора"],       # Nom/Acc fem → oblique
+        "полутора": ["полторы"],       # Oblique → Nom/Acc fem
+    },
+    "полтораста": {
+        "полтораста": ["полутораста"],  # Nom/Acc → oblique
+        "полутораста": ["полтораста"],  # Oblique → Nom/Acc
+    },
+}
+
+# Map lowercased surface forms to their lemma
+_POLTORA_LOOKUP: dict[str, str] = {}
+for _lemma, _forms in _POLTORA_FORMS.items():
+    for _form in _forms:
+        _POLTORA_LOOKUP[_form] = _lemma
+
+
+class NumeralDeclensionHandler:
+    """Corrupt numeral declension — currently полтора/полторы/полтораста.
+
+    These three words have a two-form declension:
+    - Nom/Acc: полтора (m/n), полторы (f), полтораста
+    - All oblique: полутора, полутора, полутораста
+
+    Common L2 error: using Nom/Acc form in oblique position or vice versa.
+    Rozental §164.
+    """
+
+    name = "numeral_declension"
+    subtypes = ["numeral_poltora", "numeral_declension"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        text_lower = tokens[idx].text.lower()
+        return text_lower in _POLTORA_LOOKUP
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        rng = rng if rng is not None else random_module
+        word = sentence[idx]
+        text_lower = word.lower()
+
+        if text_lower not in _POLTORA_LOOKUP:
+            return None
+
+        lemma = _POLTORA_LOOKUP[text_lower]
+        substitutions = _POLTORA_FORMS[lemma].get(text_lower)
+        if not substitutions:
+            return None
+
+        new_lower = rng.choice(substitutions)
+
+        # Preserve capitalization
+        if word[0].isupper():
+            new_word = new_lower[0].upper() + new_lower[1:]
+        else:
+            new_word = new_lower
+
+        subtype = "numeral_poltora" if lemma in ("полтора", "полторы") else "numeral_declension"
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type=f"numeral_declension_{subtype}",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )

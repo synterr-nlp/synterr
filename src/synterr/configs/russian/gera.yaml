@@ -49,9 +49,15 @@ weights:
   # Compound word spelling
   compound_spelling: 0.02
 
+  # Adverb spelling
+  adverb_spelling: 0.02
+
   # Semantics (low weight for L1 school texts)
   pleonasm: 0.005
   collocation: 0.005
+
+  # Morphological - Numerals
+  numeral_declension: 0.005
 
   # Structural
   word_omission: 0.032       # LACK 3.2%

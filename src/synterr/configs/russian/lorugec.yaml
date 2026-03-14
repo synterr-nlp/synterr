@@ -1,0 +1,101 @@
+# LoRuGEC-uniform distribution
+# Each of the 48 LoRuGEC rules gets equal weight.
+# Handlers covering multiple rules get proportionally higher weight.
+
+name: lorugec
+description: "Uniform distribution across 48 LoRuGEC rules"
+source: "LoRuGEC benchmark (48 rules, 960 examples)"
+
+# Pipeline settings
+error_probability: 0.8
+max_errors_per_sentence: 2
+
+# Handler weights: proportional to number of LoRuGEC rules covered
+# Total: 48 rules → each rule = 1/48 ≈ 0.0208
+weights:
+  # function_spelling: 9 rules (не×4, причем, оттого, зато, чтобы/также, -таки)
+  function_spelling: 0.1875    # 9/48
+
+  # orthographic_spelling: 10 rules (пре/при, ы/и, -еньк, -инск, -иц, -ек, прич, ц, шип, н/нн)
+  orthographic_spelling: 0.2083  # 10/48
+
+  # comma_insert: 5 rules (как×3, фразеологизмы, стык союзов)
+  comma_insert: 0.1042          # 5/48
+
+  # comma_delete: 4 rules (вводные, однородные пары, повторяющиеся, СПП)
+  comma_delete: 0.0833          # 4/48
+
+  # comma_pair_delete: 3 rules (деепричастие, определения×2)
+  comma_pair_delete: 0.0625     # 3/48
+
+  # compound_spelling: 3 rules (дефис, пол-, сложные прил)
+  compound_spelling: 0.0625     # 3/48
+
+  # dash_delete: 3 rules (подл-сказ, приложение, бессоюзное)
+  dash_delete: 0.0625           # 3/48
+
+  # numeral_declension: 2 rules (полтора, количественные)
+  numeral_declension: 0.0417    # 2/48
+
+  # 1 rule each:
+  spelling: 0.0208              # ъ/ь
+  adverb_spelling: 0.0208       # наречия
+  preposition: 0.0208           # управление
+  pleonasm: 0.0208              # плеоназмы
+  collocation: 0.0208           # сочетаемость
+  adj_case: 0.0208              # согласование причастий (via adj agreement)
+
+  # These handlers have no direct LoRuGEC rules — zero weight
+  noun_case: 0.0
+  noun_number: 0.0
+  adj_number: 0.0
+  adj_gender: 0.0
+  verb_person_number: 0.0
+  verb_tense: 0.0
+  paronym: 0.0
+  conjunction: 0.0
+  word_omission: 0.0
+  word_insertion: 0.0
+
+# Subtype weights: uniform within each handler
+subtype_weights:
+  function_spelling:
+    ne_attachment: 25     # не+сущ, не+прил, не+прич, не+глаг (4 rules)
+    ne_detachment: 25
+    conjunction_merge: 25  # причем, оттого, зато, чтобы, также (5 rules)
+    conjunction_split: 25
+    taki_hyphen: 10        # 1 rule
+
+  orthographic_spelling:
+    pre_pri: 10
+    y_i_after_prefix: 10
+    suffix_enk_onk: 10
+    suffix_insk_ensk: 10
+    suffix_its_ets: 10
+    suffix_ek_ik: 10
+    participle_suffix: 10
+    vowel_after_ts: 10
+    vowel_after_sibilant: 10
+    nn_suffix: 10
+
+  compound_spelling:
+    num_dash: 33
+    pol_spelling: 33
+    compound_adj: 33
+
+  comma_insert:
+    comma_before_kak: 60   # 3 LoRuGEC rules
+    comma_in_set_phrase: 20  # 1 rule (+ фразеологизмы = 2)
+    comma_between_conjunctions: 20  # 1 rule
+
+  comma_delete:
+    comma_subordinate: 25   # 2 rules (однородные придаточные + СПП)
+    comma_homogeneous: 25   # 2 rules (однородные пары + повторяющиеся)
+    comma_parenthetical: 25  # 1 rule
+    comma_compound: 15
+    comma_isolation: 10
+
+  dash_delete:
+    dash_subj_pred: 33
+    dash_asyndetic: 33
+    dash_other: 33          # тире при приложении
