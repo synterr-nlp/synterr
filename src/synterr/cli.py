@@ -576,7 +576,7 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
         click.echo(f"\nWeights saved to {output_path}")
 
 
-@main.command("generate-sft")
+@main.command("generate-bea-paper")
 @click.option("-l", "--lang", default="ru", help="Language code")
 @click.option("-i", "--input", "input_file", required=True, type=click.Path(exists=True), help="Input sentences")
 @click.option("-o", "--output", "output_file", required=True, type=click.Path(), help="Output JSONL")
