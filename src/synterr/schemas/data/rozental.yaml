@@ -4,7 +4,7 @@
 # Three levels:
 #   L0  Detection      8 tags   (7 error categories + CORRECT)
 #   L1  Working       29 tags   → synterr handlers, training analysis, paper tables
-#   L2  Fine-grained  99 tags   → research annotation, Rozental § tracing
+#   L2  Fine-grained  98 tags   → research annotation, Rozental § tracing
 #
 # L0 prefix mapping (deterministic from tag name):
 #   sp_ → SPELL    mo_ → MORPH    ag_ → AGR    gv_ → GOV
@@ -12,7 +12,7 @@
 
 name: rozental
 version: "1.0"
-description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 99 L2)"
+description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 98 L2)"
 
 # =============================================================================
 # L0: Detection Categories (linguistically grounded, decoupled from GECToR)
@@ -241,7 +241,7 @@ primary_tags:
     rozental_chapters: ""
 
 # =============================================================================
-# L2: Fine-Grained Tags (99) — for research annotation
+# L2: Fine-Grained Tags (97) — for research annotation
 #
 # Each tag traces to specific Rozental sub-paragraphs.
 # parent: L1 tag name
@@ -317,8 +317,12 @@ fine_grained_tags:
     paras: "§37–38"
   sp_adj_endings:
     parent: sp_pos
-    description: "Adjective endings and suffixes (н/нн)"
-    paras: "§39–40"
+    description: "Adjective endings (-ый/-ий, загородный/иногородний)"
+    paras: "§39"
+  sp_adj_suffixes:
+    parent: sp_pos
+    description: "Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
+    paras: "§40"
   sp_numeral_spelling:
     parent: sp_pos
     description: "Numeral spelling (количественные, порядковые, дробные, пол-)"
@@ -529,18 +533,10 @@ fine_grained_tags:
     paras: "§190"
 
   # --- ag_modifier_noun children ---
-  ag_mn_adj_case:
+  ag_mn_special:
     parent: ag_modifier_noun
-    description: "Adjective-noun case agreement"
-    paras: "§191–192"
-  ag_mn_adj_number:
-    parent: ag_modifier_noun
-    description: "Adjective-noun number agreement"
-    paras: "§193"
-  ag_mn_adj_gender:
-    parent: ag_modifier_noun
-    description: "Adjective-noun gender agreement"
-    paras: "§194"
+    description: "Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
+    paras: "§191–194"
   ag_mn_apposition:
     parent: ag_modifier_noun
     description: "Apposition agreement"
@@ -649,6 +645,10 @@ fine_grained_tags:
     parent: pu_clause
     description: "Idiomatic phrases and comparative constructions"
     paras: "§114–115"
+  pu_clause_indivisible:
+    parent: pu_clause
+    description: "Indivisible expressions (цельные по смыслу сочетания)"
+    paras: "§87, §90, §114"
   pu_clause_asyndetic:
     parent: pu_clause
     description: "Asyndetic complex sentences (бессоюзное)"
@@ -803,7 +803,7 @@ mappings:
     l2_tag: sp_noun_endings
   suffix_insk_ensk:
     primary: sp_pos
-    l2_tag: sp_adj_endings
+    l2_tag: sp_adj_suffixes
   suffix_its_ets:
     primary: sp_pos
     l2_tag: sp_noun_endings
@@ -819,6 +819,9 @@ mappings:
   vowel_after_sibilant:
     primary: sp_pos
     l2_tag: sp_pos_sibilant
+  nn_suffix:
+    primary: sp_pos
+    l2_tag: sp_adj_suffixes
 
   # Function spelling handler subtypes
   ne_attachment:
@@ -884,6 +887,10 @@ mappings:
     primary: pu_other
     modifier: Extra
     l2_tag: pu_combinations
+  comma_in_indivisible:
+    primary: pu_clause
+    modifier: Extra
+    l2_tag: pu_clause_indivisible
 
   # Punctuation handler subtypes — dashes
   dash_subj_pred:
@@ -892,6 +899,44 @@ mappings:
   dash_other:
     primary: pu_dash
     l2_tag: pu_dash_other
+  dash_asyndetic:
+    primary: pu_clause
+    l2_tag: pu_clause_asyndetic
+
+  # Compound spelling handler subtypes
+  num_dash:
+    primary: sp_compounds
+    l2_tag: sp_compound_hyphen
+  pol_spelling:
+    primary: sp_compounds
+    l2_tag: sp_compound_hyphen
+  compound_adj:
+    primary: sp_compounds
+    l2_tag: sp_compound_adj
+
+  # Semantic handler subtypes
+  pleonasm:
+    primary: lx_word_choice
+    l2_tag: lx_pleonasm
+  collocation:
+    primary: lx_word_choice
+    l2_tag: lx_cliche
+
+  # Adverb spelling handler subtypes
+  adverb_solid_to_separate:
+    primary: sp_pos
+    l2_tag: sp_adverb_spelling
+  adverb_hyphen_to_separate:
+    primary: sp_pos
+    l2_tag: sp_adverb_spelling
+
+  # Numeral handler subtypes
+  numeral_poltora:
+    primary: mo_numeral
+    l2_tag: mo_numeral_cardinal
+  numeral_declension:
+    primary: mo_numeral
+    l2_tag: mo_numeral_cardinal
 
 # Cross-reference (L1 ↔ RLC/RULEC/ERRANT) maintained externally.
 # See: rozental_alignment.xlsx

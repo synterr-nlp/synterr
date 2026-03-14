@@ -154,9 +154,8 @@ class CollocationHandler:
             if j == idx:
                 continue
             other_lemma = tokens[j].lemma.lower() if tokens[j].lemma else tokens[j].text.lower()
-            # Check if any collocate word starts match (handles inflected forms)
             for cl in collocate_lemmas:
-                if other_lemma == cl or tokens[j].text.lower().startswith(cl[:4]):
+                if other_lemma == cl:
                     return True
         return False
 
@@ -185,7 +184,7 @@ class CollocationHandler:
                 if j == idx:
                     continue
                 other_lemma = tokens[j].lemma.lower() if tokens[j].lemma else ""
-                if other_lemma == cl or tokens[j].text.lower().startswith(cl[:4]):
+                if other_lemma == cl:
                     matching_entries.append(entry)
                     break
 

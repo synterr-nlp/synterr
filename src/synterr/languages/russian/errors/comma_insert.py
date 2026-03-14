@@ -238,15 +238,21 @@ def _has_correlative_after(tokens: Sequence[AnalyzedToken], subord_idx: int) -> 
     Per §110: comma between conjunctions is NOT placed when the subordinate
     clause has a correlative word (то/так/но) after it. So we insert a comma
     (creating an error) only when such a correlative IS present.
+
+    "но" as CCONJ is excluded — it's a regular coordinating conjunction,
+    not a correlative. Only "но" as PART qualifies (rare).
     """
-    # Scan forward for a correlative, but not too far (within ~15 tokens)
     for j in range(subord_idx + 1, min(subord_idx + 15, len(tokens))):
         tok = tokens[j]
-        if tok.text.lower() in _CORRELATIVES and tok.pos in ("CCONJ", "PART", "ADV"):
-            return True
-        # Stop at sentence-ending punctuation
         if tok.text in (".", "!", "?", ";"):
             break
+        text = tok.text.lower()
+        if text in _CORRELATIVES:
+            # "но" as CCONJ is a regular conjunction, not a correlative
+            if text == "но" and tok.pos == "CCONJ":
+                continue
+            if tok.pos in ("CCONJ", "PART", "ADV"):
+                return True
     return False
 
 

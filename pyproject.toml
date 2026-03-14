@@ -35,6 +35,11 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
 ]
+# Data generation scripts
+gen = [
+    "sacremoses>=0.0.52",
+    "openpyxl>=3.1.5",
+]
 # All backends + dev
 all = [
     "synterr[russian,natasha,spacy,dev]",
@@ -78,4 +83,9 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+]
+
+[dependency-groups]
+dev = [
+    "openpyxl>=3.1.5",
 ]

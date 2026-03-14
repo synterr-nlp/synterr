@@ -193,14 +193,16 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
             return "comma_isolation"
 
     # Isolation: closing comma — scan left for a participle whose subtree
-    # ends just before this comma
+    # ends just before this comma (allow gap of 1-2 for skipped PUNCT tokens)
     if right is not None:
         for i in range(max(0, idx - 15), idx):
             t = tokens[i]
             if t.dep_rel in ISOLATION_DEPRELS:
                 _, subtree_max = _get_subtree_span(tokens, t.idx)
-                # Comma sits right after the subtree → closing comma
-                if subtree_max == idx - 1:
+                # Subtree ends at or just before this comma (within 2 positions
+                # to bridge punctuation tokens excluded by _get_subtree_span)
+                gap = idx - 1 - subtree_max
+                if 0 <= gap <= 2:
                     return "comma_isolation"
 
     # Homogeneous: left and right share the same head (conj siblings)
@@ -212,7 +214,14 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
             return "comma_homogeneous"
 
     # ── 3. Fallback ──────────────────────────────────────────────────────
-    return "comma_homogeneous"
+    # Same-POS neighbors without dep info → likely homogeneous (list)
+    if left and right and left.pos == right.pos and left.pos != "PUNCT":
+        return "comma_homogeneous"
+    # Head is a finite verb → likely separating clauses
+    if comma_head is not None and comma_head.pos in FINITE_POS:
+        return "comma_subordinate"
+    # True fallback: subordinate is the most common comma type in Russian
+    return "comma_subordinate"
 
 
 def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str:
@@ -221,12 +230,22 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str:
     left = tokens[idx - 1] if idx > 0 else None
     right = tokens[idx + 1] if idx + 1 < n else None
 
-    # Subject–predicate dash: NOUN/PRON — NOUN/ADJ/NUM
+    # Subject–predicate dash: NOUN/PRON — NOUN/ADJ/NUM (check first, most common)
     if left and right:
         left_ok = left.pos in ("NOUN", "PRON", "PROPN")
-        right_ok = right.pos in ("NOUN", "ADJ", "NUM", "VERB", "PROPN")
+        right_ok = right.pos in ("NOUN", "ADJ", "NUM", "PROPN")
         if left_ok and right_ok:
             return "dash_subj_pred"
+
+    # Asyndetic dash: immediate neighbors are finite verbs or clause-final/initial
+    # Rozental §116-118: бессоюзное сложное предложение
+    # Heuristic: left neighbor is VERB (clause end) or right neighbor is VERB (clause start)
+    if left and right:
+        left_is_verb = left.pos in ("VERB", "AUX") and left.get_feature("VerbForm") not in ("Part", "Conv", "Inf")
+        right_is_verb = right.pos in ("VERB", "AUX") and right.get_feature("VerbForm") not in ("Part", "Conv", "Inf")
+        # At least one side is a finite verb — strong signal for asyndetic
+        if left_is_verb or right_is_verb:
+            return "dash_asyndetic"
 
     return "dash_other"
 
@@ -283,6 +302,7 @@ class DashDeleteHandler:
     name = "dash_delete"
     subtypes = [
         "dash_subj_pred",
+        "dash_asyndetic",
         "dash_other",
     ]
     category = "PUNCT"
