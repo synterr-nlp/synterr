@@ -19,21 +19,21 @@ import time
 from pathlib import Path
 
 
-# LoRuGEC rule name → (handler_name, subtype, force_subtype)
-# force_subtype: if True, only accept apply() results matching this subtype
-LORUGEC_RULES: dict[str, tuple[str, str]] = {
+# LoRuGEC rule name → (handler_name, subtype) or (handler_name, subtype, word_filter)
+# word_filter: only accept results where original or corrupted contains this word
+LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     # === Spelling (24 rules) ===
     # не/ни
     'Правописание частицы "не" с существительными': ("function_spelling", "ne_attachment"),
     'Правописание "не" с прилагательными': ("function_spelling", "ne_attachment"),
     'Правописание "не" с глаголами': ("function_spelling", "ne_detachment"),
     'Правописание частицы "не" с причастиями': ("function_spelling", "ne_attachment"),
-    # Conjunctions
-    'Правописание "чтобы"': ("function_spelling", "conjunction_merge"),
-    'Правописание "причем" и "притом"': ("function_spelling", "conjunction_merge"),
-    'Правописание "оттого"': ("function_spelling", "conjunction_merge"),
-    'Правописание "зато"': ("function_spelling", "conjunction_merge"),
-    'Правописание "также"': ("function_spelling", "conjunction_merge"),
+    # Conjunctions — split by specific word
+    'Правописание "чтобы"': ("function_spelling", "conjunction_split", "чтобы"),
+    'Правописание "причем" и "притом"': ("function_spelling", "conjunction_split", "причем"),
+    'Правописание "оттого"': ("function_spelling", "conjunction_merge", "оттого"),
+    'Правописание "зато"': ("function_spelling", "conjunction_split", "зато"),
+    'Правописание "также"': ("function_spelling", "conjunction_split", "также"),
     # -таки
     "Правописание частицы -таки": ("function_spelling", "taki_hyphen"),
     # Orthographic
@@ -109,16 +109,18 @@ def main():
     for rule, count in rule_counts.items():
         targets[rule] = max(1, round(count / total_lorugec * args.total))
 
-    # Group rules by (handler, subtype) to avoid redundant scanning
-    # Multiple LoRuGEC rules can map to the same handler+subtype
+    # Group rules by (handler, subtype, word_filter) to avoid redundant scanning
+    # Rules with different word_filters get their own group even if handler+subtype match
     from collections import defaultdict
-    subtype_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
-    for rule, (handler_name, subtype) in LORUGEC_RULES.items():
+    subtype_groups: dict[tuple[str, str, str | None], list[str]] = defaultdict(list)
+    for rule, mapping in LORUGEC_RULES.items():
+        handler_name, subtype = mapping[0], mapping[1]
+        word_filter = mapping[2] if len(mapping) > 2 else None
         if rule in targets:
-            subtype_groups[(handler_name, subtype)].append(rule)
+            subtype_groups[(handler_name, subtype, word_filter)].append(rule)
 
-    # Total target per (handler, subtype) = sum of all rules mapping to it
-    subtype_targets: dict[tuple[str, str], int] = {}
+    # Total target per group = sum of all rules mapping to it
+    subtype_targets: dict[tuple[str, str, str | None], int] = {}
     for key, rules in subtype_groups.items():
         subtype_targets[key] = sum(targets[r] for r in rules)
 
@@ -165,7 +167,7 @@ def main():
     all_examples: list[str] = []
     results_per_rule: dict[str, int] = {r: 0 for r in LORUGEC_RULES}
 
-    for (handler_name, subtype), target in sorted(subtype_targets.items()):
+    for (handler_name, subtype, word_filter), target in sorted(subtype_targets.items()):
         handler = pipeline._get_handler_by_name(handler_name)
         if handler is None:
             print(f"  SKIP {handler_name}/{subtype}: handler not found")
@@ -216,6 +218,13 @@ def main():
                 if result_subtype != subtype:
                     continue
 
+                # Check word filter (for conjunction-specific rules)
+                if word_filter is not None:
+                    orig_lower = result.original.lower() if result.original else ""
+                    corr_lower = result.corrupted.lower() if result.corrupted else ""
+                    if word_filter not in orig_lower and word_filter not in corr_lower:
+                        continue
+
                 src = _detokenize(sentence)
                 tgt = _detokenize(original)
                 if src == tgt:
@@ -226,14 +235,17 @@ def main():
                 count += 1
                 applied = True
 
-        # Distribute count across the LoRuGEC rules that map to this subtype
-        rules = subtype_groups[(handler_name, subtype)]
+        # Distribute count across the LoRuGEC rules that map to this group
+        rules = subtype_groups[(handler_name, subtype, word_filter)]
         per_rule = count // len(rules)
         leftover = count % len(rules)
         for i, rule in enumerate(rules):
             results_per_rule[rule] = per_rule + (1 if i < leftover else 0)
 
-        print(f"  {handler_name}/{subtype}: {count}/{target}")
+        label = f"{handler_name}/{subtype}"
+        if word_filter:
+            label += f"[{word_filter}]"
+        print(f"  {label}: {count}/{target}")
 
     # Shuffle and write
     rng.shuffle(all_examples)
