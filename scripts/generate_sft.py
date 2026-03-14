@@ -18,73 +18,11 @@ import random
 import time
 from pathlib import Path
 
-
-# LoRuGEC rule name → (handler_name, subtype) or (handler_name, subtype, word_filter)
-# word_filter: only accept results where original or corrupted contains this word
-LORUGEC_RULES: dict[str, tuple[str, ...]] = {
-    # === Spelling (24 rules) ===
-    # не/ни
-    'Правописание частицы "не" с существительными': ("function_spelling", "ne_attachment"),
-    'Правописание "не" с прилагательными': ("function_spelling", "ne_attachment"),
-    'Правописание "не" с глаголами': ("function_spelling", "ne_detachment"),
-    'Правописание частицы "не" с причастиями': ("function_spelling", "ne_attachment"),
-    # Conjunctions — split by specific word
-    'Правописание "чтобы"': ("function_spelling", "conjunction_split", "чтобы"),
-    'Правописание "причем" и "притом"': ("function_spelling", "conjunction_split", "причем"),
-    'Правописание "оттого"': ("function_spelling", "conjunction_merge", "оттого"),
-    'Правописание "зато"': ("function_spelling", "conjunction_split", "зато"),
-    'Правописание "также"': ("function_spelling", "conjunction_split", "также"),
-    # -таки
-    "Правописание частицы -таки": ("function_spelling", "taki_hyphen"),
-    # Orthographic
-    'Правописание приставок пре- и при-': ("orthographic_spelling", "pre_pri"),
-    'Гласные "ы" и "и" после приставок': ("orthographic_spelling", "y_i_after_prefix"),
-    'Правописание суффиксов -еньк, -оньк в существительных. ': ("orthographic_spelling", "suffix_enk_onk"),
-    "Правописание суффиксов −инск, −енск в прилагательных": ("orthographic_spelling", "suffix_insk_ensk"),
-    "Правописание суффиксов -иц, -ец в существительных среднего рода": ("orthographic_spelling", "suffix_its_ets"),
-    "Правописание суффиксов −ек, −ик": ("orthographic_spelling", "suffix_ek_ik"),
-    "Правописание гласных в суффиксах причастий": ("orthographic_spelling", "participle_suffix"),
-    'Гласные после "ц"': ("orthographic_spelling", "vowel_after_ts"),
-    "Гласные после шипящих": ("orthographic_spelling", "vowel_after_sibilant"),
-    '"н" и "нн" в суффиксах прилагательных': ("orthographic_spelling", "nn_suffix"),
-    'Правописание разделительных "ъ" и "ь"': ("spelling", "soft_sign"),
-    # Compounds
-    "Правописание числительного пол-": ("compound_spelling", "pol_spelling"),
-    "Дефис в составе письменных эквивалентов сложных слов": ("compound_spelling", "num_dash"),
-    "Правописание сложных прилагательных": ("compound_spelling", "compound_adj"),
-    # Adverbs
-    "Слитное, раздельное и дефисное написание наречий": ("adverb_spelling", "adverb_solid_to_separate"),
-
-    # === Grammar (4 rules) ===
-    "Нарушение норм управления": ("adj_case", "adj_case"),
-    "Согласование причастий с определяемым словом": ("adj_case", "adj_case"),
-    'Склонение числительных "полтора", "полторы", "полтораста"': ("numeral_declension", "numeral_poltora"),
-    "Склонение количественных числительных": ("numeral_declension", "numeral_declension"),
-
-    # === Semantics (2 rules) ===
-    "Плеоназмы": ("pleonasm", "pleonasm"),
-    "Лексическая сочетаемость слов": ("collocation", "collocation"),
-
-    # === Punctuation (18 rules) ===
-    "Запятая внутри выражений фразеологического характера": ("comma_insert", "comma_in_set_phrase"),
-    "Пунктуация в цельных по смыслу (неразложимых) сочетаниях": ("comma_insert", "comma_in_indivisible"),
-    "Знаки препинания в предложениях с однородными членами: пары": ("comma_delete", "comma_homogeneous"),
-    "Обособление деепричастий после союзов": ("comma_pair_delete", "pair_gerund"),
-    "Запятая между частями СПП с общей частью": ("comma_delete", "comma_subordinate"),
-    "Запятая перед союзом \"как\": 1": ("comma_insert", "comma_before_kak"),
-    "Запятая между однородными придаточными": ("comma_delete", "comma_subordinate"),
-    "Обособление согласованных определений, относящихся к личному местоимению": ("comma_pair_delete", "pair_participle"),
-    "Обособление согласованных определений, оторванных от определяемого слова": ("comma_pair_delete", "pair_participle"),
-    'Запятая перед союзом "как": 2': ("comma_insert", "comma_before_kak"),
-    'Запятая перед союзом "как": 3': ("comma_insert", "comma_before_kak"),
-    "Пунктуация при повторяющихся союзах": ("comma_delete", "comma_homogeneous"),
-    "Пунктуация при вводных словах и конструкциях": ("comma_pair_delete", "pair_parenthetical"),
-    "Тире при приложении": ("dash_delete", "dash_other"),
-    "Тире между подлежащим и сказуемым": ("dash_delete", "dash_subj_pred"),
-    "Тире в бессоюзных предложениях": ("dash_delete", "dash_asyndetic"),
-    "Запятая на стыке двух союзов": ("comma_insert", "comma_between_conjunctions"),
-    "Обособление согласованных определений, относящихся к личному местоимению": ("comma_pair_delete", "pair_participle"),
-}
+from synterr.lorugec import (
+    LORUGEC_RULES,
+    extract_subtype as _extract_subtype_fn,
+    get_lorugec_distribution,
+)
 
 
 def main():
@@ -101,7 +39,7 @@ def main():
     from synterr.core.pipeline import ErrorPipeline, GenerationConfig
 
     # Read LoRuGEC distribution
-    rule_counts = _get_lorugec_distribution()
+    rule_counts = get_lorugec_distribution()
     total_lorugec = sum(rule_counts.values())
 
     # Compute target per rule, scaled to args.total
@@ -164,10 +102,10 @@ def main():
 
     # For each (handler, subtype): scan sentences, force-apply, filter by subtype
     rng = random.Random(args.seed)
-    all_examples: list[str] = []
+    all_examples: list[dict] = []
     results_per_rule: dict[str, int] = {r: 0 for r in LORUGEC_RULES}
 
-    for (handler_name, subtype, word_filter), target in sorted(subtype_targets.items()):
+    for (handler_name, subtype, word_filter), target in subtype_targets.items():
         handler = pipeline._get_handler_by_name(handler_name)
         if handler is None:
             print(f"  SKIP {handler_name}/{subtype}: handler not found")
@@ -213,9 +151,12 @@ def main():
                 if result is None:
                     continue
 
-                # Check subtype matches
-                result_subtype = _extract_subtype(result, handler_name)
-                if result_subtype != subtype:
+                # Check subtype matches (subtype can be str or tuple of strs)
+                result_subtype = _extract_subtype_fn(result.error_type, handler_name)
+                if isinstance(subtype, tuple):
+                    if result_subtype not in subtype:
+                        continue
+                elif result_subtype != subtype:
                     continue
 
                 # Check word filter (for conjunction-specific rules)
@@ -230,17 +171,15 @@ def main():
                 if src == tgt:
                     continue
 
-                record = {"src": src, "tgt": tgt}
-                all_examples.append(json.dumps(record, ensure_ascii=False) + "\n")
+                # Assign rule via round-robin across rules in this group
+                group_rules = subtype_groups[(handler_name, subtype, word_filter)]
+                assigned_rule = group_rules[count % len(group_rules)]
+
+                record = {"src": src, "tgt": tgt, "rule": assigned_rule}
+                all_examples.append(record)
+                results_per_rule[assigned_rule] = results_per_rule.get(assigned_rule, 0) + 1
                 count += 1
                 applied = True
-
-        # Distribute count across the LoRuGEC rules that map to this group
-        rules = subtype_groups[(handler_name, subtype, word_filter)]
-        per_rule = count // len(rules)
-        leftover = count % len(rules)
-        for i, rule in enumerate(rules):
-            results_per_rule[rule] = per_rule + (1 if i < leftover else 0)
 
         label = f"{handler_name}/{subtype}"
         if word_filter:
@@ -253,12 +192,27 @@ def main():
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
-        f.writelines(all_examples)
+        for ex in all_examples:
+            f.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
     total = len(all_examples)
     elapsed = time.time() - t0
     print(f"\nDone: {total} examples in {elapsed:.1f}s")
     print(f"Output: {output_path} ({output_path.stat().st_size / 1024 / 1024:.1f} MB)")
+
+    # Save per-rule distribution as JSON sidecar
+    dist_path = output_path.with_suffix(".dist.json")
+    dist = {
+        "total": total,
+        "target": args.total,
+        "seed": args.seed,
+        "source": str(Path(args.input).name),
+        "rules": {r: {"got": results_per_rule.get(r, 0), "want": targets.get(r, 0)}
+                  for r in sorted(LORUGEC_RULES.keys())},
+    }
+    with dist_path.open("w", encoding="utf-8") as f:
+        json.dump(dist, f, ensure_ascii=False, indent=2)
+    print(f"Distribution: {dist_path}")
 
     # Show per-rule results
     print(f"\n{'Rule':<65s} {'Got':>5s} {'Want':>5s}")
@@ -284,41 +238,6 @@ _moses = _MD(lang="ru")
 
 def _detokenize(tokens: list[str]) -> str:
     return _moses.detokenize(tokens)
-
-
-def _extract_subtype(result, handler_name: str) -> str | None:
-    """Extract the subtype from an ErrorResult."""
-    et = result.error_type
-    if not et:
-        return None
-    # error_type is usually "handler_name_subtype" — strip the handler prefix
-    prefix = handler_name + "_"
-    if et.startswith(prefix):
-        return et[len(prefix):]
-    # Some handlers set error_type = subtype directly
-    return et
-
-
-def _get_lorugec_distribution() -> dict[str, int]:
-    """Read LoRuGEC rule counts from the Excel file."""
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(
-            Path(__file__).parent.parent.parent
-            / "gector/data/lorugec-data/LORuGEC.xlsx",
-            read_only=True,
-        )
-        ws = wb["Sheet1"]
-        from collections import Counter
-        counts = Counter()
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            rule_name = row[0]
-            if rule_name:
-                counts[rule_name] += 1
-        return dict(counts)
-    except Exception:
-        # Fallback: uniform 20 per rule
-        return {rule: 20 for rule in LORUGEC_RULES}
 
 
 if __name__ == "__main__":
