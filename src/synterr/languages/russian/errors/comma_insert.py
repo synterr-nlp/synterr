@@ -32,9 +32,11 @@ if TYPE_CHECKING:
 # "как" patterns: dep_rel-based filtering
 # =============================================================================
 
-# dep_rels where "как" introduces a subordinate/comparative clause → comma IS correct
+# dep_rels where "как" takes a comma (clause/comparative) → comma IS correct
 # We must NOT insert a comma here (it would produce correct punctuation, not an error)
-_KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl"}
+# advmod: comparative "как" ("высокий, как отец") — comma correct 60% of the time
+# cc: coordinating "как... так и..." — comma usually correct
+_KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl", "advmod", "cc"}
 
 # =============================================================================
 # Frozen phraseological expressions from Rozental §87 п.5
