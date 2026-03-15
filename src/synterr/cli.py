@@ -676,7 +676,14 @@ def cmd_generate_sft(
             continue
 
         indices = list(range(len(sentences)))
-        rng.shuffle(indices)
+        if word_filter is not None:
+            matching = [i for i in indices if word_filter in sentences[i].lower()]
+            non_matching = [i for i in indices if i not in set(matching)]
+            rng.shuffle(matching)
+            rng.shuffle(non_matching)
+            indices = matching + non_matching
+        else:
+            rng.shuffle(indices)
 
         count = 0
         for idx in indices:

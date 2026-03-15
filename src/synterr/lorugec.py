@@ -17,13 +17,19 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     'Правописание "не" с прилагательными': ("function_spelling", "ne_attachment"),
     'Правописание "не" с глаголами': ("function_spelling", "ne_detachment"),
     'Правописание частицы "не" с причастиями': ("function_spelling", "ne_attachment"),
-    # Conjunctions — both split (solid→separate) and merge (separate→solid)
-    # Each rule needs both directions so the model learns bidirectionally
-    'Правописание "чтобы"': ("function_spelling", ("conjunction_split", "conjunction_merge"), "чтобы"),
-    'Правописание "причем" и "притом"': ("function_spelling", ("conjunction_split", "conjunction_merge"), "причем"),
-    'Правописание "оттого"': ("function_spelling", ("conjunction_split", "conjunction_merge"), "оттого"),
-    'Правописание "зато"': ("function_spelling", ("conjunction_split", "conjunction_merge"), "зато"),
-    'Правописание "также"': ("function_spelling", ("conjunction_split", "conjunction_merge"), "также"),
+    # Conjunctions — two entries per word for balanced split+merge directions
+    # Split: solid→separate (чтобы→что бы), src has "что бы", model learns to merge
+    # Merge: separate→solid (что бы→чтобы), src has "чтобы", model learns to split
+    'Правописание "чтобы" [split]': ("function_spelling", "conjunction_split", "чтобы"),
+    'Правописание "чтобы" [merge]': ("function_spelling", "conjunction_merge", "чтобы"),
+    'Правописание "причем" [split]': ("function_spelling", "conjunction_split", "причем"),
+    'Правописание "причем" [merge]': ("function_spelling", "conjunction_merge", "причем"),
+    'Правописание "оттого" [split]': ("function_spelling", "conjunction_split", "оттого"),
+    'Правописание "оттого" [merge]': ("function_spelling", "conjunction_merge", "оттого"),
+    'Правописание "зато" [split]': ("function_spelling", "conjunction_split", "зато"),
+    'Правописание "зато" [merge]': ("function_spelling", "conjunction_merge", "зато"),
+    'Правописание "также" [split]': ("function_spelling", "conjunction_split", "также"),
+    'Правописание "также" [merge]': ("function_spelling", "conjunction_merge", "также"),
     # -таки
     "Правописание частицы -таки": ("function_spelling", "taki_hyphen"),
     # Orthographic
