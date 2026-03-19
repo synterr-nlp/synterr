@@ -12,14 +12,22 @@ from pathlib import Path
 # word_filter: only accept results where original or corrupted contains this word
 LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     # === Spelling (24 rules) ===
-    # не/ни
-    'Правописание частицы "не" с существительными': ("function_spelling", "ne_attachment"),
-    'Правописание "не" с прилагательными': ("function_spelling", "ne_attachment"),
-    'Правописание "не" с глаголами': ("function_spelling", "ne_detachment"),
-    'Правописание частицы "не" с причастиями': ("function_spelling", "ne_attachment"),
-    # Conjunctions — two entries per word for balanced split+merge directions
-    # Split: solid→separate (чтобы→что бы), src has "что бы", model learns to merge
-    # Merge: separate→solid (что бы→чтобы), src has "чтобы", model learns to split
+    #
+    # BIDIRECTIONAL rules: LoRuGEC tests BOTH directions for all split/merge rules.
+    # [split] = handler splits solid→separate, src has separate form, model learns to merge
+    # [merge] = handler merges separate→solid, src has solid form, model learns to split
+    # Use --balance-directions to cap the larger direction to match the smaller.
+    #
+    # не/ни — both attachment (не+word→неword) and detachment (неword→не word)
+    'Правописание "не" с существительными [attach]': ("function_spelling", "ne_attachment"),
+    'Правописание "не" с существительными [detach]': ("function_spelling", "ne_detachment"),
+    'Правописание "не" с прилагательными [attach]': ("function_spelling", "ne_attachment"),
+    'Правописание "не" с прилагательными [detach]': ("function_spelling", "ne_detachment"),
+    'Правописание "не" с глаголами [attach]': ("function_spelling", "ne_attachment"),
+    'Правописание "не" с глаголами [detach]': ("function_spelling", "ne_detachment"),
+    'Правописание "не" с причастиями [attach]': ("function_spelling", "ne_attachment"),
+    'Правописание "не" с причастиями [detach]': ("function_spelling", "ne_detachment"),
+    # Conjunctions — split + merge per word
     'Правописание "чтобы" [split]': ("function_spelling", "conjunction_split", "чтобы"),
     'Правописание "чтобы" [merge]': ("function_spelling", "conjunction_merge", "чтобы"),
     'Правописание "причем" [split]': ("function_spelling", "conjunction_split", "причем"),
@@ -30,9 +38,10 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     'Правописание "зато" [merge]': ("function_spelling", "conjunction_merge", "зато"),
     'Правописание "также" [split]': ("function_spelling", "conjunction_split", "также"),
     'Правописание "также" [merge]': ("function_spelling", "conjunction_merge", "также"),
-    # -таки
-    "Правописание частицы -таки": ("function_spelling", "taki_hyphen"),
-    # Orthographic
+    # -таки — both directions (add hyphen, remove hyphen)
+    "Правописание частицы -таки [split]": ("function_spelling", "taki_hyphen"),
+    "Правописание частицы -таки [merge]": ("function_spelling", "taki_hyphen"),
+    # Orthographic (character-level, not directional)
     'Правописание приставок пре- и при-': ("orthographic_spelling", "pre_pri"),
     'Гласные "ы" и "и" после приставок': ("orthographic_spelling", "y_i_after_prefix"),
     'Правописание суффиксов -еньк, -оньк в существительных. ': ("orthographic_spelling", "suffix_enk_onk"),
@@ -48,8 +57,9 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     "Правописание числительного пол-": ("compound_spelling", "pol_spelling"),
     "Дефис в составе письменных эквивалентов сложных слов": ("compound_spelling", "num_dash"),
     "Правописание сложных прилагательных": ("compound_spelling", "compound_adj"),
-    # Adverbs
-    "Слитное, раздельное и дефисное написание наречий": ("adverb_spelling", "adverb_solid_to_separate"),
+    # Adverbs — both directions
+    "Наречия [split]": ("adverb_spelling", "adverb_solid_to_separate"),
+    "Наречия [merge]": ("adverb_spelling", "adverb_separate_to_solid"),
 
     # === Grammar (4 rules) ===
     "Нарушение норм управления": ("adj_case", "adj_case"),

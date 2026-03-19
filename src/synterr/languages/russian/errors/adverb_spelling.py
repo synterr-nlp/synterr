@@ -190,25 +190,41 @@ _HYPHEN_TO_SEPARATE: dict[str, tuple[str, str]] = {
 }
 
 
+# Reverse lookups: (prep, remainder) → solid form
+_SEPARATE_TO_SOLID: dict[tuple[str, str], str] = {}
+for _solid, (_prep, _rem) in _SOLID_TO_SEPARATE.items():
+    _SEPARATE_TO_SOLID[(_prep, _rem)] = _solid
+
+_SEPARATE_TO_HYPHEN: dict[tuple[str, str], str] = {}
+for _hyph, (_prep, _rem) in _HYPHEN_TO_SEPARATE.items():
+    _SEPARATE_TO_HYPHEN[(_prep, _rem)] = _hyph
+
+
 class AdverbSpellingHandler:
     """Corrupt adverb spelling: solid↔separate, hyphen↔separate.
 
     Subtypes:
     - adverb_solid_to_separate: Split solid adverb into prep + noun
+    - adverb_separate_to_solid: Merge prep + noun into solid adverb
     - adverb_hyphen_to_separate: Remove hyphen from adverb
+    - adverb_separate_to_hyphen: Add hyphen to separate adverb
     """
 
     name = "adverb_spelling"
     subtypes = [
         "adverb_solid_to_separate",
+        "adverb_separate_to_solid",
         "adverb_hyphen_to_separate",
+        "adverb_separate_to_hyphen",
     ]
     category = "SPELL"
-    changes_length = True  # Splitting adds a token
+    changes_length = True
 
     DEFAULT_WEIGHTS = {
-        "adverb_solid_to_separate": 60,
-        "adverb_hyphen_to_separate": 40,
+        "adverb_solid_to_separate": 30,
+        "adverb_separate_to_solid": 30,
+        "adverb_hyphen_to_separate": 20,
+        "adverb_separate_to_hyphen": 20,
     }
 
     def __init__(self) -> None:
@@ -222,10 +238,16 @@ class AdverbSpellingHandler:
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         text_lower = tokens[idx].text.lower()
+        # Forward: solid/hyphen → separate
         if text_lower in _SOLID_TO_SEPARATE:
             return True
         if text_lower in _HYPHEN_TO_SEPARATE:
             return True
+        # Reverse: two adjacent tokens → merge into solid/hyphen
+        if idx < len(tokens) - 1:
+            pair = (text_lower, tokens[idx + 1].text.lower())
+            if pair in _SEPARATE_TO_SOLID or pair in _SEPARATE_TO_HYPHEN:
+                return True
         return False
 
     def apply(
@@ -245,6 +267,13 @@ class AdverbSpellingHandler:
             candidates.append(("adverb_solid_to_separate", self._weights["adverb_solid_to_separate"]))
         if text_lower in _HYPHEN_TO_SEPARATE:
             candidates.append(("adverb_hyphen_to_separate", self._weights["adverb_hyphen_to_separate"]))
+        # Reverse: merge two tokens into one
+        if idx < len(tokens) - 1:
+            pair = (text_lower, tokens[idx + 1].text.lower())
+            if pair in _SEPARATE_TO_SOLID:
+                candidates.append(("adverb_separate_to_solid", self._weights["adverb_separate_to_solid"]))
+            if pair in _SEPARATE_TO_HYPHEN:
+                candidates.append(("adverb_separate_to_hyphen", self._weights["adverb_separate_to_hyphen"]))
 
         if not candidates:
             return None
@@ -254,14 +283,11 @@ class AdverbSpellingHandler:
 
         if chosen == "adverb_solid_to_separate":
             prep, remainder = _SOLID_TO_SEPARATE[text_lower]
-            # Preserve case: if original starts with uppercase, capitalize prep
             if word[0].isupper():
                 part1 = prep[0].upper() + prep[1:]
-                part2 = remainder
             else:
                 part1 = prep
-                part2 = remainder
-
+            part2 = remainder
             original = sentence[idx]
             sentence[idx] = part1
             sentence.insert(idx + 1, part2)
@@ -277,14 +303,11 @@ class AdverbSpellingHandler:
 
         elif chosen == "adverb_hyphen_to_separate":
             prep, remainder = _HYPHEN_TO_SEPARATE[text_lower]
-            # Preserve case
             if word[0].isupper():
                 part1 = prep[0].upper() + prep[1:]
-                part2 = remainder
             else:
                 part1 = prep
-                part2 = remainder
-
+            part2 = remainder
             original = sentence[idx]
             sentence[idx] = part1
             sentence.insert(idx + 1, part2)
@@ -296,6 +319,44 @@ class AdverbSpellingHandler:
                 original=original,
                 corrupted=f"{part1} {part2}",
                 fix_tag=f"$MERGE_{original}",
+            )
+
+        elif chosen == "adverb_separate_to_solid":
+            pair = (text_lower, tokens[idx + 1].text.lower())
+            solid = _SEPARATE_TO_SOLID[pair]
+            original_1 = sentence[idx]
+            original_2 = sentence[idx + 1]
+            if original_1[0].isupper():
+                solid = solid[0].upper() + solid[1:]
+            sentence[idx] = solid
+            del sentence[idx + 1]
+            return ErrorResult(
+                error_type="adverb_spelling_adverb_separate_to_solid",
+                category=self.category,
+                start_idx=idx,
+                end_idx=idx + 1,
+                original=f"{original_1} {original_2}",
+                corrupted=solid,
+                fix_tag=f"$SPLIT_{original_1} {original_2}",
+            )
+
+        elif chosen == "adverb_separate_to_hyphen":
+            pair = (text_lower, tokens[idx + 1].text.lower())
+            hyphenated = _SEPARATE_TO_HYPHEN[pair]
+            original_1 = sentence[idx]
+            original_2 = sentence[idx + 1]
+            if original_1[0].isupper():
+                hyphenated = hyphenated[0].upper() + hyphenated[1:]
+            sentence[idx] = hyphenated
+            del sentence[idx + 1]
+            return ErrorResult(
+                error_type="adverb_spelling_adverb_separate_to_hyphen",
+                category=self.category,
+                start_idx=idx,
+                end_idx=idx + 1,
+                original=f"{original_1} {original_2}",
+                corrupted=hyphenated,
+                fix_tag=f"$SPLIT_{original_1} {original_2}",
             )
 
         return None

@@ -926,7 +926,13 @@ mappings:
   adverb_solid_to_separate:
     primary: sp_pos
     l2_tag: sp_adverb_spelling
+  adverb_separate_to_solid:
+    primary: sp_pos
+    l2_tag: sp_adverb_spelling
   adverb_hyphen_to_separate:
+    primary: sp_pos
+    l2_tag: sp_adverb_spelling
+  adverb_separate_to_hyphen:
     primary: sp_pos
     l2_tag: sp_adverb_spelling
 
