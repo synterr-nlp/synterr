@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--depparse", action="store_true", help="Enable dep parsing")
     parser.add_argument("--max-input", type=int, default=60000, help="Max input sentences")
     parser.add_argument("--batch-size", type=int, default=128, help="Stanza batch size")
+    parser.add_argument("--balance-directions", action="store_true",
+                        help="Cap split/merge pairs to min(split, merge) count")
     args = parser.parse_args()
 
     from synterr.core.pipeline import ErrorPipeline, GenerationConfig
@@ -115,8 +117,18 @@ def main():
         # so conjunction_merge can find "что бы" without scanning 60k sentences
         indices = list(range(len(sentences)))
         if word_filter is not None:
-            # Split into matching and non-matching, try matching first
-            matching = [i for i in indices if word_filter in sentences[i].lower()]
+            import re
+            # For merge subtypes, search for the SEPARATE form in source text
+            # (e.g., "от того" not "оттого"), since merge needs separate tokens
+            search_terms = [word_filter]
+            if subtype == "conjunction_merge" or (isinstance(subtype, tuple) and "conjunction_merge" in subtype):
+                from synterr.languages.russian.errors.function_spelling import SOLID_TO_SPLIT
+                parts = SOLID_TO_SPLIT.get(word_filter)
+                if parts:
+                    search_terms.append(" ".join(parts))
+            pattern_str = "|".join(r'\b' + re.escape(t) + r'\b' for t in search_terms)
+            wf_pattern = re.compile(pattern_str, re.IGNORECASE)
+            matching = [i for i in indices if wf_pattern.search(sentences[i])]
             non_matching = [i for i in indices if i not in set(matching)]
             rng.shuffle(matching)
             rng.shuffle(non_matching)
@@ -194,6 +206,43 @@ def main():
         if word_filter:
             label += f"[{word_filter}]"
         print(f"  {label}: {count}/{target}")
+
+    # Balance split/merge directions: cap the larger to match the smaller.
+    # Only applies when both directions produced enough data (>= floor).
+    # Prevents bidirectional learning (e.g., model learns также↔так же
+    # as interchangeable instead of directional).
+    if args.balance_directions:
+        BALANCE_FLOOR = 50  # don't cap below this — too few examples to train on
+
+        split_rules = {r for r in LORUGEC_RULES if "[split]" in r}
+        merge_rules = {r for r in LORUGEC_RULES if "[merge]" in r}
+
+        pairs = []
+        for sr in split_rules:
+            base = sr.replace(" [split]", "")
+            mr = base + " [merge]"
+            if mr in merge_rules:
+                pairs.append((sr, mr))
+
+        dropped = 0
+        for split_rule, merge_rule in pairs:
+            split_count = results_per_rule.get(split_rule, 0)
+            merge_count = results_per_rule.get(merge_rule, 0)
+            cap = max(min(split_count, merge_count), BALANCE_FLOOR)
+
+            for rule, count in [(split_rule, split_count), (merge_rule, merge_count)]:
+                if count > cap:
+                    indices = [i for i, ex in enumerate(all_examples) if ex["rule"] == rule]
+                    rng.shuffle(indices)
+                    to_remove = set(indices[cap:])
+                    n_remove = len(to_remove)
+                    all_examples = [ex for i, ex in enumerate(all_examples) if i not in to_remove]
+                    results_per_rule[rule] = cap
+                    dropped += n_remove
+                    print(f"  Balance: {rule}: {count} → {cap} (dropped {n_remove})")
+
+        if dropped:
+            print(f"  Total dropped for balance: {dropped}")
 
     # Shuffle and write
     rng.shuffle(all_examples)
