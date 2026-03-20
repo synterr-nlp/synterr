@@ -191,7 +191,7 @@ class OrthographicSpellingHandler:
                 after = text_lower[len(pfx)]
                 if after in ("и", "ы"):
                     return True
-        if "еньк" in text_lower or "оньк" in text_lower:
+        if token.pos == "NOUN" and ("еньк" in text_lower or "оньк" in text_lower or "иньк" in text_lower):
             return True
         if token.pos != "PROPN" and ("инск" in text_lower or "енск" in text_lower):
             return True
@@ -231,7 +231,7 @@ class OrthographicSpellingHandler:
         if _can_yi_swap(text_lower):
             candidates.append(("y_i_after_prefix", self._weights["y_i_after_prefix"]))
 
-        if "еньк" in text_lower or "оньк" in text_lower:
+        if token.pos == "NOUN" and ("еньк" in text_lower or "оньк" in text_lower or "иньк" in text_lower):
             candidates.append(("suffix_enk_onk", self._weights["suffix_enk_onk"]))
 
         if token.pos != "PROPN" and _can_insk_ensk(text_lower):
@@ -478,14 +478,21 @@ def _swap_yi_prefix(word: str, text_lower: str) -> str | None:
 
 
 def _swap_enk_onk(word: str, text_lower: str) -> str | None:
-    """Swap -еньк↔-оньк."""
-    for pattern, replacement in [("еньк", "оньк"), ("оньк", "еньк")]:
-        idx = text_lower.find(pattern)
+    """Swap vowel before -ньк- in noun diminutives: е↔о, и→е.
+
+    LoRuGEC examples: душенька↔душонька, Петенька↔Петинька, заинька↔заенька.
+    Primary confusion is е↔о; и→е is secondary.
+    """
+    # Primary swap: е↔о
+    _SWAP = {"е": "о", "о": "е", "и": "е"}
+    for suffix in ("еньк", "оньк", "иньк"):
+        idx = text_lower.find(suffix)
         if idx >= 0:
-            # Swap the vowel before ньк
-            orig_vowel = word[idx]
-            new_vowel = replacement[0]
-            if orig_vowel.isupper():
+            orig = text_lower[idx]
+            new_vowel = _SWAP.get(orig)
+            if new_vowel is None:
+                return None
+            if word[idx].isupper():
                 new_vowel = new_vowel.upper()
             return word[:idx] + new_vowel + word[idx + 1:]
     return None

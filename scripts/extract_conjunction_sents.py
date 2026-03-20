@@ -163,18 +163,50 @@ def iter_plain_sentences(path: str):
     print(f"  total lines: {count}")
 
 
+def iter_taiga_sentences(taiga_path: str, source: str):
+    """Yield sentences from a Taiga corpus via corus.
+
+    source: one of 'fontanka', 'interfax', 'lenta'
+    """
+    from razdel import sentenize
+
+    if source == "fontanka":
+        from corus import load_taiga_fontanka as loader
+    elif source == "interfax":
+        from corus import load_taiga_interfax as loader
+    elif source == "lenta":
+        from corus import load_taiga_lenta as loader
+    else:
+        raise ValueError(f"Unknown Taiga source: {source}")
+
+    count = 0
+    for rec in loader(taiga_path):
+        text = rec.text if hasattr(rec, 'text') else str(rec)
+        for sent in sentenize(text):
+            s = sent.text.strip()
+            if is_good_sentence(s):
+                yield s
+                count += 1
+        if count % 10000 == 0 and count > 0:
+            print(f"  {source}: {count} sentences", flush=True)
+    print(f"  {source}: {count} total")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("dump", nargs="?", help="Wiki XML dump (.xml.bz2)")
     parser.add_argument("--plain", nargs="*", help="Plain text files (one sentence per line)")
+    parser.add_argument("--taiga", help="Path to retagged_taiga.tar.gz")
+    parser.add_argument("--taiga-sources", nargs="*", default=["fontanka", "interfax", "lenta"],
+                        help="Which Taiga sub-corpora to use (default: fontanka interfax lenta)")
     parser.add_argument("-o", "--output", required=True)
     parser.add_argument("--target", type=int, default=500,
                         help="Target sentences per conjunction form")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    if not args.dump and not args.plain:
-        parser.error("Provide either a wiki dump or --plain text files")
+    if not args.dump and not args.plain and not args.taiga:
+        parser.error("Provide at least one source: wiki dump, --plain files, or --taiga")
 
     rng = random.Random(args.seed)
     reservoirs: dict[str, list[str]] = {k: [] for k in TARGETS}
@@ -192,6 +224,14 @@ def main():
         for path in args.plain:
             print(f"Scanning plain text: {path}")
             for s in iter_plain_sentences(path):
+                key = _match_sentence(s)
+                if key:
+                    _reservoir_add(reservoirs, seen, key, s, args.target, rng)
+
+    if args.taiga:
+        for source in args.taiga_sources:
+            print(f"Scanning Taiga/{source}: {args.taiga}")
+            for s in iter_taiga_sentences(args.taiga, source):
                 key = _match_sentence(s)
                 if key:
                     _reservoir_add(reservoirs, seen, key, s, args.target, rng)
@@ -216,7 +256,9 @@ def main():
     meta = {
         "seed": args.seed,
         "target_per_form": args.target,
-        "sources": [args.dump] if args.dump else [] + (args.plain or []),
+        "sources": ([args.dump] if args.dump else [])
+                   + (args.plain or [])
+                   + ([f"taiga:{s}" for s in args.taiga_sources] if args.taiga else []),
         "seen": dict(seen),
         "sampled": {k: len(v) for k, v in reservoirs.items()},
         "total_sentences": len(all_sents),
