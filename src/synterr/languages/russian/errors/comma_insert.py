@@ -252,7 +252,7 @@ def _has_correlative_after(tokens: Sequence[AnalyzedToken], subord_idx: int) -> 
             # "но" as CCONJ is a regular conjunction, not a correlative
             if text == "но" and tok.pos == "CCONJ":
                 continue
-            if tok.pos in ("CCONJ", "PART", "ADV"):
+            if tok.pos in ("CCONJ", "PART", "ADV", "SCONJ"):
                 return True
     return False
 

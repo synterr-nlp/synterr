@@ -1,31 +1,30 @@
 #!/usr/bin/env python3
 """Build v4 source sentences — one reproducible script.
 
-Replaces the ad-hoc v3c pipeline with a single seeded run.
-NO RuBLiMP benchmark sentences (clean for eval). NO wiki_200k. NO Taiga proza.
-
-Sources:
-  1. Articles (Habr/CyberLeninka/НГ/RT) — bulk
-  2. Rare conjunctions (Fontanka/Interfax/Lenta) — ~7K (reuse existing files)
-  3. Conjunction sents (wiki dump reservoir) — ~3.5K (reuse existing file)
-  4. RuBLiMP pool (results.zip, benchmark-excluded) — scarce form mining
+Flow:
+  1. Load scarce sents (kept in full)
+  2. Load rublimp pool, REMOVE scarce, REMOVE benchmark → remaining pool
+  3. Load articles + taiga news, REMOVE scarce → remaining news
+  4. Reservoir sample: remaining pool (50%) + remaining news (50%) to fill budget
+  5. Combine: all scarce + sampled pool + sampled news
 
 Usage:
     uv run python scripts/build_v4_sources.py \
-        --articles ~/Projects/research/gector/data/ru_kw_eval_datasets/data \
-        --rare-conjunctions data/rare_conjunctions_fontanka.txt \
-                           data/rare_conjunctions_interfax.txt \
-                           data/rare_conjunctions_lenta.txt \
-        --conjunction-sents data/conjunction_sents.txt \
+        --scarce data/scarce_sents_v4.txt \
         --rublimp-pool data/rublimp_pool_sents.txt \
+        --news data/taiga/taiga_fontanka.txt \
+              data/taiga/taiga_interfax.txt \
+              data/taiga/taiga_lenta.txt \
+        --articles ~/Projects/research/gector/data/ru_kw_eval_datasets/data \
         --benchmark ~/Projects/research/gector/data/RuBLiMP/datasets \
         --output data/mixed_sources_v4.txt \
-        --seed 42
+        --total 105000 --seed 42
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import random
@@ -39,11 +38,11 @@ def is_good_sentence(s: str) -> bool:
     words = s.split()
     if len(words) < 8 or len(words) > 25:
         return False
-    if not s[0].isupper():
+    if not s or not s[0].isupper():
         return False
     if s[-1] not in '.!?\u00bb"':
         return False
-    if any(x in s for x in ['УДК', 'ISBN', 'DOI', 'http', '\u00a9', '@']):
+    if any(x in s for x in ['УДК', 'ISBN', 'DOI', 'http', '\u00a9', '@', '{{', '[[', ']]']):
         return False
     cyrillic = sum(1 for c in s if '\u0400' <= c <= '\u04ff')
     if cyrillic < len(s.replace(' ', '')) * 0.6:
@@ -51,75 +50,17 @@ def is_good_sentence(s: str) -> bool:
     return True
 
 
-def extract_sentences_from_text(text: str) -> list[str]:
-    sents = re.split(r'(?<=[.!?])\s+', text)
-    result = []
-    for s in sents:
-        s = s.strip()
-        words = s.split()
-        if 8 <= len(words) <= 25:
-            if any(x in s for x in ['http', 'www.', '{', '}', '()', '/**', '//', '==', '&&', '||']):
-                continue
-            cyrillic = sum(1 for c in s if '\u0400' <= c <= '\u04ff')
-            if cyrillic < len(s.replace(' ', '')) * 0.5:
-                continue
-            result.append(s)
-    return result
-
-
-def load_articles(articles_dir: str) -> set[str]:
+def load_plain(path: str) -> set[str]:
     sents = set()
-    for zipname in sorted(os.listdir(articles_dir)):
-        if not zipname.endswith('.zip'):
-            continue
-        path = os.path.join(articles_dir, zipname)
-        count = 0
-        try:
-            with zipfile.ZipFile(path) as z:
-                for name in z.namelist():
-                    with z.open(name) as f:
-                        for line in f:
-                            try:
-                                obj = json.loads(line)
-                                text = obj.get('content', '') or ''
-                                for s in extract_sentences_from_text(text):
-                                    if is_good_sentence(s):
-                                        sents.add(s)
-                                        count += 1
-                            except (json.JSONDecodeError, UnicodeDecodeError):
-                                continue
-        except Exception as e:
-            print(f"    Error in {zipname}: {e}")
-        print(f"    {zipname}: {count}")
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            s = line.strip()
+            if s:
+                sents.add(s)
     return sents
-
-
-def load_plain(paths: list[str]) -> set[str]:
-    sents = set()
-    for path in paths:
-        with open(path, encoding='utf-8') as f:
-            for line in f:
-                s = line.strip()
-                if s:
-                    sents.add(s)
-        print(f"    {Path(path).name}: {len(sents)} cumulative")
-    return sents
-
-
-SCARCE_PATTERNS = re.compile(
-    r'полтора|полторы|полтораста|полутора|полутораста'
-    r'|\bтаки\b'
-    r'|инск[а-яё]*\b|енск[а-яё]*\b'
-    r'|пол-[а-яё]'
-    r'|еньк[а-яё]*\b|оньк[а-яё]*\b'
-    r'|ице\b|ицо\b|ецо\b|еце\b',
-    re.IGNORECASE,
-)
 
 
 def load_benchmark(benchmark_dir: str) -> set[str]:
-    """Load all sentences from the RuBLiMP benchmark to exclude."""
-    import csv
     sents = set()
     for fname in os.listdir(benchmark_dir):
         if not fname.endswith('.csv'):
@@ -132,92 +73,123 @@ def load_benchmark(benchmark_dir: str) -> set[str]:
     return sents
 
 
+def load_articles(articles_dir: str) -> set[str]:
+    sents = set()
+    for zipname in sorted(os.listdir(articles_dir)):
+        if not zipname.endswith('.zip'):
+            continue
+        path = os.path.join(articles_dir, zipname)
+        try:
+            with zipfile.ZipFile(path) as z:
+                for name in z.namelist():
+                    with z.open(name) as f:
+                        for line in f:
+                            try:
+                                obj = json.loads(line)
+                                text = obj.get('content', '') or ''
+                                for s in re.split(r'(?<=[.!?])\s+', text):
+                                    s = s.strip()
+                                    if is_good_sentence(s):
+                                        sents.add(s)
+                            except (json.JSONDecodeError, UnicodeDecodeError):
+                                continue
+        except Exception as e:
+            print(f"    Error in {zipname}: {e}")
+        print(f"    {zipname}: {len(sents)} cumulative")
+    return sents
+
+
+def reservoir_sample(pool: list[str], n: int, rng: random.Random) -> list[str]:
+    if len(pool) <= n:
+        return pool.copy()
+    reservoir = pool[:n]
+    for i in range(n, len(pool)):
+        j = rng.randint(0, i)
+        if j < n:
+            reservoir[j] = pool[i]
+    return reservoir
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build v4 source sentences")
-    parser.add_argument("--articles", required=True, help="Path to ru_kw_eval_datasets/data/")
-    parser.add_argument("--rare-conjunctions", nargs='+', required=True,
-                        help="Paths to rare_conjunctions_*.txt files")
-    parser.add_argument("--conjunction-sents", required=True,
-                        help="Path to conjunction_sents.txt")
-    parser.add_argument("--rublimp-pool", help="Path to rublimp_pool_sents.txt")
-    parser.add_argument("--benchmark", help="Path to RuBLiMP/datasets/ (for exclusion)")
+    parser.add_argument("--scarce", required=True, help="Mined scarce sents file")
+    parser.add_argument("--rublimp-pool", required=True, help="RuBLiMP pool file")
+    parser.add_argument("--news", nargs='+', help="Taiga news plain text files")
+    parser.add_argument("--articles", help="Path to ru_kw_eval_datasets/data/")
+    parser.add_argument("--benchmark", required=True, help="RuBLiMP/datasets/ for exclusion")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--total", type=int, default=105000)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
 
-    # Load benchmark exclusion set
-    benchmark = set()
-    if args.benchmark:
-        print("=== Benchmark exclusion set ===")
-        benchmark = load_benchmark(args.benchmark)
-        print(f"  {len(benchmark)} sentences to exclude")
+    # 1. Load scarce (kept in full)
+    print("=== Scarce sents ===")
+    scarce = load_plain(args.scarce)
+    print(f"  {len(scarce):,} sentences")
 
-    def exclude(sents: set[str]) -> set[str]:
-        if not benchmark:
-            return sents
-        removed = len(sents & benchmark)
-        if removed:
-            print(f"  Excluded {removed} benchmark sentences")
-        return sents - benchmark
+    # 2. Load benchmark exclusion
+    print("\n=== Benchmark exclusion ===")
+    benchmark = load_benchmark(args.benchmark)
+    print(f"  {len(benchmark):,} sentences to exclude")
 
-    # 1. Articles
-    print("\n=== Articles ===")
-    articles = load_articles(args.articles)
-    articles_filtered = exclude({s for s in articles if is_good_sentence(s)})
-    print(f"  {len(articles)} raw → {len(articles_filtered)} filtered")
+    # 3. Load rublimp pool, remove scarce + benchmark
+    print("\n=== RuBLiMP pool ===")
+    pool = load_plain(args.rublimp_pool)
+    pool_clean = pool - scarce - benchmark
+    print(f"  {len(pool):,} total → {len(pool_clean):,} (removed {len(pool) - len(pool_clean):,} scarce/benchmark)")
 
-    # 2. Rare conjunctions (Fontanka/Interfax/Lenta)
-    print("\n=== Rare conjunctions ===")
-    rare_conj = exclude(load_plain(args.rare_conjunctions))
-    print(f"  {len(rare_conj)} total")
+    # 4. Load news (taiga + articles), remove scarce
+    print("\n=== News sources ===")
+    news = set()
+    if args.news:
+        for path in args.news:
+            n_before = len(news)
+            news |= load_plain(path)
+            print(f"    {Path(path).name}: +{len(news) - n_before:,}")
+    if args.articles:
+        print("  Articles:")
+        n_before = len(news)
+        news |= load_articles(args.articles)
+        print(f"    articles total: +{len(news) - n_before:,}")
+    news_clean = news - scarce - benchmark
+    print(f"  {len(news):,} total → {len(news_clean):,} (removed {len(news) - len(news_clean):,} scarce/benchmark)")
 
-    # 3. Conjunction sents (wiki reservoir)
-    print("\n=== Conjunction sents ===")
-    conj_sents = exclude(load_plain([args.conjunction_sents]))
-    print(f"  {len(conj_sents)} total")
+    # 5. Budget: total - scarce = remaining, split 50/50
+    budget = args.total - len(scarce)
+    if budget < 0:
+        print(f"\nWARNING: scarce ({len(scarce):,}) exceeds total ({args.total:,}), no room for pool/news")
+        budget = 0
+    pool_budget = budget // 2
+    news_budget = budget - pool_budget
 
-    # 4. RuBLiMP pool — mine scarce forms only (not bulk)
-    scarce_sents: set[str] = set()
-    if args.rublimp_pool:
-        print("\n=== RuBLiMP pool (scarce form mining) ===")
-        pool = exclude(load_plain([args.rublimp_pool]))
-        # Only keep sentences with scarce morphological forms
-        already = articles_filtered | rare_conj | conj_sents
-        for s in pool:
-            if s not in already and SCARCE_PATTERNS.search(s):
-                scarce_sents.add(s)
-        print(f"  {len(pool)} pool → {len(scarce_sents)} scarce-form sentences")
+    print(f"\n=== Assembly (target {args.total:,}) ===")
+    print(f"  Scarce (all): {len(scarce):,}")
+    print(f"  Pool budget: {pool_budget:,}")
+    print(f"  News budget: {news_budget:,}")
 
-    # Combine: keep ALL enrichment sentences, sample articles to fit budget
-    # Enrichment = rare_conj + conj_sents + scarce (must all be included)
-    enrichment = (rare_conj | conj_sents | scarce_sents) - articles_filtered
-    enrichment_list = sorted(enrichment)
+    # Reservoir sample
+    pool_list = sorted(pool_clean)
+    rng.shuffle(pool_list)
+    pool_sampled = reservoir_sample(pool_list, pool_budget, rng)
 
-    # Budget for articles: total target minus enrichment
-    # Default target ~105K to match --max-input in generate_sft.py
-    target_total = 105000
-    article_budget = max(0, target_total - len(enrichment_list))
+    news_list = sorted(news_clean)
+    rng.shuffle(news_list)
+    news_sampled = reservoir_sample(news_list, news_budget, rng)
 
-    articles_list = sorted(articles_filtered - enrichment)
-    rng.shuffle(articles_list)
-    articles_sampled = articles_list[:article_budget]
-
-    all_sents = sorted(set(articles_sampled) | enrichment)
+    # Combine + dedupe + shuffle
+    all_sents = sorted(set(scarce) | set(pool_sampled) | set(news_sampled))
     rng.shuffle(all_sents)
 
-    print(f"\n=== Assembly ===")
-    print(f"  Enrichment (kept all): {len(enrichment_list)}")
-    print(f"  Articles (sampled): {len(articles_sampled)}/{len(articles_list)}")
-    print(f"  Combined unique: {len(all_sents)}")
+    print(f"  Pool sampled: {len(pool_sampled):,}/{len(pool_clean):,}")
+    print(f"  News sampled: {len(news_sampled):,}/{len(news_clean):,}")
+    print(f"  Combined: {len(all_sents):,}")
 
-    # Shuffle with seed
-    rng.shuffle(all_sents)
-
-    # Conjunction form counts
-    conj_forms = ['что бы', 'так же', 'за то', 'от того', 'при чём', 'при том', 'при чем']
-    conj_counts = {p: sum(1 for s in all_sents if p in s) for p in conj_forms}
+    # Verify no benchmark
+    overlap = len(set(all_sents) & benchmark)
+    if overlap:
+        print(f"  WARNING: {overlap} benchmark sentences remaining!")
 
     # Write
     output_path = Path(args.output)
@@ -226,29 +198,26 @@ def main():
         for s in all_sents:
             f.write(s + '\n')
 
-    # Metadata sidecar
+    # Metadata
     meta = {
         "seed": args.seed,
+        "total_target": args.total,
         "output_count": len(all_sents),
         "source_counts": {
-            "articles_sampled": len(articles_sampled),
-            "articles_total": len(articles_filtered),
-            "rare_conjunctions": len(rare_conj),
-            "conjunction_sents": len(conj_sents),
-            "rublimp_pool_scarce": len(scarce_sents),
-            "enrichment_total": len(enrichment_list),
+            "scarce": len(scarce),
+            "rublimp_pool_sampled": len(pool_sampled),
+            "rublimp_pool_available": len(pool_clean),
+            "news_sampled": len(news_sampled),
+            "news_available": len(news_clean),
         },
         "benchmark_excluded": len(benchmark),
-        "conjunction_forms": conj_counts,
-        "note": "NO RuBLiMP benchmark, NO wiki_200k, NO Taiga proza. Pool used for scarce mining only.",
+        "benchmark_overlap": overlap,
     }
     meta_path = output_path.with_suffix('.meta.json')
     with meta_path.open('w', encoding='utf-8') as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    print(f"\nOutput: {len(all_sents)} sentences → {output_path}")
-    print(f"Source mix: {meta['source_counts']}")
-    print(f"Conjunction forms: {conj_counts}")
+    print(f"\nOutput: {len(all_sents):,} → {output_path}")
     print(f"Metadata: {meta_path}")
 
 
