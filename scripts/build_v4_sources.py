@@ -118,7 +118,7 @@ def main():
     parser.add_argument("--articles", help="Path to ru_kw_eval_datasets/data/")
     parser.add_argument("--benchmark", required=True, help="RuBLiMP/datasets/ for exclusion")
     parser.add_argument("--output", required=True)
-    parser.add_argument("--total", type=int, default=105000)
+    parser.add_argument("--total", type=int, default=150000)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -156,12 +156,12 @@ def main():
     news_clean = news - scarce - benchmark
     print(f"  {len(news):,} total → {len(news_clean):,} (removed {len(news) - len(news_clean):,} scarce/benchmark)")
 
-    # 5. Budget: total - scarce = remaining, split 50/50
+    # 5. Budget: total - scarce = remaining, split 60/40 pool/news
     budget = args.total - len(scarce)
     if budget < 0:
         print(f"\nWARNING: scarce ({len(scarce):,}) exceeds total ({args.total:,}), no room for pool/news")
         budget = 0
-    pool_budget = budget // 2
+    pool_budget = int(budget * 0.6)
     news_budget = budget - pool_budget
 
     print(f"\n=== Assembly (target {args.total:,}) ===")

@@ -577,16 +577,16 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
 
 
 @main.command("generate-bea-paper")
-@click.option("-l", "--lang", default="ru", help="Language code")
 @click.option("-i", "--input", "input_file", required=True, type=click.Path(exists=True), help="Input sentences")
 @click.option("-o", "--output", "output_file", required=True, type=click.Path(), help="Output JSONL")
 @click.option("-n", "--total", type=int, default=50000, help="Target total examples")
 @click.option("--seed", type=int, default=42, help="Random seed")
 @click.option("--depparse/--no-depparse", default=True, help="Enable dep parsing")
-@click.option("--max-input", type=int, default=60000, help="Max input sentences to read")
+@click.option("--max-input", type=int, default=105000, help="Max input sentences to read")
 @click.option("--batch-size", type=int, default=128, help="Stanza analysis batch size")
+@click.option("--balance-directions/--no-balance-directions", default=True,
+              help="Cap split/merge pairs to min(split, merge)")
 def cmd_generate_sft(
-    lang: str,
     input_file: str,
     output_file: str,
     total: int,
@@ -594,175 +594,35 @@ def cmd_generate_sft(
     depparse: bool,
     max_input: int,
     batch_size: int,
+    balance_directions: bool,
 ) -> None:
     """Generate SFT training data — force-apply per LoRuGEC rule.
 
-    Each example gets {"src": corrupted, "tgt": clean, "rule": rule_name}.
-    Distribution follows the LoRuGEC benchmark (48 rules).
-    Saves a .dist.json sidecar with per-rule counts.
+    Thin wrapper around scripts/generate_sft.py. All logic lives there.
     """
-    import json
-    import random
-    import time
-
-    from sacremoses import MosesDetokenizer
-
-    from synterr.lorugec import LORUGEC_RULES, extract_subtype, get_lorugec_distribution
-
-    moses = MosesDetokenizer(lang="ru")
-
-    def detokenize(tokens: list[str]) -> str:
-        return moses.detokenize(tokens)
-
-    # Read LoRuGEC distribution
-    rule_counts = get_lorugec_distribution()
-    total_lorugec = sum(rule_counts.values())
-
-    targets: dict[str, int] = {}
-    for rule, count in rule_counts.items():
-        targets[rule] = max(1, round(count / total_lorugec * total))
-
-    from collections import defaultdict
-    subtype_groups: dict[tuple, list[str]] = defaultdict(list)
-    for rule, mapping in LORUGEC_RULES.items():
-        handler_name, subtype = mapping[0], mapping[1]
-        word_filter = mapping[2] if len(mapping) > 2 else None
-        if rule in targets:
-            subtype_groups[(handler_name, subtype, word_filter)].append(rule)
-
-    subtype_targets: dict[tuple, int] = {}
-    for key, rules in subtype_groups.items():
-        subtype_targets[key] = sum(targets[r] for r in rules)
-
-    click.echo(f"LoRuGEC rules: {len(LORUGEC_RULES)}, groups: {len(subtype_targets)}, target: {sum(subtype_targets.values())}")
-
-    # Read input
-    sentences = []
-    with open(input_file, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                sentences.append(line)
-                if len(sentences) >= max_input:
-                    break
-    click.echo(f"Input: {len(sentences)} sentences")
-
-    # Pipeline
-    config = GenerationConfig(seed=seed, schema="rozental", use_depparse=depparse)
-    pipeline = ErrorPipeline(lang, config)
-
-    # Analyze
-    click.echo(f"Analyzing (batch_size={batch_size})...")
-    t0 = time.time()
-    all_tokens = []
-    for i in range(0, len(sentences), batch_size):
-        batch = sentences[i : i + batch_size]
-        all_tokens.extend(pipeline.analyzer.analyze_batch(batch))
-        done = min(i + batch_size, len(sentences))
-        if done % 8000 == 0 or done == len(sentences):
-            elapsed = time.time() - t0
-            rate = done / elapsed if elapsed > 0 else 0
-            click.echo(f"  {done}/{len(sentences)} ({rate:.0f} sent/s)")
-    click.echo(f"Analysis: {time.time() - t0:.1f}s")
-
-    # Generate
-    rng = random.Random(seed)
-    all_examples: list[dict] = []
-    results_per_rule: dict[str, int] = {r: 0 for r in LORUGEC_RULES}
-
-    for (handler_name, subtype, word_filter), target in subtype_targets.items():
-        handler = pipeline._get_handler_by_name(handler_name)
-        if handler is None:
-            continue
-
-        indices = list(range(len(sentences)))
-        if word_filter is not None:
-            matching = [i for i in indices if word_filter in sentences[i].lower()]
-            non_matching = [i for i in indices if i not in set(matching)]
-            rng.shuffle(matching)
-            rng.shuffle(non_matching)
-            indices = matching + non_matching
-        else:
-            rng.shuffle(indices)
-
-        count = 0
-        for idx in indices:
-            if count >= target:
-                break
-            tokens = all_tokens[idx]
-            if not tokens:
-                continue
-
-            original = [t.text for t in tokens]
-            applicable = [i for i in range(len(tokens)) if handler.can_apply(tokens, i)]
-            if not applicable:
-                continue
-
-            positions = applicable.copy()
-            rng.shuffle(positions)
-
-            for pos in positions:
-                sentence = original.copy()
-                modified: set[int] = set()
-                result = handler.apply(tokens, sentence, pos, modified, rng=rng)
-                if result is None:
-                    continue
-                result_subtype = extract_subtype(result.error_type, handler_name)
-                if isinstance(subtype, tuple):
-                    if result_subtype not in subtype:
-                        continue
-                elif result_subtype != subtype:
-                    continue
-                if word_filter is not None:
-                    orig_lower = result.original.lower() if result.original else ""
-                    corr_lower = result.corrupted.lower() if result.corrupted else ""
-                    if word_filter not in orig_lower and word_filter not in corr_lower:
-                        continue
-
-                src = detokenize(sentence)
-                tgt = detokenize(original)
-                if src == tgt:
-                    continue
-
-                group_rules = subtype_groups[(handler_name, subtype, word_filter)]
-                assigned_rule = group_rules[count % len(group_rules)]
-                all_examples.append({"src": src, "tgt": tgt, "rule": assigned_rule})
-                results_per_rule[assigned_rule] += 1
-                count += 1
-                break
-
-        label = f"{handler_name}/{subtype}"
-        if word_filter:
-            label += f"[{word_filter}]"
-        click.echo(f"  {label}: {count}/{target}")
-
-    # Write
-    rng.shuffle(all_examples)
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8") as f:
-        for ex in all_examples:
-            f.write(json.dumps(ex, ensure_ascii=False) + "\n")
-
-    # Save distribution sidecar
-    dist_path = output_path.with_suffix(".dist.json")
-    dist = {
-        "total": len(all_examples),
-        "target": total,
-        "seed": seed,
-        "source": Path(input_file).name,
-        "rules": {r: {"got": results_per_rule.get(r, 0), "want": targets.get(r, 0)}
-                  for r in sorted(LORUGEC_RULES.keys())},
-    }
-    with dist_path.open("w", encoding="utf-8") as f:
-        json.dump(dist, f, ensure_ascii=False, indent=2)
-
-    click.echo(f"\nDone: {len(all_examples)} examples → {output_path}")
-    click.echo(f"Distribution: {dist_path}")
-
-    # Summary
-    full = sum(1 for r in LORUGEC_RULES if results_per_rule.get(r, 0) >= targets.get(r, 0))
-    click.echo(f"Rules at target: {full}/{len(LORUGEC_RULES)}")
+    import subprocess
+    # Find the script relative to the package
+    script = Path(__file__).parent.parent.parent / "scripts" / "generate_sft.py"
+    if not script.exists():
+        # Fallback: try CWD
+        script = Path("scripts/generate_sft.py")
+    if not script.exists():
+        click.echo("Error: scripts/generate_sft.py not found", err=True)
+        raise SystemExit(1)
+    cmd = [
+        sys.executable, str(script),
+        "-i", input_file,
+        "-o", output_file,
+        "-n", str(total),
+        "--seed", str(seed),
+        "--max-input", str(max_input),
+        "--batch-size", str(batch_size),
+    ]
+    if depparse:
+        cmd.append("--depparse")
+    if balance_directions:
+        cmd.append("--balance-directions")
+    raise SystemExit(subprocess.run(cmd).returncode)
 
 
 if __name__ == "__main__":
