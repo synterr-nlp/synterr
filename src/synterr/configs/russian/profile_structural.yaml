@@ -1,0 +1,37 @@
+# Profile: structural + lexical handlers
+# Tests: word_omission/insertion (changes_length=True), paronym, preposition, conjunction
+
+name: profile_structural
+description: "Profiling preset: structural and lexical handlers"
+source: "Profiling"
+
+error_probability: 1.0
+max_errors_per_sentence: 1
+
+weights:
+  word_omission: 0.25
+  word_insertion: 0.25
+  paronym: 0.20
+  preposition: 0.15
+  conjunction: 0.15
+
+  # Zero out everything else
+  spelling: 0.0
+  function_spelling: 0.0
+  orthographic_spelling: 0.0
+  compound_spelling: 0.0
+  adverb_spelling: 0.0
+  noun_case: 0.0
+  noun_number: 0.0
+  adj_case: 0.0
+  adj_number: 0.0
+  adj_gender: 0.0
+  verb_person_number: 0.0
+  verb_tense: 0.0
+  numeral_declension: 0.0
+  pleonasm: 0.0
+  collocation: 0.0
+  comma_delete: 0.0
+  comma_pair_delete: 0.0
+  comma_insert: 0.0
+  dash_delete: 0.0

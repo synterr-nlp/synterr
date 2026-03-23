@@ -1,0 +1,38 @@
+# Profile: morphological handlers only
+# No depparse needed, but heavy pymorphy3 inflection
+# Tests: POS filtering, pymorphy3.inflect(), confusion matrix sampling
+
+name: profile_morph
+description: "Profiling preset: morphological handlers only (inflection, no depparse)"
+source: "Profiling"
+
+error_probability: 1.0
+max_errors_per_sentence: 1
+
+weights:
+  noun_case: 0.25
+  noun_number: 0.10
+  adj_case: 0.20
+  adj_number: 0.10
+  adj_gender: 0.10
+  verb_person_number: 0.15
+  verb_tense: 0.10
+
+  # Zero out everything else
+  spelling: 0.0
+  function_spelling: 0.0
+  orthographic_spelling: 0.0
+  compound_spelling: 0.0
+  adverb_spelling: 0.0
+  numeral_declension: 0.0
+  paronym: 0.0
+  preposition: 0.0
+  conjunction: 0.0
+  pleonasm: 0.0
+  collocation: 0.0
+  comma_delete: 0.0
+  comma_pair_delete: 0.0
+  comma_insert: 0.0
+  dash_delete: 0.0
+  word_omission: 0.0
+  word_insertion: 0.0

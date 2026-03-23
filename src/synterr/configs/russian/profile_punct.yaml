@@ -1,0 +1,38 @@
+# Profile: punctuation handlers only
+# REQUIRES depparse — tests dep tree classification cost
+# Tests: _classify_comma, _find_comma_partner, _classify_dash, _has_correlative_after
+
+name: profile_punct
+description: "Profiling preset: punctuation handlers only (requires depparse)"
+source: "Profiling"
+
+error_probability: 1.0
+max_errors_per_sentence: 1
+
+weights:
+  comma_delete: 0.30
+  comma_pair_delete: 0.25
+  comma_insert: 0.25
+  dash_delete: 0.20
+
+  # Zero out everything else
+  spelling: 0.0
+  function_spelling: 0.0
+  orthographic_spelling: 0.0
+  compound_spelling: 0.0
+  adverb_spelling: 0.0
+  noun_case: 0.0
+  noun_number: 0.0
+  adj_case: 0.0
+  adj_number: 0.0
+  adj_gender: 0.0
+  verb_person_number: 0.0
+  verb_tense: 0.0
+  numeral_declension: 0.0
+  paronym: 0.0
+  preposition: 0.0
+  conjunction: 0.0
+  pleonasm: 0.0
+  collocation: 0.0
+  word_omission: 0.0
+  word_insertion: 0.0
