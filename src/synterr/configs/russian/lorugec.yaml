@@ -37,13 +37,15 @@ weights:
   # numeral_declension: 2 rules (полтора, количественные)
   numeral_declension: 0.0417    # 2/48
 
+  # 2 rules each:
+  adj_case: 0.0417              # управление + согласование причастий
+  adverb_spelling: 0.0417       # наречия (split + merge)
+
   # 1 rule each:
   spelling: 0.0208              # ъ/ь
-  adverb_spelling: 0.0208       # наречия
   preposition: 0.0208           # управление
   pleonasm: 0.0208              # плеоназмы
   collocation: 0.0208           # сочетаемость
-  adj_case: 0.0208              # согласование причастий (via adj agreement)
 
   # These handlers have no direct LoRuGEC rules — zero weight
   noun_case: 0.0
@@ -66,6 +68,12 @@ subtype_weights:
     conjunction_split: 25
     taki_hyphen: 10        # 1 rule
 
+  adverb_spelling:
+    adverb_solid_to_separate: 25
+    adverb_separate_to_solid: 25
+    adverb_hyphen_to_separate: 25
+    adverb_separate_to_hyphen: 25
+
   orthographic_spelling:
     pre_pri: 10
     y_i_after_prefix: 10
@@ -84,9 +92,10 @@ subtype_weights:
     compound_adj: 33
 
   comma_insert:
-    comma_before_kak: 60   # 3 LoRuGEC rules
-    comma_in_set_phrase: 20  # 1 rule (+ фразеологизмы = 2)
-    comma_between_conjunctions: 20  # 1 rule
+    comma_before_kak: 45   # 3 LoRuGEC rules
+    comma_in_set_phrase: 15  # 1 rule (фразеологизмы)
+    comma_between_conjunctions: 15  # 1 rule (стык союзов)
+    comma_in_indivisible: 25  # 1 rule (цельные по смыслу)
 
   comma_delete:
     comma_subordinate: 25   # 2 rules (однородные придаточные + СПП)
