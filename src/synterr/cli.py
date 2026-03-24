@@ -337,7 +337,7 @@ def cmd_corrupt(
 )
 @click.option("--error-prob", type=float, help="Probability of introducing errors (0-1)")
 @click.option("--depparse/--no-depparse", default=False, help="Enable dependency parsing")
-@click.option("--batch-size", type=int, default=100, help="Batch size for processing")
+@click.option("--batch-size", type=int, default=128, help="Batch size for processing")
 @click.option(
     "--output-format", "-f",
     type=click.Choice(["gector", "tsv", "jsonl", "chat", "sft"]),
@@ -577,16 +577,18 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
 
 
 @main.command("generate-bea-paper")
+@click.option("-l", "--lang", default="ru", help="Language code")
 @click.option("-i", "--input", "input_file", required=True, type=click.Path(exists=True), help="Input sentences")
 @click.option("-o", "--output", "output_file", required=True, type=click.Path(), help="Output JSONL")
 @click.option("-n", "--total", type=int, default=50000, help="Target total examples")
 @click.option("--seed", type=int, default=42, help="Random seed")
 @click.option("--depparse/--no-depparse", default=True, help="Enable dep parsing")
-@click.option("--max-input", type=int, default=105000, help="Max input sentences to read")
+@click.option("--max-input", type=int, default=150000, help="Max input sentences to read")
 @click.option("--batch-size", type=int, default=128, help="Stanza analysis batch size")
 @click.option("--balance-directions/--no-balance-directions", default=True,
               help="Cap split/merge pairs to min(split, merge)")
 def cmd_generate_sft(
+    lang: str,
     input_file: str,
     output_file: str,
     total: int,
