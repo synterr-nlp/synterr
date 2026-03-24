@@ -47,13 +47,16 @@ hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000,50000 \
 
 Fill in:
 
-| Backend | Depparse | 500 sents | 2K sents | 10K sents | 50K sents |
-|---------|----------|-----------|----------|-----------|-----------|
-| stanza GPU | yes | ___ s/s | ___ s/s | ___ s/s | — |
-| stanza GPU | no | | | | — |
-| stanza CPU | yes | | | | — |
-| stanza CPU | no | | | | — |
-| natasha | no | | | | ___ s/s |
+Preset: balanced.
+
+| Backend | Depparse | 500 sents | 1K sents | 2K sents | 10K sents | 50K sents |
+|---------|----------|----------|-----------|----------|-----------|-----------|
+| stanza GPU | yes   | 11.429 s ±  0.144 s  | 14.366 s ±  0.144 s   | 20.715 s ±  0.210 s  | 71.601 s ±  1.398 s   | — |
+| stanza GPU | no    | 9.904 s ±  0.187 s  | 12.146 s ±  0.218 s   | 16.406 s ±  0.261 s  | 51.063 s ±  0.468 s   | — |
+| stanza CPU | yes   | 28.872 s ±  1.274 s  | 45.926 s ±  0.718 s   | 77.091 s ±  0.619 s  | 348.440 s ±  6.017 s   | — |
+| stanza CPU | no    | ___ s/s  | ___ s/s   | ___ s/s  | ___ s/s   | — |
+| natasha    | no    | 3.404 s ±  0.205 s  | 5.359 s ±  0.578 s   | 8.672 s ±  0.989 s  | 37.329 s ±  1.573 s   | ___ s/s |
+| spacy      | no    | 6.957 s ±  0.090 s  | 9.210 s ±  0.074 s   | 13.966 s ±  0.030 s | 50.872 s ±  0.044 s | — |
 
 ### B. Batch size sweep (stanza only)
 
