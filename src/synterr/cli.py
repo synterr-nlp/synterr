@@ -317,8 +317,8 @@ def cmd_corrupt(
 
 @main.command("generate")
 @click.option("--lang", "-l", required=True, help="Language code")
-@click.option("--input", "-i", "input_path", type=click.Path(exists=True), required=True)
-@click.option("--output", "-o", "output_path", type=click.Path(), required=True)
+@click.option("--input", "-i", "input_path", type=click.Path(exists=True), required=True, help="Input corpus (one sentence per line)")
+@click.option("--output", "-o", "output_path", type=click.Path(), required=True, help="Output file")
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--preset", "-p", help="Use preset config (e.g., rulec, gera, balanced)")
 @click.option(
@@ -366,18 +366,15 @@ def cmd_generate(
 ) -> None:
     """Generate synthetic errors from corpus.
 
-    Configuration priority: --config > --preset > --weights > language default
+    \b
+    Configuration priority:
+      --config > --preset > --weights > language default
 
+    \b
     Examples:
-
-      # Use RULEC-GEC distribution preset
-      synterr generate --lang ru --preset rulec -i corpus.txt -o out.edits
-
-      # Use custom config file
-      synterr generate --lang ru --config my_weights.yaml -i corpus.txt -o out.edits
-
-      # Fine-grained: specific errors with custom weights
-      synterr generate --lang ru -e spelling,noun_case -w '{"spelling": 0.7}' -i in.txt -o out.edits
+      synterr generate -l ru --preset rulec -i corpus.txt -o out.edits
+      synterr generate -l ru --preset balanced --depparse -i in.txt -o out.jsonl -f jsonl
+      synterr generate -l ru -e spelling -w '{"spelling": 0.7}' -i in.txt -o out.edits
     """
     import json
 
@@ -598,9 +595,12 @@ def cmd_generate_sft(
     batch_size: int,
     balance_directions: bool,
 ) -> None:
-    """Generate SFT training data — force-apply per LoRuGEC rule.
+    """Force-apply errors per LoRuGEC rule for SFT training.
 
-    Thin wrapper around scripts/generate_sft.py. All logic lives there.
+    \b
+    Generates {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL.
+    Targets 48 LoRuGEC evaluation rules with bidirectional split/merge.
+    Saves a .dist.json sidecar with per-rule counts.
     """
     import subprocess
     # Find the script relative to the package
