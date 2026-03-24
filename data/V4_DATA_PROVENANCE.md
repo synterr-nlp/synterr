@@ -10,8 +10,8 @@ mine_scarce_sents.py ──→ scarce_sents_v4.txt (54.8K, all kept)
         │
         │  Also feeds:
         ▼
-build_v4_sources.py ───→ mixed_sources_v4.txt (105K)
-        │                   = scarce (52%) + rublimp pool (24%) + news (24%)
+build_v4_sources.py ───→ mixed_sources_v4.txt (150K)
+        │                   = scarce (37%) + rublimp pool (38%) + news (25%)
         ▼
 generate_sft.py ───────→ qwen_sft_v4.jsonl + .dist.json
                             --balance-directions --seed 42
@@ -68,18 +68,18 @@ Overrepresented categories capped at 5K via seeded shuffle + truncation.
 Script: `build_v4_sources.py`
 
 1. Load scarce sents (54,823 — kept in full)
-2. Load rublimp pool (741K), remove scarce + benchmark → 728K remaining
+2. Load rublimp pool (741K), remove scarce + benchmark → 729K remaining
 3. Load news (taiga fontanka/interfax/lenta + articles) → 3.3M, remove scarce → 3.3M remaining
-4. Budget = 105K - 54.8K scarce = 50.2K, split 50/50
-5. Reservoir sample: 25K pool + 25K news
+4. Budget = 150K - 54.8K scarce = 95.2K, split 60/40 pool/news
+5. Reservoir sample: 57K pool + 38K news
 6. Combine, shuffle with seed 42
 
-**Output**: `mixed_sources_v4.txt` — 105,000 sentences.
+**Output**: `mixed_sources_v4.txt` — 150,000 sentences.
 
 **Composition**:
-- Scarce enrichment: 54,823 (52%)
-- RuBLiMP pool (librusec/wiki/wikinews): 25,088 (24%)
-- News (Taiga + articles): 25,089 (24%)
+- Scarce enrichment: 54,823 (37%)
+- RuBLiMP pool (librusec/wiki/wikinews): 57,106 (38%)
+- News (Taiga + articles): 38,071 (25%)
 - RuBLiMP benchmark contamination: 0
 
 ## Step 4: Generate SFT
@@ -91,7 +91,7 @@ uv run python scripts/generate_sft.py \
   -i data/mixed_sources_v4.txt \
   -o data/qwen_sft_v4.jsonl \
   -n 50000 --seed 42 --depparse \
-  --max-input 105000 --batch-size 128 \
+  --max-input 150000 --batch-size 128 \
   --balance-directions
 ```
 
@@ -100,8 +100,14 @@ Bidirectional for all split/merge phenomena.
 Direction balancing caps overrepresented direction to match underrepresented.
 MosesDetokenizer(lang="ru") for output text.
 
-Output: `qwen_sft_v4.jsonl` — `{"src": corrupted, "tgt": clean, "rule": rule_name}`
+Output: `qwen_sft_v4.jsonl` — 39,209 examples, `{"src": corrupted, "tgt": clean, "rule": rule_name}`
 Distribution sidecar: `qwen_sft_v4.dist.json`
+40/59 rules at full target. 19 short (scarce forms, narrow syntactic triggers).
+
+**Direction balance in final data**:
+- Punct add (comma_delete/dash_delete → model adds): 7,262
+- Punct remove (comma_insert → model removes): 2,374
+- Ratio: 3:1 add/remove — matches natural L1 error distribution (missing > extra)
 
 ## Key fixes in v4 vs v3c
 
@@ -144,12 +150,12 @@ uv run python scripts/build_v4_sources.py \
          data/taiga/taiga_lenta.txt \
   --articles ~/Projects/research/gector/data/ru_kw_eval_datasets/data \
   --benchmark ~/Projects/research/gector/data/RuBLiMP/datasets \
-  --output data/mixed_sources_v4.txt --total 105000 --seed 42
+  --output data/mixed_sources_v4.txt --total 150000 --seed 42
 
 # 4. Generate SFT
 uv run python scripts/generate_sft.py \
   -i data/mixed_sources_v4.txt -o data/qwen_sft_v4.jsonl \
-  -n 50000 --seed 42 --depparse --max-input 105000 \
+  -n 50000 --seed 42 --depparse --max-input 150000 \
   --batch-size 128 --balance-directions
 ```
 
