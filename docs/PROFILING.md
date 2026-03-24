@@ -19,26 +19,30 @@ head -50000 data/mixed_sources_v4.txt > /tmp/bench_50k.txt
 
 This is the most expensive part. Measures tokenization + POS + morphology + (optionally) depparse.
 
+**NOTE:** `-n` in `synterr generate` = max sentences to process (NOT examples to generate).
+So `-n 100 -i /tmp/bench_10k.txt` processes 100 sentences from the file.
+Use `-n` to control input size, not the input file.
+
 ```bash
 # Stanza GPU, with depparse
-hyperfine --warmup 1 --runs 3 --parameter-list size 500,2000,10000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
   'uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
-   -n 1 -i /tmp/bench_{size}.txt -o /dev/null'
+   -n {size} -i /tmp/bench_10k.txt -o /dev/null'
 
 # Stanza CPU, with depparse
-hyperfine --warmup 1 --runs 3 --parameter-list size 500,2000,10000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
   'CUDA_VISIBLE_DEVICES="" uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
-   -n 1 -i /tmp/bench_{size}.txt -o /dev/null'
+   -n {size} -i /tmp/bench_10k.txt -o /dev/null'
 
 # Stanza GPU, WITHOUT depparse
-hyperfine --warmup 1 --runs 3 --parameter-list size 500,2000,10000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
   'uv run synterr generate -l ru --preset balanced --backend stanza \
-   -n 1 -i /tmp/bench_{size}.txt -o /dev/null'
+   -n {size} -i /tmp/bench_10k.txt -o /dev/null'
 
 # Natasha (CPU only, no depparse support)
-hyperfine --warmup 1 --runs 3 --parameter-list size 500,2000,10000,50000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000,50000 \
   'uv run synterr generate -l ru --preset balanced --backend natasha \
-   -n 1 -i /tmp/bench_{size}.txt -o /dev/null'
+   -n {size} -i /tmp/bench_50k.txt -o /dev/null'
 ```
 
 Fill in:
@@ -157,7 +161,7 @@ done
 ## Notes
 
 - First run includes model download (stanza ~500MB). Use `--warmup 1` in hyperfine.
-- `-n 1` in analysis benchmarks: generates 1 example so generation cost ≈ 0, measuring analysis only.
+- `-n` in `synterr generate` = max sentences to process (analysis + generation). Use this to control input size.
 - `-o /dev/null`: skips file I/O.
 - Stanza GPU memory: check with `nvidia-smi` during run.
 - All profiling presets set `error_probability: 1.0` and `max_errors_per_sentence: 1` for consistent error yield measurement.
