@@ -54,9 +54,21 @@ Preset: balanced.
 | stanza GPU | yes   | 11.429 s ±  0.144 s  | 14.366 s ±  0.144 s   | 20.715 s ±  0.210 s  | 71.601 s ±  1.398 s   | — |
 | stanza GPU | no    | 9.904 s ±  0.187 s  | 12.146 s ±  0.218 s   | 16.406 s ±  0.261 s  | 51.063 s ±  0.468 s   | — |
 | stanza CPU | yes   | 28.872 s ±  1.274 s  | 45.926 s ±  0.718 s   | 77.091 s ±  0.619 s  | 348.440 s ±  6.017 s   | — |
-| stanza CPU | no    | ___ s/s  | ___ s/s   | ___ s/s  | ___ s/s   | — |
-| natasha    | no    | 3.404 s ±  0.205 s  | 5.359 s ±  0.578 s   | 8.672 s ±  0.989 s  | 37.329 s ±  1.573 s   | ___ s/s |
+| stanza CPU | no    |   |   |   |    | — |
+| natasha    | no    | 3.404 s ±  0.205 s  | 5.359 s ±  0.578 s   | 8.672 s ±  0.989 s  | 37.329 s ±  1.573 s   | — |
 | spacy      | no    | 6.957 s ±  0.090 s  | 9.210 s ±  0.074 s   | 13.966 s ±  0.030 s | 50.872 s ±  0.044 s | — |
+
+Preset: lorugec.
+
+
+| Backend | Depparse | 500 sents | 1K sents | 2K sents | 10K sents | 50K sents |
+|---------|----------|----------|-----------|----------|-----------|-----------|
+| stanza GPU | yes   | 11.066 s ±  0.095 s  | 13.933 s ±  0.156 s   | 19.577 s ±  0.057 s  | 66.890 s ±  0.348 s   | — |
+| stanza GPU | no    | 9.853 s ±  0.140 s  | 12.137 s ±  0.262 s | 16.058 s ±  0.107 s  | 50.713 s ±  0.358 s   | — |
+| stanza CPU | yes   | 26.590 s ±  0.483 s  | 43.846 s ±  1.072 s   | 76.133 s ±  0.551 s | 340.459 s ±  2.759 s   | — |
+| stanza CPU | no    |   |   |   |    | — |
+| natasha    | no    | 3.260 s ±  0.040 s | 5.393 s ±  0.771 s   | 8.700 s ±  0.794 s  | 35.549 s ±  1.387 s   | — |
+| spacy      | no    | 6.864 s ±  0.030 s  | 9.172 s ±  0.109 s   | 13.582 s ±  0.044 s | 50.395 s ±  0.286 s  | — |
 
 ### B. Batch size sweep (stanza only)
 
@@ -68,13 +80,13 @@ hyperfine --warmup 1 --runs 3 --parameter-list bs 32,64,128,256,512 \
 
 Fill in:
 
-| Batch size | Time (s) | Sent/s | Peak GPU mem |
+| Batch size | Time (s) | Sent/s | Peak GPU mem, MiB |
 |------------|----------|--------|-------------|
-| 32 | | | |
-| 64 | | | |
-| 128 | | | |
-| 256 | | | |
-| 512 | | | |
+| 32 | 21.953 s ±  0.116 s | 91 |  |
+| 64 | 20.623 s ±  0.334 s | 97 |  |
+| 128 | 20.038 s ±  0.086 s | 100 |  |
+| 256 | 19.761 s ±  0.099 s | 101 | 3443 |
+| 512 | 19.421 s ±  0.225 s | 103 | 3541 |
 
 ### C. Handler tier profiling
 
@@ -112,11 +124,11 @@ Fill in:
 
 | Preset | Time (s) | Sent/s | Error yield | Notes |
 |--------|----------|--------|-------------|-------|
-| profile_spelling | | | ___% | no inflection |
-| profile_morph | | | ___% | pymorphy3 heavy |
-| profile_punct | | | ___% | dep tree traversal |
-| profile_structural | | | ___% | insert/delete tokens |
-| balanced (full) | | | ___% | reference |
+| profile_spelling | 19.562 s ±  0.207 s | 102 | ___% | no inflection |
+| profile_morph | 19.559 s ±  0.084 s | 102 | ___% | pymorphy3 heavy |
+| profile_punct | 19.775 s ±  0.015 s | 101 | ___% | dep tree traversal |
+| profile_structural | 19.548 s ±  0.130 s | 102 | ___% | insert/delete tokens |
+| balanced (full) | 20.404 s ±  0.727 s | 98 | ___% | reference |
 
 ### D. Force-apply mode (generate-bea-paper)
 
