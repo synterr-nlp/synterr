@@ -8,9 +8,9 @@ cd ~/Projects/research/synterr
 
 # Prepare input samples at different sizes
 head -500 data/mixed_sources_v4.txt > /tmp/bench_500.txt
-head -2000 data/mixed_sources_v4.txt > /tmp/bench_2k.txt
-head -10000 data/mixed_sources_v4.txt > /tmp/bench_10k.txt
-head -50000 data/mixed_sources_v4.txt > /tmp/bench_50k.txt
+head -2000 data/mixed_sources_v4.txt > /tmp/bench_2000.txt
+head -10000 data/mixed_sources_v4.txt > /tmp/bench_10000.txt
+head -50000 data/mixed_sources_v4.txt > /tmp/bench_50000.txt
 ```
 
 ## Test matrix
@@ -20,29 +20,29 @@ head -50000 data/mixed_sources_v4.txt > /tmp/bench_50k.txt
 This is the most expensive part. Measures tokenization + POS + morphology + (optionally) depparse.
 
 **NOTE:** `-n` in `synterr generate` = max sentences to process (NOT examples to generate).
-So `-n 100 -i /tmp/bench_10k.txt` processes 100 sentences from the file.
+So `-n 100 -i /tmp/bench_10000.txt` processes 100 sentences from the file.
 Use `-n` to control input size, not the input file.
 
 ```bash
 # Stanza GPU, with depparse
 hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
   'uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
-   -n {size} -i /tmp/bench_10k.txt -o /dev/null'
+   -n {size} -i /tmp/bench_10000.txt -o /dev/null'
 
 # Stanza CPU, with depparse
 hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
   'CUDA_VISIBLE_DEVICES="" uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
-   -n {size} -i /tmp/bench_10k.txt -o /dev/null'
+   -n {size} -i /tmp/bench_10000.txt -o /dev/null'
 
 # Stanza GPU, WITHOUT depparse
 hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
   'uv run synterr generate -l ru --preset balanced --backend stanza \
-   -n {size} -i /tmp/bench_10k.txt -o /dev/null'
+   -n {size} -i /tmp/bench_10000.txt -o /dev/null'
 
 # Natasha (CPU only, no depparse support)
 hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000,50000 \
   'uv run synterr generate -l ru --preset balanced --backend natasha \
-   -n {size} -i /tmp/bench_50k.txt -o /dev/null'
+   -n {size} -i /tmp/bench_50000.txt -o /dev/null'
 ```
 
 Fill in:
@@ -55,7 +55,7 @@ Preset: balanced.
 | stanza GPU | no    | 9.904 s ±  0.187 s  | 12.146 s ±  0.218 s   | 16.406 s ±  0.261 s  | 51.063 s ±  0.468 s   | — |
 | stanza CPU | yes   | 28.872 s ±  1.274 s  | 45.926 s ±  0.718 s   | 77.091 s ±  0.619 s  | 348.440 s ±  6.017 s   | — |
 | stanza CPU | no    |   |   |   |    | — |
-| natasha    | no    | 3.404 s ±  0.205 s  | 5.359 s ±  0.578 s   | 8.672 s ±  0.989 s  | 37.329 s ±  1.573 s   | — |
+| natasha    | no    | 3.404 s ±  0.205 s  | 5.359 s ±  0.578 s   | 8.672 s ±  0.989 s  | 37.329 s ±  1.573 s   |  192.854 s ± 17.352 s |
 | spacy      | no    | 6.957 s ±  0.090 s  | 9.210 s ±  0.074 s   | 13.966 s ±  0.030 s | 50.872 s ±  0.044 s | — |
 
 Preset: lorugec.
@@ -67,7 +67,7 @@ Preset: lorugec.
 | stanza GPU | no    | 9.853 s ±  0.140 s  | 12.137 s ±  0.262 s | 16.058 s ±  0.107 s  | 50.713 s ±  0.358 s   | — |
 | stanza CPU | yes   | 26.590 s ±  0.483 s  | 43.846 s ±  1.072 s   | 76.133 s ±  0.551 s | 340.459 s ±  2.759 s   | — |
 | stanza CPU | no    |   |   |   |    | — |
-| natasha    | no    | 3.260 s ±  0.040 s | 5.393 s ±  0.771 s   | 8.700 s ±  0.794 s  | 35.549 s ±  1.387 s   | — |
+| natasha    | no    | 3.260 s ±  0.040 s | 5.393 s ±  0.771 s   | 8.700 s ±  0.794 s  | 35.549 s ±  1.387 s   | 204.431 s ± 13.493 s |
 | spacy      | no    | 6.864 s ±  0.030 s  | 9.172 s ±  0.109 s   | 13.582 s ±  0.044 s | 50.395 s ±  0.286 s  | — |
 
 ### B. Batch size sweep (stanza only)
@@ -75,16 +75,16 @@ Preset: lorugec.
 ```bash
 hyperfine --warmup 1 --runs 3 --parameter-list bs 32,64,128,256,512 \
   'uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
-   --batch-size {bs} -n 1 -i /tmp/bench_2k.txt -o /dev/null'
+   --batch-size {bs} -n 1 -i /tmp/bench_2000.txt -o /dev/null'
 ```
 
 Fill in:
 
 | Batch size | Time (s) | Sent/s | Peak GPU mem, MiB |
 |------------|----------|--------|-------------|
-| 32 | 21.953 s ±  0.116 s | 91 |  |
-| 64 | 20.623 s ±  0.334 s | 97 |  |
-| 128 | 20.038 s ±  0.086 s | 100 |  |
+| 32 | 21.953 s ±  0.116 s | 91 | 1059 |
+| 64 | 20.623 s ±  0.334 s | 97 | 1443 |
+| 128 | 20.038 s ±  0.086 s | 100 | 1975 |
 | 256 | 19.761 s ±  0.099 s | 101 | 3443 |
 | 512 | 19.421 s ±  0.225 s | 103 | 3541 |
 
@@ -97,27 +97,27 @@ Run with 2K sentences, stanza GPU, depparse on.
 # Spelling tier (no depparse needed, but include for fair comparison)
 hyperfine --warmup 1 --runs 3 \
   'uv run synterr generate -l ru --preset profile_spelling --depparse \
-   -i /tmp/bench_2k.txt -o /dev/null'
+   -i /tmp/bench_2000.txt -o /dev/null'
 
 # Morphological tier
 hyperfine --warmup 1 --runs 3 \
   'uv run synterr generate -l ru --preset profile_morph --depparse \
-   -i /tmp/bench_2k.txt -o /dev/null'
+   -i /tmp/bench_2000.txt -o /dev/null'
 
 # Punctuation tier (depparse-dependent)
 hyperfine --warmup 1 --runs 3 \
   'uv run synterr generate -l ru --preset profile_punct --depparse \
-   -i /tmp/bench_2k.txt -o /dev/null'
+   -i /tmp/bench_2000.txt -o /dev/null'
 
 # Structural/lexical tier
 hyperfine --warmup 1 --runs 3 \
   'uv run synterr generate -l ru --preset profile_structural --depparse \
-   -i /tmp/bench_2k.txt -o /dev/null'
+   -i /tmp/bench_2000.txt -o /dev/null'
 
 # Full balanced (reference)
 hyperfine --warmup 1 --runs 3 \
   'uv run synterr generate -l ru --preset balanced --depparse \
-   -i /tmp/bench_2k.txt -o /dev/null'
+   -i /tmp/bench_2000.txt -o /dev/null'
 ```
 
 Fill in:
@@ -143,13 +143,13 @@ hyperfine --warmup 1 --runs 1 --parameter-list size 2000,10000 \
 On Linux:
 ```bash
 /usr/bin/time -v uv run synterr generate -l ru --preset balanced --depparse \
-  -i /tmp/bench_10k.txt -o /dev/null 2>&1 | grep "Maximum resident"
+  -i /tmp/bench_10000.txt -o /dev/null 2>&1 | grep "Maximum resident"
 ```
 
 On Mac:
 ```bash
 /usr/bin/time -l uv run synterr generate -l ru --preset balanced --depparse \
-  -i /tmp/bench_10k.txt -o /dev/null 2>&1 | grep "maximum resident"
+  -i /tmp/bench_10000.txt -o /dev/null 2>&1 | grep "maximum resident"
 ```
 
 Fill in:
