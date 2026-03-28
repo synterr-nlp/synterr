@@ -138,6 +138,13 @@ hyperfine --warmup 1 --runs 1 --parameter-list size 2000,10000 \
    -i /tmp/bench_{size}.txt -o /dev/null -n 5000 --max-input {size}'
 ```
 
+| Size  | Time (s)            |
+|-------|---------------------|
+| 500   | 11.966 s ±  0.157 s |
+| 1000  | 15.646 s ±  0.015 s |
+| 2000  | 23.095 s ±  0.729 s |
+| 10000 | 78.605 s ±  0.682 s |
+
 ### E. Memory profiling
 
 On Linux:
@@ -154,11 +161,12 @@ On Mac:
 
 Fill in:
 
-| Config | 500 sents | 2K sents | 10K sents | 50K sents |
-|--------|-----------|----------|-----------|-----------|
-| stanza GPU depparse | ___ MB | ___ MB | ___ MB | — |
-| stanza CPU depparse | | | | — |
-| natasha | | | | ___ MB |
+| Config              | 500 sents  | 1K sents | 2K sents  | 10K sents | 50K sents |
+|---------------------|------------|----------|-----------|-----------|-----------|
+| stanza GPU depparse | 1727 MB    | 1736 MB  | 1765 MB   | 1743 MB   | -         |
+| stanza CPU depparse | 1706 MB    | 1735 MB  | 1730 MB   | 1799 MB   | -         |
+| natasha             | 409 MB     | 408 MB   | 409 MB    | 413 MB    | 425 MB    |
+| spacy               | 1114 MB    | 1116 MB  | 1119 MB   | 1130 MB   | -         |
 
 ### F. Natasha degradation investigation
 
