@@ -52,6 +52,9 @@ def _is_adj_or_participle(token: AnalyzedToken) -> bool:
 # dep_rels used by participles/adjectives pointing at their head noun
 _MODIFIER_DEPRELS = {"amod", "acl", "acl:relcl"}
 
+# dep_rels where the head governs the noun's case (government relation)
+_GOVERNED_DEPRELS = {"obl", "nmod", "iobj", "obj"}
+
 
 def _get_pymorphy_parse(token: AnalyzedToken):
     """Get pymorphy parse object from token."""
@@ -88,9 +91,15 @@ class NounCaseErrorHandler:
         self._confusion_matrices = matrices
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        """Check if noun case error can be applied."""
+        """Check if noun case error can be applied.
+
+        Only targets governed positions (obl, nmod, iobj, obj) where the head
+        determines the noun's case — i.e. true government errors.
+        """
         token = tokens[idx]
         if token.pos != "NOUN":
+            return False
+        if token.dep_rel not in _GOVERNED_DEPRELS:
             return False
         parse = _get_pymorphy_parse(token)
         return parse is not None and token.has_feature("Case")

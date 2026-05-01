@@ -67,6 +67,7 @@ class TestMorphologicalErrorHandlers:
                 pos="NOUN",
                 features={"Case": "Nom"},
                 idx=0,
+                dep_rel="obl",
                 extra={"pymorphy_parse": "mock"},
             ),
             AnalyzedToken(
@@ -102,6 +103,24 @@ class TestMorphologicalErrorHandlers:
         assert verb_handler.can_apply(tokens, 1) is False
         assert verb_handler.can_apply(tokens, 2) is True
 
+    def test_noun_case_requires_governed_deprel(self):
+        """NounCaseErrorHandler only targets governed positions (obl/nmod/iobj/obj)."""
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        base = dict(lemma="книга", pos="NOUN", features={"Case": "Nom"},
+                     extra={"pymorphy_parse": "mock"})
+
+        # Governed dep_rels → should apply
+        for dep_rel in ("obl", "nmod", "iobj", "obj"):
+            token = AnalyzedToken(text="книга", idx=0, dep_rel=dep_rel, **base)
+            assert handler.can_apply([token], 0) is True, f"should apply for {dep_rel}"
+
+        # Non-governed dep_rels → should NOT apply
+        for dep_rel in ("nsubj", "conj", "root", "appos", None):
+            token = AnalyzedToken(text="книга", idx=0, dep_rel=dep_rel, **base)
+            assert handler.can_apply([token], 0) is False, f"should reject {dep_rel}"
+
 
 class TestConfusionMatrixIntegration:
     """Tests for confusion-matrix-driven grammeme substitution."""
@@ -122,7 +141,7 @@ class TestConfusionMatrixIntegration:
             AnalyzedToken(
                 text="книги", lemma="книга", pos="NOUN",
                 features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                idx=0, extra={"pymorphy_parse": parse},
+                idx=0, dep_rel="obl", extra={"pymorphy_parse": parse},
             )
         ]
 
@@ -155,7 +174,7 @@ class TestConfusionMatrixIntegration:
                 AnalyzedToken(
                     text="книги", lemma="книга", pos="NOUN",
                     features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                    idx=0, extra={"pymorphy_parse": parse},
+                    idx=0, dep_rel="nmod", extra={"pymorphy_parse": parse},
                 )
             ]
             sentence = ["книги"]
@@ -192,7 +211,7 @@ class TestConfusionMatrixIntegration:
             AnalyzedToken(
                 text="книги", lemma="книга", pos="NOUN",
                 features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                idx=0, extra={"pymorphy_parse": parse},
+                idx=0, dep_rel="obj", extra={"pymorphy_parse": parse},
             )
         ]
 
