@@ -31,19 +31,13 @@ if TYPE_CHECKING:
 # =============================================================================
 
 # Regex: digit(s) + dash + Cyrillic adjective/ordinal suffix
-_NUM_DASH_ADJ_RE = re.compile(
-    r"^(\d[\d\s/]*)-([а-яёА-ЯЁ]{3,})$"
-)
+_NUM_DASH_ADJ_RE = re.compile(r"^(\d[\d\s/]*)-([а-яёА-ЯЁ]{3,})$")
 
 # Regex: Latin letter(s) + dash + Cyrillic word
-_LETTER_DASH_CYRILLIC_RE = re.compile(
-    r"^([A-Za-zα-ωΑ-Ω]+)-([а-яёА-ЯЁ]{3,})$"
-)
+_LETTER_DASH_CYRILLIC_RE = re.compile(r"^([A-Za-zα-ωΑ-Ω]+)-([а-яёА-ЯЁ]{3,})$")
 
 # Ordinal suffixes for numeral compounds: "5-го", "70-й", "35-м"
-_ORDINAL_SUFFIX_RE = re.compile(
-    r"^(\d+)-((?:го|й|я|е|х|м|му|ми|ю))$"
-)
+_ORDINAL_SUFFIX_RE = re.compile(r"^(\d+)-((?:го|й|я|е|х|м|му|ми|ю))$")
 
 
 # =============================================================================
@@ -69,22 +63,44 @@ _POL_MERGED_RE = re.compile(r"^пол([а-яё]{2,})$", re.IGNORECASE)
 # Common compound adjectives that should be HYPHENATED (coordinate structure)
 # Error direction: remove the dash (merge them incorrectly)
 _HYPHENATED_COMPOUNDS: set[str] = {
-    "военно-полевой", "военно-морской", "военно-воздушный",
-    "торгово-промышленный", "торгово-экономический",
-    "научно-исследовательский", "научно-технический", "научно-практический",
-    "учебно-тренировочный", "учебно-методический", "учебно-воспитательный",
-    "молочно-растительный", "молочно-кислый",
-    "народно-хозяйственный", "народно-демократический",
-    "социально-экономический", "социально-политический",
-    "общественно-политический", "общественно-полезный",
-    "культурно-массовый", "культурно-просветительный",
-    "массово-политический", "мясо-молочный",
-    "плодово-ягодный", "плодово-овощной",
-    "ремонтно-строительный", "ремонтно-механический",
-    "сердечно-сосудистый", "кожно-венерический",
-    "отчётно-выборный", "партийно-комсомольский",
-    "русско-немецкий", "англо-русский", "франко-прусский",
-    "северо-западный", "северо-восточный", "юго-западный", "юго-восточный",
+    "военно-полевой",
+    "военно-морской",
+    "военно-воздушный",
+    "торгово-промышленный",
+    "торгово-экономический",
+    "научно-исследовательский",
+    "научно-технический",
+    "научно-практический",
+    "учебно-тренировочный",
+    "учебно-методический",
+    "учебно-воспитательный",
+    "молочно-растительный",
+    "молочно-кислый",
+    "народно-хозяйственный",
+    "народно-демократический",
+    "социально-экономический",
+    "социально-политический",
+    "общественно-политический",
+    "общественно-полезный",
+    "культурно-массовый",
+    "культурно-просветительный",
+    "массово-политический",
+    "мясо-молочный",
+    "плодово-ягодный",
+    "плодово-овощной",
+    "ремонтно-строительный",
+    "ремонтно-механический",
+    "сердечно-сосудистый",
+    "кожно-венерический",
+    "отчётно-выборный",
+    "партийно-комсомольский",
+    "русско-немецкий",
+    "англо-русский",
+    "франко-прусский",
+    "северо-западный",
+    "северо-восточный",
+    "юго-западный",
+    "юго-восточный",
 }
 
 
@@ -93,7 +109,7 @@ def _is_pol_compound(text_lower: str) -> bool:
     m = _POL_MERGED_RE.match(text_lower)
     if not m:
         return False
-    remainder = m.group(1)
+    m.group(1)
     # Real пол- compounds: remainder is a noun in genitive (полвека, полдня, полгода)
     # False positives: полный, получить, полоса, положение, etc.
     # Use pymorphy to check if the full word parses as a normal word
@@ -152,13 +168,15 @@ class CompoundSpellingHandler:
             return True
 
         # Rule 36: hyphenated compound adjective
-        if "-" in text and all(c == "-" or "\u0430" <= c <= "\u044f" or c == "ё" for c in text_lower):
+        if "-" in text and all(
+            c == "-" or "\u0430" <= c <= "\u044f" or c == "ё" for c in text_lower
+        ):
             # Check if it's a known hyphenated compound
             if text_lower in _HYPHENATED_COMPOUNDS:
                 return True
             # Check inflected forms: strip common endings and check
             for compound in _HYPHENATED_COMPOUNDS:
-                if text_lower.startswith(compound[:compound.index("-") + 1]):
+                if text_lower.startswith(compound[: compound.index("-") + 1]):
                     return True
 
         return False
@@ -178,8 +196,11 @@ class CompoundSpellingHandler:
         candidates: list[tuple[str, float]] = []
 
         # Check each subtype
-        if (_NUM_DASH_ADJ_RE.match(text) or _LETTER_DASH_CYRILLIC_RE.match(text)
-                or _ORDINAL_SUFFIX_RE.match(text)):
+        if (
+            _NUM_DASH_ADJ_RE.match(text)
+            or _LETTER_DASH_CYRILLIC_RE.match(text)
+            or _ORDINAL_SUFFIX_RE.match(text)
+        ):
             candidates.append(("num_dash", self._weights["num_dash"]))
 
         if _POL_DASH_RE.match(text_lower) or _is_pol_compound(text_lower):
@@ -187,14 +208,14 @@ class CompoundSpellingHandler:
 
         if "-" in text:
             for compound in _HYPHENATED_COMPOUNDS:
-                if text_lower.startswith(compound[:compound.index("-") + 1]):
+                if text_lower.startswith(compound[: compound.index("-") + 1]):
                     candidates.append(("compound_adj", self._weights["compound_adj"]))
                     break
 
         if not candidates:
             return None
 
-        subtypes, weights = zip(*candidates)
+        subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
         if chosen == "num_dash":
@@ -206,9 +227,7 @@ class CompoundSpellingHandler:
 
         return None
 
-    def _corrupt_num_dash(
-        self, sentence: list[str], idx: int
-    ) -> ErrorResult | None:
+    def _corrupt_num_dash(self, sentence: list[str], idx: int) -> ErrorResult | None:
         """Remove dash from number/letter-adjective compound: 25-процентный → 25процентный."""
         text = sentence[idx]
         if "-" not in text:

@@ -148,10 +148,7 @@ class FunctionSpellingHandler:
         # -таки patterns (avoid matching "атаки", "такие", etc.)
         if "-таки" in text_lower:
             return True
-        if text_lower == "таки" and idx > 0:
-            return True
-
-        return False
+        return bool(text_lower == "таки" and idx > 0)
 
     def apply(
         self,
@@ -174,7 +171,9 @@ class FunctionSpellingHandler:
         if idx < len(tokens) - 1:
             pair = (text_lower, tokens[idx + 1].text.lower())
             if pair in SPLIT_TO_SOLID:
-                candidates.append(("conjunction_merge", self._weights["conjunction_merge"]))
+                candidates.append(
+                    ("conjunction_merge", self._weights["conjunction_merge"])
+                )
 
         if text_lower in ("не", "ни") and idx < len(tokens) - 1:
             next_tok = tokens[idx + 1]
@@ -195,7 +194,7 @@ class FunctionSpellingHandler:
             return None
 
         # Weighted selection
-        subtypes, weights = zip(*candidates)
+        subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
         if chosen == "conjunction_split":

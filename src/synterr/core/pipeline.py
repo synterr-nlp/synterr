@@ -320,7 +320,9 @@ class ErrorPipeline:
         if self._handlers is None:
             all_handlers = self.language.get_error_handlers()
             if self.config.enabled_errors is not None:
-                self._handlers = [h for h in all_handlers if h.name in self.config.enabled_errors]
+                self._handlers = [
+                    h for h in all_handlers if h.name in self.config.enabled_errors
+                ]
             else:
                 self._handlers = all_handlers
 
@@ -356,7 +358,9 @@ class ErrorPipeline:
 
             # Filter to enabled errors if specified
             if self.config.enabled_errors is not None:
-                dist = {k: v for k, v in dist.items() if k in self.config.enabled_errors}
+                dist = {
+                    k: v for k, v in dist.items() if k in self.config.enabled_errors
+                }
 
             self._distribution = dist
         return self._distribution
@@ -380,7 +384,11 @@ class ErrorPipeline:
         modified: set[int],
     ) -> list[int]:
         """Find token indices where handler can be applied."""
-        return [i for i in range(len(tokens)) if i not in modified and handler.can_apply(tokens, i)]
+        return [
+            i
+            for i in range(len(tokens))
+            if i not in modified and handler.can_apply(tokens, i)
+        ]
 
     def _adjust_indices_for_length_change(
         self,
@@ -506,7 +514,9 @@ class ErrorPipeline:
                     # Adjust prior error indices for the length change
                     change_idx, delta = self._get_length_change_info(result, idx)
                     if delta != 0:
-                        errors = self._adjust_indices_for_length_change(errors, change_idx, delta)
+                        errors = self._adjust_indices_for_length_change(
+                            errors, change_idx, delta
+                        )
                     self._enrich_error_with_schema(result)
                     errors.append(result)
 
@@ -545,7 +555,9 @@ class ErrorPipeline:
 
             # Format based on label_format
             if self.config.label_format == "binary":
-                label = CATEGORY_CORRECT if category == CATEGORY_CORRECT else "INCORRECT"
+                label = (
+                    CATEGORY_CORRECT if category == CATEGORY_CORRECT else "INCORRECT"
+                )
                 parts.append(f"{tag}:{label} {token}")
             elif self.config.label_format == "multiclass":
                 parts.append(f"{tag}:{category} {token}")
@@ -575,7 +587,7 @@ class ErrorPipeline:
         for handler in self.handlers:
             prefix = handler.name + "_"
             if error_type.startswith(prefix):
-                subtype = error_type[len(prefix):]
+                subtype = error_type[len(prefix) :]
                 if self.schema is None or subtype in self.schema.mappings:
                     return subtype
 
@@ -617,7 +629,12 @@ class ErrorPipeline:
 
         # Fall back to handler's category
         category_upper = category.upper()
-        if category_upper in (CATEGORY_SPELL, CATEGORY_MORPH, CATEGORY_PUNCT, CATEGORY_OTHER):
+        if category_upper in (
+            CATEGORY_SPELL,
+            CATEGORY_MORPH,
+            CATEGORY_PUNCT,
+            CATEGORY_OTHER,
+        ):
             return category_upper
         return CATEGORY_OTHER
 
@@ -671,7 +688,9 @@ class ErrorPipeline:
                 subtypes.add(subtype)
         return subtypes
 
-    def resolve_error_spec(self, spec: str) -> tuple[ErrorHandler | None, set[str] | None]:
+    def resolve_error_spec(
+        self, spec: str
+    ) -> tuple[ErrorHandler | None, set[str] | None]:
         """Resolve error specifier to handler and optional subtype filter.
 
         Supports:
@@ -767,7 +786,9 @@ class ErrorPipeline:
         # If specific position requested, try only that
         if position is not None:
             if position not in applicable:
-                if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
+                if subtype_filter is not None and hasattr(
+                    handler, "set_enabled_subtypes"
+                ):
                     handler.set_enabled_subtypes(None)
                 return None
             positions_to_try = [position]

@@ -50,7 +50,9 @@ def cmd_list_schemas() -> None:
         try:
             schema = load_schema(name)
             marker = " (default)" if name == default else ""
-            click.echo(f"  {name}{marker}: {schema.description} ({len(schema.tags)} tags)")
+            click.echo(
+                f"  {name}{marker}: {schema.description} ({len(schema.tags)} tags)"
+            )
         except Exception:
             click.echo(f"  {name}: (error loading)")
 
@@ -81,7 +83,9 @@ def cmd_list_presets(lang: str) -> None:
 
 @main.command("list-errors")
 @click.option("--lang", "-l", required=True, help="Language code (e.g., ru)")
-@click.option("--preset", "-p", help="Show weights from preset (default: language default)")
+@click.option(
+    "--preset", "-p", help="Show weights from preset (default: language default)"
+)
 def cmd_list_errors(lang: str, preset: str | None) -> None:
     """List error types for a language."""
     from synterr.configs import load_preset
@@ -197,7 +201,11 @@ def cmd_coverage(lang: str, schema: str) -> None:
 def cmd_list_backends(lang: str) -> None:
     """List available NLP backends."""
     if lang == "ru":
-        from synterr.languages.russian.backends import BACKENDS, DEFAULT_BACKEND, list_backends
+        from synterr.languages.russian.backends import (
+            BACKENDS,
+            DEFAULT_BACKEND,
+            list_backends,
+        )
 
         status = list_backends()
         click.echo(f"Available backends for {lang}:")
@@ -212,7 +220,9 @@ def cmd_list_backends(lang: str) -> None:
 @main.command("analyze")
 @click.option("--lang", "-l", required=True, help="Language code")
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
-@click.option("--depparse/--no-depparse", default=False, help="Enable dependency parsing")
+@click.option(
+    "--depparse/--no-depparse", default=False, help="Enable dependency parsing"
+)
 @click.argument("text")
 def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> None:
     """Analyze a sentence (debug mode)."""
@@ -231,15 +241,22 @@ def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> No
         dep_str = ""
         if depparse and t.dep_rel:
             dep_str = f" [{t.dep_rel}→{t.head_idx}]"
-        click.echo(f"  {t.idx}: {t.text!r} ({t.pos}) lemma={t.lemma!r} {{{feat_str}}}{dep_str}")
+        click.echo(
+            f"  {t.idx}: {t.text!r} ({t.pos}) lemma={t.lemma!r} {{{feat_str}}}{dep_str}"
+        )
 
 
 @main.command("corrupt")
 @click.option("--lang", "-l", required=True, help="Language code")
 @click.option(
-    "--error", "-e", required=True, help="Error specifier: handler, handler:subtype, or schema tag"
+    "--error",
+    "-e",
+    required=True,
+    help="Error specifier: handler, handler:subtype, or schema tag",
 )
-@click.option("--position", "-p", type=int, help="Token position (0-indexed, random if omitted)")
+@click.option(
+    "--position", "-p", type=int, help="Token position (0-indexed, random if omitted)"
+)
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--schema", "-s", help="Schema for tag lookup (e.g., rlc)")
 @click.option("--seed", type=int, default=42, help="Random seed")
@@ -317,12 +334,30 @@ def cmd_corrupt(
 
 @main.command("generate")
 @click.option("--lang", "-l", required=True, help="Language code")
-@click.option("--input", "-i", "input_path", type=click.Path(exists=True), required=True, help="Input corpus (one sentence per line)")
-@click.option("--output", "-o", "output_path", type=click.Path(), required=True, help="Output file")
+@click.option(
+    "--input",
+    "-i",
+    "input_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Input corpus (one sentence per line)",
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    type=click.Path(),
+    required=True,
+    help="Output file",
+)
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--preset", "-p", help="Use preset config (e.g., rulec, gera, balanced)")
 @click.option(
-    "--config", "-c", "config_path", type=click.Path(exists=True), help="Custom YAML config"
+    "--config",
+    "-c",
+    "config_path",
+    type=click.Path(exists=True),
+    help="Custom YAML config",
 )
 @click.option("--schema", help="Linguistic schema (synterr, rlc, or path to YAML)")
 @click.option("--errors", "-e", help="Comma-separated error types (default: all)")
@@ -335,16 +370,25 @@ def cmd_corrupt(
     default="multiclass",
     help="Output label format",
 )
-@click.option("--error-prob", type=float, help="Probability of introducing errors (0-1)")
-@click.option("--depparse/--no-depparse", default=False, help="Enable dependency parsing")
+@click.option(
+    "--error-prob", type=float, help="Probability of introducing errors (0-1)"
+)
+@click.option(
+    "--depparse/--no-depparse", default=False, help="Enable dependency parsing"
+)
 @click.option("--batch-size", type=int, default=128, help="Batch size for processing")
 @click.option(
-    "--output-format", "-f",
+    "--output-format",
+    "-f",
     type=click.Choice(["gector", "tsv", "jsonl", "chat", "sft"]),
     default="gector",
     help="Output format: gector (token tags), tsv (src\\ttgt), jsonl (rich JSON), chat (instruction-tuning), sft ({src,tgt} JSONL)",
 )
-@click.option("--system-prompt", default=None, help="System prompt for chat format (default: built-in GEC prompt)")
+@click.option(
+    "--system-prompt",
+    default=None,
+    help="System prompt for chat format (default: built-in GEC prompt)",
+)
 def cmd_generate(
     lang: str,
     input_path: str,
@@ -472,7 +516,9 @@ def cmd_generate(
 
     # Default system prompt for chat format
     if output_format == "chat" and system_prompt is None:
-        system_prompt = "Исправь грамматические ошибки в тексте. Верни только исправленный текст."
+        system_prompt = (
+            "Исправь грамматические ошибки в тексте. Верни только исправленный текст."
+        )
 
     with (
         output_file.open("w", encoding="utf-8") as out,
@@ -493,9 +539,12 @@ def cmd_generate(
             elif output_format == "tsv":
                 out.write(result.to_tsv() + "\n")
             elif output_format == "jsonl":
-                out.write(result.to_jsonl(seed=seed, backend=backend, schema=schema) + "\n")
+                out.write(
+                    result.to_jsonl(seed=seed, backend=backend, schema=schema) + "\n"
+                )
             elif output_format == "chat":
                 import json
+
                 original = " ".join(result.original_tokens)
                 corrupted = " ".join(result.corrupted_tokens)
                 record = {
@@ -508,6 +557,7 @@ def cmd_generate(
                 out.write(json.dumps(record, ensure_ascii=False) + "\n")
             elif output_format == "sft":
                 import json
+
                 original = " ".join(result.original_tokens)
                 corrupted = " ".join(result.corrupted_tokens)
                 record = {"src": corrupted, "tgt": original}
@@ -516,7 +566,9 @@ def cmd_generate(
             written += 1
             errors_count += len(result.errors)
 
-    click.echo(f"Wrote {written} sentences with {errors_count} total errors to {output_file}")
+    click.echo(
+        f"Wrote {written} sentences with {errors_count} total errors to {output_file}"
+    )
 
 
 @main.command("analyze-distribution")
@@ -539,7 +591,9 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
         click.echo(f"Analyzing {path}...")
         stats = analyze_m2_file(path)
         stats_list.append(stats)
-        click.echo(f"  {stats.total_sentences:,} sentences, {stats.total_errors:,} errors")
+        click.echo(
+            f"  {stats.total_sentences:,} sentences, {stats.total_errors:,} errors"
+        )
 
     # Aggregate if multiple files
     if len(stats_list) > 1:
@@ -575,15 +629,34 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
 
 @main.command("generate-bea-paper")
 @click.option("-l", "--lang", default="ru", help="Language code")
-@click.option("-i", "--input", "input_file", required=True, type=click.Path(exists=True), help="Input sentences")
-@click.option("-o", "--output", "output_file", required=True, type=click.Path(), help="Output JSONL")
+@click.option(
+    "-i",
+    "--input",
+    "input_file",
+    required=True,
+    type=click.Path(exists=True),
+    help="Input sentences",
+)
+@click.option(
+    "-o",
+    "--output",
+    "output_file",
+    required=True,
+    type=click.Path(),
+    help="Output JSONL",
+)
 @click.option("-n", "--total", type=int, default=50000, help="Target total examples")
 @click.option("--seed", type=int, default=42, help="Random seed")
 @click.option("--depparse/--no-depparse", default=True, help="Enable dep parsing")
-@click.option("--max-input", type=int, default=150000, help="Max input sentences to read")
+@click.option(
+    "--max-input", type=int, default=150000, help="Max input sentences to read"
+)
 @click.option("--batch-size", type=int, default=128, help="Stanza analysis batch size")
-@click.option("--balance-directions/--no-balance-directions", default=True,
-              help="Cap split/merge pairs to min(split, merge)")
+@click.option(
+    "--balance-directions/--no-balance-directions",
+    default=True,
+    help="Cap split/merge pairs to min(split, merge)",
+)
 def cmd_generate_sft(
     lang: str,
     input_file: str,
@@ -603,6 +676,7 @@ def cmd_generate_sft(
     Saves a .dist.json sidecar with per-rule counts.
     """
     import subprocess
+
     # Find the script relative to the package
     script = Path(__file__).parent.parent.parent / "scripts" / "generate_sft.py"
     if not script.exists():
@@ -612,13 +686,20 @@ def cmd_generate_sft(
         click.echo("Error: scripts/generate_sft.py not found", err=True)
         raise SystemExit(1)
     cmd = [
-        sys.executable, str(script),
-        "-i", input_file,
-        "-o", output_file,
-        "-n", str(total),
-        "--seed", str(seed),
-        "--max-input", str(max_input),
-        "--batch-size", str(batch_size),
+        sys.executable,
+        str(script),
+        "-i",
+        input_file,
+        "-o",
+        output_file,
+        "-n",
+        str(total),
+        "--seed",
+        str(seed),
+        "--max-input",
+        str(max_input),
+        "--batch-size",
+        str(batch_size),
     ]
     if depparse:
         cmd.append("--depparse")

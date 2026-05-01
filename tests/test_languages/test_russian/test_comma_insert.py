@@ -8,7 +8,11 @@ from synterr.languages.russian.errors.comma_insert import CommaInsertHandler
 
 def _tok(text, pos="NOUN", lemma=None, idx=0):
     return AnalyzedToken(
-        text=text, lemma=lemma or text.lower(), pos=pos, features={}, idx=idx,
+        text=text,
+        lemma=lemma or text.lower(),
+        pos=pos,
+        features={},
+        idx=idx,
     )
 
 
@@ -104,7 +108,7 @@ class TestCommaInSetPhrase:
             _tok("млад", pos="ADJ", idx=3),
         ]
         sentence = ["и", "стар", "и", "млад"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["и", "стар", ",", "и", "млад"]
 
     def test_no_repeated_conjunction(self):
@@ -181,7 +185,7 @@ class TestCommaBetweenConjunctions:
             _tok("так", pos="ADV", idx=3),
         ]
         sentence = ["а", "что", "он", "так"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["а", ",", "что", "он", "так"]
 
 

@@ -10,7 +10,11 @@ from synterr.languages.russian.errors.orthographic_spelling import (
 
 def _tok(text, pos="NOUN", lemma=None, idx=0):
     return AnalyzedToken(
-        text=text, lemma=lemma or text.lower(), pos=pos, features={}, idx=idx,
+        text=text,
+        lemma=lemma or text.lower(),
+        pos=pos,
+        features={},
+        idx=idx,
     )
 
 
@@ -55,7 +59,7 @@ class TestPrePri:
         h = _force_subtype("pre_pri")
         tokens = [_tok("приступить", pos="VERB")]
         sentence = ["приступить"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "преступить"
 
     def test_preserves_case(self):
@@ -78,14 +82,14 @@ class TestYiAfterPrefix:
         h = _force_subtype("y_i_after_prefix")
         tokens = [_tok("безинициативных", pos="ADJ")]
         sentence = ["безинициативных"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "безынициативных"
 
     def test_y_to_i_foreign_prefix(self):
         h = _force_subtype("y_i_after_prefix")
         tokens = [_tok("трансыранский", pos="ADJ")]
         sentence = ["трансыранский"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "трансиранский"
 
     def test_sverkh_keeps_i(self):
@@ -93,14 +97,14 @@ class TestYiAfterPrefix:
         h = _force_subtype("y_i_after_prefix")
         tokens = [_tok("сверхындустриализации")]
         sentence = ["сверхындустриализации"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "сверхиндустриализации"
 
     def test_podytog(self):
         h = _force_subtype("y_i_after_prefix")
         tokens = [_tok("подитожила", pos="VERB")]
         sentence = ["подитожила"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "подытожила"
 
 
@@ -111,14 +115,14 @@ class TestSuffixEnkOnk:
         h = _force_subtype("suffix_enk_onk")
         tokens = [_tok("душонька")]
         sentence = ["душонька"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "душенька"
 
     def test_enk_to_onk(self):
         h = _force_subtype("suffix_enk_onk")
         tokens = [_tok("рыбенька")]
         sentence = ["рыбенька"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "рыбонька"
 
 
@@ -129,14 +133,14 @@ class TestSuffixInskEnsk:
         h = _force_subtype("suffix_insk_ensk")
         tokens = [_tok("керченский", pos="ADJ")]
         sentence = ["керченский"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "керчинский"
 
     def test_insk_to_ensk(self):
         h = _force_subtype("suffix_insk_ensk")
         tokens = [_tok("ялтинский", pos="ADJ")]
         sentence = ["ялтинский"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "ялтенский"
 
     def test_propn_not_swapped(self):
@@ -156,14 +160,14 @@ class TestSuffixItsEts:
         h = _force_subtype("suffix_its_ets")
         tokens = [_tok("пальтецо")]
         sentence = ["пальтецо"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "пальтицо"
 
     def test_its_to_ets(self):
         h = _force_subtype("suffix_its_ets")
         tokens = [_tok("креслице")]
         sentence = ["креслице"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "креслеце"
 
     def test_root_ица_not_swapped(self):
@@ -260,21 +264,21 @@ class TestVowelAfterTs:
         h = _force_subtype("vowel_after_ts")
         tokens = [_tok("герцога")]
         sentence = ["герцога"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "герцега"
 
     def test_i_to_y(self):
         h = _force_subtype("vowel_after_ts")
         tokens = [_tok("циганский", pos="ADJ")]
         sentence = ["циганский"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "цыганский"
 
     def test_y_to_i(self):
         h = _force_subtype("vowel_after_ts")
         tokens = [_tok("цыновками")]
         sentence = ["цыновками"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "циновками"
 
 
@@ -285,14 +289,14 @@ class TestVowelAfterSibilant:
         h = _force_subtype("vowel_after_sibilant")
         tokens = [_tok("Девчонка")]
         sentence = ["Девчонка"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "Девчёнка"
 
     def test_yo_to_o(self):
         h = _force_subtype("vowel_after_sibilant")
         tokens = [_tok("шёвинист")]
         sentence = ["шёвинист"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "шовинист"
 
     def test_yu_swap_removed(self):

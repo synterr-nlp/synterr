@@ -45,21 +45,45 @@ _KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl", "cc"}
 
 _FROZEN_PHRASES: dict[str, list[tuple[str, ...]]] = {
     "и": [
-        ("день", "ночь"), ("смех", "горе"), ("стар", "млад"),
-        ("там", "тут"), ("так", "сяк"), ("то", "другое"),
-        ("то", "дело"), ("тот", "другой"), ("взад", "вперёд"),
-        ("туда", "сюда"), ("направо", "налево"), ("вкривь", "вкось"),
-        ("холод", "голод"), ("свет", "тьма"),
+        ("день", "ночь"),
+        ("смех", "горе"),
+        ("стар", "млад"),
+        ("там", "тут"),
+        ("так", "сяк"),
+        ("то", "другое"),
+        ("то", "дело"),
+        ("тот", "другой"),
+        ("взад", "вперёд"),
+        ("туда", "сюда"),
+        ("направо", "налево"),
+        ("вкривь", "вкось"),
+        ("холод", "голод"),
+        ("свет", "тьма"),
     ],
     "ни": [
-        ("слуху", "духу"), ("бе", "ме"), ("больше", "меньше"),
-        ("рыба", "мясо"), ("свет", "заря"), ("то", "сё"),
-        ("тот", "другой"), ("жив", "мёртв"), ("себе", "людям"),
-        ("туда", "сюда"), ("два", "полтора"), ("дать", "взять"),
-        ("взад", "вперёд"), ("там", "тут"), ("так", "сяк"),
-        ("много", "мало"), ("стать", "сесть"), ("шатко", "валко"),
-        ("пуха", "пера"), ("ответа", "привета"), ("кола", "двора"),
-        ("конца", "краю"), ("начала", "конца"),
+        ("слуху", "духу"),
+        ("бе", "ме"),
+        ("больше", "меньше"),
+        ("рыба", "мясо"),
+        ("свет", "заря"),
+        ("то", "сё"),
+        ("тот", "другой"),
+        ("жив", "мёртв"),
+        ("себе", "людям"),
+        ("туда", "сюда"),
+        ("два", "полтора"),
+        ("дать", "взять"),
+        ("взад", "вперёд"),
+        ("там", "тут"),
+        ("так", "сяк"),
+        ("много", "мало"),
+        ("стать", "сесть"),
+        ("шатко", "валко"),
+        ("пуха", "пера"),
+        ("ответа", "привета"),
+        ("кола", "двора"),
+        ("конца", "краю"),
+        ("начала", "конца"),
     ],
 }
 
@@ -68,8 +92,20 @@ _FROZEN_PHRASES: dict[str, list[tuple[str, ...]]] = {
 # =============================================================================
 
 _COORDINATING = {"и", "а", "но", "да", "или", "либо", "же", "однако", "зато"}
-_SUBORDINATING = {"что", "когда", "если", "хотя", "чтобы", "пока",
-                  "потому", "поскольку", "пусть", "будто", "словно", "точно"}
+_SUBORDINATING = {
+    "что",
+    "когда",
+    "если",
+    "хотя",
+    "чтобы",
+    "пока",
+    "потому",
+    "поскольку",
+    "пусть",
+    "будто",
+    "словно",
+    "точно",
+}
 
 # Correlative words that follow a subordinate clause and signal NO comma at junction
 _CORRELATIVES = {"то", "так", "но"}
@@ -157,7 +193,7 @@ _INDIVISIBLE_FIXED: list[tuple[str, ...]] = [
 _INDIVISIBLE_INDEX: dict[str, list[tuple[tuple[str, ...], int]]] = {}
 
 for _phrases, _default_pos in [
-    (_INDIVISIBLE_KAK, 0),       # comma before the phrase or within it
+    (_INDIVISIBLE_KAK, 0),  # comma before the phrase or within it
     (_INDIVISIBLE_PRONOUN, 0),
     (_INDIVISIBLE_FIXED, 0),
 ]:
@@ -182,7 +218,8 @@ def _matches_frozen_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
                 return False
             # Collect content words between the two conjunctions
             between = tuple(
-                tokens[k].text.lower() for k in range(idx + 1, j)
+                tokens[k].text.lower()
+                for k in range(idx + 1, j)
                 if tokens[k].pos != "PUNCT"
             )
             if len(between) != 1:
@@ -201,7 +238,9 @@ def _matches_frozen_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     return False
 
 
-def _matches_indivisible(tokens: Sequence[AnalyzedToken], idx: int) -> tuple[str, ...] | None:
+def _matches_indivisible(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> tuple[str, ...] | None:
     """Check if tokens starting at idx match an indivisible expression.
 
     Returns the matched phrase tuple, or None.
@@ -308,7 +347,11 @@ class CommaInsertHandler:
                     # ("непонятно, как можно" — comma correct, should skip).
                     # If head is a verb → likely clause context → skip.
                     # If head is noun/adv → fixed phrase (как минимум) → insert.
-                    head = tokens[token.head_idx] if 0 <= token.head_idx < len(tokens) else None
+                    head = (
+                        tokens[token.head_idx]
+                        if 0 <= token.head_idx < len(tokens)
+                        else None
+                    )
                     if head is None or head.pos not in ("VERB", "AUX"):
                         return True
                 else:
@@ -326,10 +369,10 @@ class CommaInsertHandler:
                     return True
 
         # Indivisible expressions (цельные по смыслу сочетания)
-        if text_lower in _INDIVISIBLE_INDEX and _matches_indivisible(tokens, idx) is not None:
-            return True
-
-        return False
+        return bool(
+            text_lower in _INDIVISIBLE_INDEX
+            and _matches_indivisible(tokens, idx) is not None
+        )
 
     def apply(
         self,
@@ -352,29 +395,47 @@ class CommaInsertHandler:
                 if token.dep_rel in _KAK_CLAUSE_DEPRELS:
                     pass  # clause — comma correct
                 elif token.dep_rel == "advmod" and token.head_idx is not None:
-                    head = tokens[token.head_idx] if 0 <= token.head_idx < len(tokens) else None
+                    head = (
+                        tokens[token.head_idx]
+                        if 0 <= token.head_idx < len(tokens)
+                        else None
+                    )
                     if head is not None and head.pos not in ("VERB", "AUX"):
                         allow = True  # fixed phrase — no comma
                 else:
                     allow = True
                 if allow:
-                    candidates.append(("comma_before_kak", self._weights["comma_before_kak"]))
+                    candidates.append(
+                        ("comma_before_kak", self._weights["comma_before_kak"])
+                    )
 
         if text_lower in _FROZEN_PHRASES and _matches_frozen_phrase(tokens, idx):
-            candidates.append(("comma_in_set_phrase", self._weights["comma_in_set_phrase"]))
+            candidates.append(
+                ("comma_in_set_phrase", self._weights["comma_in_set_phrase"])
+            )
 
         if text_lower in _COORDINATING and idx + 1 < len(tokens):
             next_lower = tokens[idx + 1].text.lower()
             if next_lower in _SUBORDINATING and _has_correlative_after(tokens, idx + 1):
-                candidates.append(("comma_between_conjunctions", self._weights["comma_between_conjunctions"]))
+                candidates.append(
+                    (
+                        "comma_between_conjunctions",
+                        self._weights["comma_between_conjunctions"],
+                    )
+                )
 
-        if text_lower in _INDIVISIBLE_INDEX and _matches_indivisible(tokens, idx) is not None:
-            candidates.append(("comma_in_indivisible", self._weights["comma_in_indivisible"]))
+        if (
+            text_lower in _INDIVISIBLE_INDEX
+            and _matches_indivisible(tokens, idx) is not None
+        ):
+            candidates.append(
+                ("comma_in_indivisible", self._weights["comma_in_indivisible"])
+            )
 
         if not candidates:
             return None
 
-        subtypes, weights = zip(*candidates)
+        subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
         if chosen == "comma_before_kak":
@@ -388,9 +449,7 @@ class CommaInsertHandler:
 
         return None
 
-    def _insert_before_kak(
-        self, sentence: list[str], idx: int
-    ) -> ErrorResult | None:
+    def _insert_before_kak(self, sentence: list[str], idx: int) -> ErrorResult | None:
         """Insert comma before "как": работал как → работал , как."""
         sentence.insert(idx, ",")
         return ErrorResult(

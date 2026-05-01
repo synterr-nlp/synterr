@@ -23,10 +23,10 @@ from synterr.schemas.loader import (
 __all__ = [
     "FineGrainedTag",
     "Schema",
-    "SchemaTag",
     "SchemaModifier",
+    "SchemaTag",
     "SubtypeMapping",
-    "load_schema",
-    "list_schemas",
     "get_default_schema",
+    "list_schemas",
+    "load_schema",
 ]

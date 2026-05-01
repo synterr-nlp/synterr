@@ -45,13 +45,20 @@ class TestL2Mappings:
     # --- Spelling subtypes ---
 
     def test_vowel_reduction_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("vowel_reduction") == "sp_root_checked"
+        assert (
+            self.schema.get_l2_tag_for_subtype("vowel_reduction") == "sp_root_checked"
+        )
 
     def test_devoicing_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("devoicing") == "sp_root_voiced_voiceless"
+        assert (
+            self.schema.get_l2_tag_for_subtype("devoicing")
+            == "sp_root_voiced_voiceless"
+        )
 
     def test_double_consonant_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("double_consonant") == "sp_root_double"
+        assert (
+            self.schema.get_l2_tag_for_subtype("double_consonant") == "sp_root_double"
+        )
 
     def test_cluster_l2(self):
         assert self.schema.get_l2_tag_for_subtype("cluster") == "sp_root_silent"
@@ -61,7 +68,9 @@ class TestL2Mappings:
         assert self.schema.get_l2_tag_for_subtype("keyboard") is None
 
     def test_soft_sign_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("soft_sign") == "sp_affix_hard_soft_sign"
+        assert (
+            self.schema.get_l2_tag_for_subtype("soft_sign") == "sp_affix_hard_soft_sign"
+        )
 
     def test_prefix_voicing_l2(self):
         assert self.schema.get_l2_tag_for_subtype("prefix_voicing") == "sp_affix_prefix"
@@ -78,16 +87,24 @@ class TestL2Mappings:
         assert self.schema.get_l2_tag_for_subtype("vowel_after_ts") == "sp_pos_sibilant"
 
     def test_vowel_after_sibilant_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("vowel_after_sibilant") == "sp_pos_sibilant"
+        assert (
+            self.schema.get_l2_tag_for_subtype("vowel_after_sibilant")
+            == "sp_pos_sibilant"
+        )
 
     def test_participle_suffix_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("participle_suffix") == "sp_participle_endings"
+        assert (
+            self.schema.get_l2_tag_for_subtype("participle_suffix")
+            == "sp_participle_endings"
+        )
 
     def test_suffix_enk_onk_l2(self):
         assert self.schema.get_l2_tag_for_subtype("suffix_enk_onk") == "sp_noun_endings"
 
     def test_suffix_insk_ensk_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("suffix_insk_ensk") == "sp_adj_suffixes"
+        assert (
+            self.schema.get_l2_tag_for_subtype("suffix_insk_ensk") == "sp_adj_suffixes"
+        )
 
     # --- Function spelling subtypes ---
 
@@ -95,10 +112,15 @@ class TestL2Mappings:
         assert self.schema.get_l2_tag_for_subtype("ne_attachment") == "sp_ne_ni"
 
     def test_conjunction_split_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("conjunction_split") == "sp_conjunction_spelling"
+        assert (
+            self.schema.get_l2_tag_for_subtype("conjunction_split")
+            == "sp_conjunction_spelling"
+        )
 
     def test_taki_hyphen_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("taki_hyphen") == "sp_particle_spelling"
+        assert (
+            self.schema.get_l2_tag_for_subtype("taki_hyphen") == "sp_particle_spelling"
+        )
 
     # --- Morphological subtypes ---
 
@@ -134,19 +156,33 @@ class TestL2Mappings:
     # --- Punctuation subtypes ---
 
     def test_comma_subordinate_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("comma_subordinate") == "pu_clause_subordinate"
+        assert (
+            self.schema.get_l2_tag_for_subtype("comma_subordinate")
+            == "pu_clause_subordinate"
+        )
 
     def test_comma_homogeneous_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("comma_homogeneous") == "pu_comma_homogeneous"
+        assert (
+            self.schema.get_l2_tag_for_subtype("comma_homogeneous")
+            == "pu_comma_homogeneous"
+        )
 
     def test_pair_participle_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("pair_participle") == "pu_comma_isolation"
+        assert (
+            self.schema.get_l2_tag_for_subtype("pair_participle")
+            == "pu_comma_isolation"
+        )
 
     def test_dash_subj_pred_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("dash_subj_pred") == "pu_dash_subj_pred"
+        assert (
+            self.schema.get_l2_tag_for_subtype("dash_subj_pred") == "pu_dash_subj_pred"
+        )
 
     def test_comma_before_kak_l2(self):
-        assert self.schema.get_l2_tag_for_subtype("comma_before_kak") == "pu_clause_comparative"
+        assert (
+            self.schema.get_l2_tag_for_subtype("comma_before_kak")
+            == "pu_clause_comparative"
+        )
 
 
 class TestL2TagConsistency:

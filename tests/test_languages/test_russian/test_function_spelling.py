@@ -42,8 +42,15 @@ class TestConjunctionSplit:
         sentence = ["чтобы"]
         # Force conjunction_split by giving it all weight
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is not None
         assert sentence == ["что", "бы"]
@@ -57,8 +64,15 @@ class TestConjunctionSplit:
         ]
         sentence = ["Я", "также"]
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
         assert result is not None
         assert sentence == ["Я", "так", "же"]
@@ -67,36 +81,64 @@ class TestConjunctionSplit:
         tokens = [_tok("Чтобы", pos="SCONJ", idx=0)]
         sentence = ["Чтобы"]
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["Что", "бы"]
 
     def test_split_zato(self):
         tokens = [_tok("зато", pos="SCONJ", idx=0)]
         sentence = ["зато"]
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["за", "то"]
 
     def test_split_prichem(self):
         tokens = [_tok("причём", pos="ADV", idx=0)]
         sentence = ["причём"]
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["при", "чём"]
 
     def test_split_ottogo(self):
         tokens = [_tok("оттого", pos="ADV", idx=0)]
         sentence = ["оттого"]
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["от", "того"]
 
 
@@ -111,8 +153,15 @@ class TestConjunctionMerge:
 
     def test_merge_chto_by(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_merge": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_split": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "conjunction_merge": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_split": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [
             _tok("что", pos="SCONJ", idx=0),
             _tok("бы", pos="PART", idx=1),
@@ -126,26 +175,40 @@ class TestConjunctionMerge:
 
     def test_merge_preserves_capitalization(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_merge": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_split": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "conjunction_merge": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_split": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [
             _tok("Что", pos="SCONJ", idx=0),
             _tok("бы", pos="PART", idx=1),
         ]
         sentence = ["Что", "бы"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["Чтобы"]
 
     def test_merge_tak_zhe(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_merge": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_split": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "conjunction_merge": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_split": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [
             _tok("так", pos="ADV", idx=0),
             _tok("же", pos="PART", idx=1),
         ]
         sentence = ["так", "же"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["также"]
 
 
@@ -170,8 +233,15 @@ class TestNeAttachment:
 
     def test_attach_ne_to_noun(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"ne_attachment": 100, "ne_detachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "ne_attachment": 100,
+                "ne_detachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [
             _tok("не", pos="PART", idx=0),
             _tok("счастье", pos="NOUN", idx=1),
@@ -184,26 +254,40 @@ class TestNeAttachment:
 
     def test_attach_ne_to_adj(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"ne_attachment": 100, "ne_detachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "ne_attachment": 100,
+                "ne_detachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [
             _tok("не", pos="PART", idx=0),
             _tok("большой", pos="ADJ", idx=1),
         ]
         sentence = ["не", "большой"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["небольшой"]
 
     def test_attach_preserves_capitalization(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"ne_attachment": 100, "ne_detachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "ne_attachment": 100,
+                "ne_detachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [
             _tok("Не", pos="PART", idx=0),
             _tok("правда", pos="NOUN", idx=1),
         ]
         sentence = ["Не", "правда"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["Неправда"]
 
 
@@ -215,8 +299,15 @@ class TestNeDetachment:
 
     def test_detach_ne_from_noun(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"ne_detachment": 100, "ne_attachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "ne_detachment": 100,
+                "ne_attachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [_tok("несчастье", pos="NOUN", idx=0)]
         sentence = ["несчастье"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
@@ -226,20 +317,34 @@ class TestNeDetachment:
 
     def test_detach_ne_from_adj(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"ne_detachment": 100, "ne_attachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "ne_detachment": 100,
+                "ne_attachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [_tok("небольшой", pos="ADJ", idx=0)]
         sentence = ["небольшой"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["не", "большой"]
 
     def test_detach_preserves_capitalization(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"ne_detachment": 100, "ne_attachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "ne_detachment": 100,
+                "ne_attachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [_tok("Неправда", pos="NOUN", idx=0)]
         sentence = ["Неправда"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["Не", "правда"]
 
     def test_short_ne_word_rejected(self):
@@ -257,8 +362,15 @@ class TestTakiHyphen:
 
     def test_remove_taki_hyphen(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"taki_hyphen": 100, "ne_attachment": 0, "ne_detachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0})
+        h.set_subtype_weights(
+            {
+                "taki_hyphen": 100,
+                "ne_attachment": 0,
+                "ne_detachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+            }
+        )
         tokens = [_tok("всё-таки", pos="PART", idx=0)]
         sentence = ["всё-таки"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
@@ -268,11 +380,18 @@ class TestTakiHyphen:
 
     def test_remove_opjat_taki(self):
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"taki_hyphen": 100, "ne_attachment": 0, "ne_detachment": 0,
-                                "conjunction_split": 0, "conjunction_merge": 0})
+        h.set_subtype_weights(
+            {
+                "taki_hyphen": 100,
+                "ne_attachment": 0,
+                "ne_detachment": 0,
+                "conjunction_split": 0,
+                "conjunction_merge": 0,
+            }
+        )
         tokens = [_tok("опять-таки", pos="ADV", idx=0)]
         sentence = ["опять-таки"]
-        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["опять", "таки"]
 
 
@@ -302,8 +421,15 @@ class TestWeightedSubtypeSelection:
         """A word like 'также' can both split and be ne-detached (starts with 'та' not 'не').
         With conjunction_split weight=100, it should always split."""
         h = FunctionSpellingHandler()
-        h.set_subtype_weights({"conjunction_split": 100, "ne_detachment": 0,
-                                "ne_attachment": 0, "conjunction_merge": 0, "taki_hyphen": 0})
+        h.set_subtype_weights(
+            {
+                "conjunction_split": 100,
+                "ne_detachment": 0,
+                "ne_attachment": 0,
+                "conjunction_merge": 0,
+                "taki_hyphen": 0,
+            }
+        )
         tokens = [_tok("также", pos="ADV", idx=0)]
         sentence = ["также"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))

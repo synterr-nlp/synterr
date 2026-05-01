@@ -240,7 +240,7 @@ class MorphemeAnalyzer:
         for m in legacy:
             if not isinstance(m, str) or not m:
                 continue
-            if "\n" in m or "=" in m and len(m) > 10:
+            if "\n" in m or ("=" in m and len(m) > 10):
                 return None
             if m.endswith("-") and not m.startswith("-"):
                 result.append((m[:-1], "PREF"))
@@ -262,7 +262,10 @@ class MorphemeAnalyzer:
         return -1
 
     def morpheme_at_char(
-        self, word: str, char_pos: int, lemma: str | None = None,
+        self,
+        word: str,
+        char_pos: int,
+        lemma: str | None = None,
     ) -> tuple[str, str] | None:
         """Return (morpheme_text, type) containing the character at char_pos.
 
@@ -289,7 +292,11 @@ class MorphemeAnalyzer:
         return None
 
     def char_in_morpheme_type(
-        self, word: str, char_pos: int, morph_type: str, lemma: str | None = None,
+        self,
+        word: str,
+        char_pos: int,
+        morph_type: str,
+        lemma: str | None = None,
     ) -> bool | None:
         """Check if char at position is inside a morpheme of given type.
 

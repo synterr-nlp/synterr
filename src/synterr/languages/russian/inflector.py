@@ -99,7 +99,9 @@ def match_capitalization(original: str, new: str) -> str:
     return new
 
 
-def inflect_word(parse: Any, grammemes: set[str], original: str | None = None) -> str | None:
+def inflect_word(
+    parse: Any, grammemes: set[str], original: str | None = None
+) -> str | None:
     """Inflect word using pymorphy3 parse object.
 
     Args:

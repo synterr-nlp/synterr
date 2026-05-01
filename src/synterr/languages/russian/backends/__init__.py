@@ -93,4 +93,4 @@ def list_backends() -> dict[str, str]:
     return result
 
 
-__all__ = ["get_backend", "list_backends", "BACKENDS", "DEFAULT_BACKEND"]
+__all__ = ["BACKENDS", "DEFAULT_BACKEND", "get_backend", "list_backends"]

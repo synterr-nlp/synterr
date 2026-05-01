@@ -6,7 +6,6 @@ import pymorphy3
 
 from synterr.core.protocol import AnalyzedToken, ErrorHandler
 
-
 morph = pymorphy3.MorphAnalyzer()
 
 
@@ -24,7 +23,9 @@ class TestMorphologicalErrorHandlers:
 
     def test_noun_number_handler_protocol(self):
         """Test NounNumberErrorHandler implements protocol."""
-        from synterr.languages.russian.errors.morphological import NounNumberErrorHandler
+        from synterr.languages.russian.errors.morphological import (
+            NounNumberErrorHandler,
+        )
 
         handler = NounNumberErrorHandler()
         assert isinstance(handler, ErrorHandler)
@@ -108,8 +109,12 @@ class TestMorphologicalErrorHandlers:
         from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
 
         handler = NounCaseErrorHandler()
-        base = dict(lemma="книга", pos="NOUN", features={"Case": "Nom"},
-                     extra={"pymorphy_parse": "mock"})
+        base = dict(
+            lemma="книга",
+            pos="NOUN",
+            features={"Case": "Nom"},
+            extra={"pymorphy_parse": "mock"},
+        )
 
         # Governed dep_rels → should apply
         for dep_rel in ("obl", "nmod", "iobj", "obj"):
@@ -132,16 +137,22 @@ class TestConfusionMatrixIntegration:
         handler = NounCaseErrorHandler()
 
         # Deterministic matrix: Gen always → Nom
-        handler.set_confusion_matrix({
-            "case": {"Gen": {"Nom": 1.0}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "case": {"Gen": {"Nom": 1.0}},
+            }
+        )
 
         parse = morph.parse("книги")[0]  # Gen Sing Fem
         tokens = [
             AnalyzedToken(
-                text="книги", lemma="книга", pos="NOUN",
+                text="книги",
+                lemma="книга",
+                pos="NOUN",
                 features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="obl", extra={"pymorphy_parse": parse},
+                idx=0,
+                dep_rel="obl",
+                extra={"pymorphy_parse": parse},
             )
         ]
 
@@ -162,9 +173,11 @@ class TestConfusionMatrixIntegration:
         handler = NounCaseErrorHandler()
 
         # Gen → 90% Nom, 10% Acc
-        handler.set_confusion_matrix({
-            "case": {"Gen": {"Nom": 0.90, "Acc": 0.10}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "case": {"Gen": {"Nom": 0.90, "Acc": 0.10}},
+            }
+        )
 
         parse = morph.parse("книги")[0]
         counts = {"Nom": 0, "Acc": 0, "other": 0}
@@ -172,9 +185,13 @@ class TestConfusionMatrixIntegration:
         for seed in range(200):
             tokens = [
                 AnalyzedToken(
-                    text="книги", lemma="книга", pos="NOUN",
+                    text="книги",
+                    lemma="книга",
+                    pos="NOUN",
                     features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                    idx=0, dep_rel="nmod", extra={"pymorphy_parse": parse},
+                    idx=0,
+                    dep_rel="nmod",
+                    extra={"pymorphy_parse": parse},
                 )
             ]
             sentence = ["книги"]
@@ -197,7 +214,9 @@ class TestConfusionMatrixIntegration:
         assert total > 0
         # Nom should be dominant (~90%)
         nom_ratio = counts["Nom"] / total
-        assert nom_ratio > 0.75, f"Expected Nom-dominant distribution, got Nom={nom_ratio:.2f}"
+        assert nom_ratio > 0.75, (
+            f"Expected Nom-dominant distribution, got Nom={nom_ratio:.2f}"
+        )
 
     def test_noun_case_fallback_without_matrix(self):
         """Test NounCaseErrorHandler falls back to random without matrix."""
@@ -209,9 +228,13 @@ class TestConfusionMatrixIntegration:
         parse = morph.parse("книги")[0]
         tokens = [
             AnalyzedToken(
-                text="книги", lemma="книга", pos="NOUN",
+                text="книги",
+                lemma="книга",
+                pos="NOUN",
                 features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="obj", extra={"pymorphy_parse": parse},
+                idx=0,
+                dep_rel="obj",
+                extra={"pymorphy_parse": parse},
             )
         ]
 
@@ -230,16 +253,21 @@ class TestConfusionMatrixIntegration:
         handler = AdjGenderErrorHandler()
 
         # Masc → always Fem
-        handler.set_confusion_matrix({
-            "gender": {"Masc": {"Fem": 1.0}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "gender": {"Masc": {"Fem": 1.0}},
+            }
+        )
 
         parse = morph.parse("красивый")[0]  # Masc Sing Nom
         tokens = [
             AnalyzedToken(
-                text="красивый", lemma="красивый", pos="ADJ",
+                text="красивый",
+                lemma="красивый",
+                pos="ADJ",
                 features={"Case": "Nom", "Number": "Sing", "Gender": "Masc"},
-                idx=0, extra={"pymorphy_parse": parse},
+                idx=0,
+                extra={"pymorphy_parse": parse},
             )
         ]
 
@@ -260,16 +288,21 @@ class TestConfusionMatrixIntegration:
         handler = AdjCaseErrorHandler()
 
         # Gen → always Nom
-        handler.set_confusion_matrix({
-            "case": {"Gen": {"Nom": 1.0}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "case": {"Gen": {"Nom": 1.0}},
+            }
+        )
 
         parse = morph.parse("красивой")[0]  # Gen Sing Fem
         tokens = [
             AnalyzedToken(
-                text="красивой", lemma="красивый", pos="ADJ",
+                text="красивой",
+                lemma="красивый",
+                pos="ADJ",
                 features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
-                idx=0, extra={"pymorphy_parse": parse},
+                idx=0,
+                extra={"pymorphy_parse": parse},
             )
         ]
 
@@ -293,30 +326,44 @@ class TestDepTreeAgreement:
         handler = AdjCaseErrorHandler()
 
         # Matrix: Dat → always Nom
-        handler.set_confusion_matrix({
-            "case": {"Dat": {"Nom": 1.0}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "case": {"Dat": {"Nom": 1.0}},
+            }
+        )
 
         adj_parse = morph.parse("красивой")[0]  # Dat Sing Fem
         tokens = [
             # adj modifies noun via amod
             AnalyzedToken(
-                text="красивой", lemma="красивый", pos="ADJ",
+                text="красивой",
+                lemma="красивый",
+                pos="ADJ",
                 features={"Case": "Dat", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="amod", head_idx=1,
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
                 extra={"pymorphy_parse": adj_parse},
             ),
             # head noun
             AnalyzedToken(
-                text="девушке", lemma="девушка", pos="NOUN",
+                text="девушке",
+                lemma="девушка",
+                pos="NOUN",
                 features={"Case": "Dat", "Number": "Sing", "Gender": "Fem"},
-                idx=1, dep_rel="obl", head_idx=2,
+                idx=1,
+                dep_rel="obl",
+                head_idx=2,
                 extra={"pymorphy_parse": morph.parse("девушке")[0]},
             ),
             AnalyzedToken(
-                text="дали", lemma="дать", pos="VERB",
+                text="дали",
+                lemma="дать",
+                pos="VERB",
                 features={"Tense": "Past", "Number": "Plur"},
-                idx=2, dep_rel="root", head_idx=2,
+                idx=2,
+                dep_rel="root",
+                head_idx=2,
                 extra={"pymorphy_parse": morph.parse("дали")[0]},
             ),
         ]
@@ -337,14 +384,18 @@ class TestDepTreeAgreement:
         handler = AdjCaseErrorHandler()
 
         # Matrix: Dat → always Nom
-        handler.set_confusion_matrix({
-            "case": {"Dat": {"Nom": 1.0}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "case": {"Dat": {"Nom": 1.0}},
+            }
+        )
 
         adj_parse = morph.parse("красивой")[0]  # Dat Sing Fem
         tokens = [
             AnalyzedToken(
-                text="красивой", lemma="красивый", pos="ADJ",
+                text="красивой",
+                lemma="красивый",
+                pos="ADJ",
                 features={"Case": "Dat", "Number": "Sing", "Gender": "Fem"},
                 idx=0,
                 extra={"pymorphy_parse": adj_parse},
@@ -367,22 +418,32 @@ class TestDepTreeAgreement:
         handler = AdjGenderErrorHandler()
 
         # Fem → always Masc
-        handler.set_confusion_matrix({
-            "gender": {"Fem": {"Masc": 1.0}},
-        })
+        handler.set_confusion_matrix(
+            {
+                "gender": {"Fem": {"Masc": 1.0}},
+            }
+        )
 
         adj_parse = morph.parse("красивая")[0]  # Nom Sing Fem
         tokens = [
             AnalyzedToken(
-                text="красивая", lemma="красивый", pos="ADJ",
+                text="красивая",
+                lemma="красивый",
+                pos="ADJ",
                 features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="amod", head_idx=1,
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
                 extra={"pymorphy_parse": adj_parse},
             ),
             AnalyzedToken(
-                text="книга", lemma="книга", pos="NOUN",
+                text="книга",
+                lemma="книга",
+                pos="NOUN",
                 features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
-                idx=1, dep_rel="nsubj", head_idx=2,
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
                 extra={"pymorphy_parse": morph.parse("книга")[0]},
             ),
         ]
@@ -405,15 +466,23 @@ class TestDepTreeAgreement:
         adj_parse = morph.parse("красивая")[0]  # Nom Sing Fem
         tokens = [
             AnalyzedToken(
-                text="красивая", lemma="красивый", pos="ADJ",
+                text="красивая",
+                lemma="красивый",
+                pos="ADJ",
                 features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="amod", head_idx=1,
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
                 extra={"pymorphy_parse": adj_parse},
             ),
             AnalyzedToken(
-                text="книга", lemma="книга", pos="NOUN",
+                text="книга",
+                lemma="книга",
+                pos="NOUN",
                 features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
-                idx=1, dep_rel="nsubj", head_idx=2,
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
                 extra={"pymorphy_parse": morph.parse("книга")[0]},
             ),
         ]
@@ -430,22 +499,32 @@ class TestDepTreeAgreement:
 
     def test_verb_person_number_follows_nsubj(self):
         """Test VerbPersonNumberErrorHandler follows nsubj → subject."""
-        from synterr.languages.russian.errors.morphological import VerbPersonNumberErrorHandler
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
 
         handler = VerbPersonNumberErrorHandler()
 
         verb_parse = morph.parse("читала")[0]  # Past Sing Fem
         tokens = [
             AnalyzedToken(
-                text="мама", lemma="мама", pos="NOUN",
+                text="мама",
+                lemma="мама",
+                pos="NOUN",
                 features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="nsubj", head_idx=1,
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
                 extra={"pymorphy_parse": morph.parse("мама")[0]},
             ),
             AnalyzedToken(
-                text="читала", lemma="читать", pos="VERB",
+                text="читала",
+                lemma="читать",
+                pos="VERB",
                 features={"Tense": "Past", "Number": "Sing", "Gender": "Fem"},
-                idx=1, dep_rel="root", head_idx=1,
+                idx=1,
+                dep_rel="root",
+                head_idx=1,
                 extra={"pymorphy_parse": verb_parse},
             ),
         ]
@@ -463,16 +542,22 @@ class TestDepTreeAgreement:
 
     def test_verb_person_number_without_dep_tree(self):
         """Test VerbPersonNumberErrorHandler works without dep tree info."""
-        from synterr.languages.russian.errors.morphological import VerbPersonNumberErrorHandler
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
 
         handler = VerbPersonNumberErrorHandler()
 
         verb_parse = morph.parse("читала")[0]
         tokens = [
             AnalyzedToken(
-                text="читала", lemma="читать", pos="VERB",
+                text="читала",
+                lemma="читать",
+                pos="VERB",
                 features={"Tense": "Past", "Number": "Sing", "Gender": "Fem"},
-                idx=0, dep_rel="root", head_idx=0,
+                idx=0,
+                dep_rel="root",
+                head_idx=0,
                 extra={"pymorphy_parse": verb_parse},
             ),
         ]
@@ -528,8 +613,13 @@ class TestConfusionMatrixConfig:
             "number": {"Sing": {"Plur": 1.0}},
         }
 
-        for cls in [NounCaseErrorHandler, AdjCaseErrorHandler, AdjGenderErrorHandler,
-                     AdjNumberErrorHandler, VerbPersonNumberErrorHandler]:
+        for cls in [
+            NounCaseErrorHandler,
+            AdjCaseErrorHandler,
+            AdjGenderErrorHandler,
+            AdjNumberErrorHandler,
+            VerbPersonNumberErrorHandler,
+        ]:
             handler = cls()
             assert hasattr(handler, "set_confusion_matrix")
             handler.set_confusion_matrix(matrices)

@@ -375,7 +375,9 @@ class SpellingErrorHandler:
             return self._soft_sign(word)
         return None
 
-    def _vowel_reduction(self, word: str, rng: Random | None = None) -> PhoneticError | None:
+    def _vowel_reduction(
+        self, word: str, rng: Random | None = None
+    ) -> PhoneticError | None:
         """Apply vowel reduction error in unstressed syllables.
 
         Requires stress_dict to know which vowels are unstressed.
@@ -529,7 +531,9 @@ class SpellingErrorHandler:
         for pattern, replacement in TSA_PATTERNS.items():
             if word.endswith(pattern):
                 corrupted = word[: -len(pattern)] + replacement
-                return PhoneticError(word, corrupted, "tsa_confusion", len(word) - len(pattern))
+                return PhoneticError(
+                    word, corrupted, "tsa_confusion", len(word) - len(pattern)
+                )
         return None
 
     def _cluster(self, word: str) -> PhoneticError | None:
@@ -554,7 +558,9 @@ class SpellingErrorHandler:
                 return PhoneticError(word, corrupted, "cluster", pos)
         return None
 
-    def _double_consonant(self, word: str, rng: Random | None = None) -> PhoneticError | None:
+    def _double_consonant(
+        self, word: str, rng: Random | None = None
+    ) -> PhoneticError | None:
         """Remove one consonant from a double pair.
 
         Only reduces existing doubles (аппарат→апарат, коллега→колега).
@@ -573,7 +579,9 @@ class SpellingErrorHandler:
 
         return None
 
-    def _keyboard_typo(self, word: str, rng: Random | None = None) -> PhoneticError | None:
+    def _keyboard_typo(
+        self, word: str, rng: Random | None = None
+    ) -> PhoneticError | None:
         """Generate keyboard adjacency typo."""
         rng = rng if rng is not None else random_module
         if len(word) < 2:
@@ -594,7 +602,8 @@ class SpellingErrorHandler:
             neighbors = self.keyboard_adjacent[char]
         elif char.lower() in self.keyboard_adjacent:
             neighbors = [
-                n.upper() if char.isupper() else n for n in self.keyboard_adjacent[char.lower()]
+                n.upper() if char.isupper() else n
+                for n in self.keyboard_adjacent[char.lower()]
             ]
         else:
             return None

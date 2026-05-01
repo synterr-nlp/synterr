@@ -10,6 +10,18 @@ if TYPE_CHECKING:
 
 def get_all_handlers() -> list[ErrorHandler]:
     """Get all registered Russian error handlers."""
+    from synterr.languages.russian.errors.adverb_spelling import (
+        AdverbSpellingHandler,
+    )
+    from synterr.languages.russian.errors.comma_insert import (
+        CommaInsertHandler,
+    )
+    from synterr.languages.russian.errors.compound_spelling import (
+        CompoundSpellingHandler,
+    )
+    from synterr.languages.russian.errors.function_spelling import (
+        FunctionSpellingHandler,
+    )
     from synterr.languages.russian.errors.lexical import (
         ConjunctionErrorHandler,
         ParonymErrorHandler,
@@ -25,31 +37,19 @@ def get_all_handlers() -> list[ErrorHandler]:
         VerbPersonNumberErrorHandler,
         VerbTenseErrorHandler,
     )
-    from synterr.languages.russian.errors.adverb_spelling import (
-        AdverbSpellingHandler,
-    )
-    from synterr.languages.russian.errors.spelling import SpellingErrorHandler
-    from synterr.languages.russian.errors.comma_insert import (
-        CommaInsertHandler,
-    )
-    from synterr.languages.russian.errors.compound_spelling import (
-        CompoundSpellingHandler,
+    from synterr.languages.russian.errors.orthographic_spelling import (
+        OrthographicSpellingHandler,
     )
     from synterr.languages.russian.errors.punctuation import (
         CommaDeleteHandler,
         CommaPairDeleteHandler,
         DashDeleteHandler,
     )
-    from synterr.languages.russian.errors.function_spelling import (
-        FunctionSpellingHandler,
-    )
-    from synterr.languages.russian.errors.orthographic_spelling import (
-        OrthographicSpellingHandler,
-    )
     from synterr.languages.russian.errors.semantics import (
         CollocationHandler,
         PleonasmHandler,
     )
+    from synterr.languages.russian.errors.spelling import SpellingErrorHandler
     from synterr.languages.russian.errors.structural import (
         WordInsertionHandler,
         WordOmissionHandler,

@@ -264,29 +264,43 @@ class AdverbSpellingHandler:
 
         candidates: list[tuple[str, float]] = []
         if text_lower in _SOLID_TO_SEPARATE:
-            candidates.append(("adverb_solid_to_separate", self._weights["adverb_solid_to_separate"]))
+            candidates.append(
+                ("adverb_solid_to_separate", self._weights["adverb_solid_to_separate"])
+            )
         if text_lower in _HYPHEN_TO_SEPARATE:
-            candidates.append(("adverb_hyphen_to_separate", self._weights["adverb_hyphen_to_separate"]))
+            candidates.append(
+                (
+                    "adverb_hyphen_to_separate",
+                    self._weights["adverb_hyphen_to_separate"],
+                )
+            )
         # Reverse: merge two tokens into one
         if idx < len(tokens) - 1:
             pair = (text_lower, tokens[idx + 1].text.lower())
             if pair in _SEPARATE_TO_SOLID:
-                candidates.append(("adverb_separate_to_solid", self._weights["adverb_separate_to_solid"]))
+                candidates.append(
+                    (
+                        "adverb_separate_to_solid",
+                        self._weights["adverb_separate_to_solid"],
+                    )
+                )
             if pair in _SEPARATE_TO_HYPHEN:
-                candidates.append(("adverb_separate_to_hyphen", self._weights["adverb_separate_to_hyphen"]))
+                candidates.append(
+                    (
+                        "adverb_separate_to_hyphen",
+                        self._weights["adverb_separate_to_hyphen"],
+                    )
+                )
 
         if not candidates:
             return None
 
-        subtypes, weights = zip(*candidates)
+        subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
         if chosen == "adverb_solid_to_separate":
             prep, remainder = _SOLID_TO_SEPARATE[text_lower]
-            if word[0].isupper():
-                part1 = prep[0].upper() + prep[1:]
-            else:
-                part1 = prep
+            part1 = prep[0].upper() + prep[1:] if word[0].isupper() else prep
             part2 = remainder
             original = sentence[idx]
             sentence[idx] = part1
@@ -303,10 +317,7 @@ class AdverbSpellingHandler:
 
         elif chosen == "adverb_hyphen_to_separate":
             prep, remainder = _HYPHEN_TO_SEPARATE[text_lower]
-            if word[0].isupper():
-                part1 = prep[0].upper() + prep[1:]
-            else:
-                part1 = prep
+            part1 = prep[0].upper() + prep[1:] if word[0].isupper() else prep
             part2 = remainder
             original = sentence[idx]
             sentence[idx] = part1

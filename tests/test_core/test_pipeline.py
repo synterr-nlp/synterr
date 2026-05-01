@@ -50,7 +50,9 @@ class TestAdjustIndicesForLengthChange:
         ]
 
         # Deletion at index 2, delta=-1
-        adjusted = pipeline._adjust_indices_for_length_change(errors, change_idx=2, delta=-1)
+        adjusted = pipeline._adjust_indices_for_length_change(
+            errors, change_idx=2, delta=-1
+        )
 
         assert len(adjusted) == 1
         assert adjusted[0].start_idx == 2  # 3 + (-1) = 2
@@ -88,7 +90,9 @@ class TestAdjustIndicesForLengthChange:
         ]
 
         # Insertion at index 2, delta=+1
-        adjusted = pipeline._adjust_indices_for_length_change(errors, change_idx=2, delta=+1)
+        adjusted = pipeline._adjust_indices_for_length_change(
+            errors, change_idx=2, delta=+1
+        )
 
         assert len(adjusted) == 1
         assert adjusted[0].start_idx == 3  # 2 + 1 = 3
@@ -127,7 +131,9 @@ class TestAdjustIndicesForLengthChange:
         ]
 
         # Deletion at index 2
-        adjusted = pipeline._adjust_indices_for_length_change(errors, change_idx=2, delta=-1)
+        adjusted = pipeline._adjust_indices_for_length_change(
+            errors, change_idx=2, delta=-1
+        )
 
         assert len(adjusted) == 2
         # First error unchanged (idx=0 < change_idx=2)
@@ -148,7 +154,9 @@ class TestAdjustIndicesForLengthChange:
 
         pipeline = ErrorPipeline(mock_lang)
 
-        adjusted = pipeline._adjust_indices_for_length_change([], change_idx=2, delta=-1)
+        adjusted = pipeline._adjust_indices_for_length_change(
+            [], change_idx=2, delta=-1
+        )
         assert adjusted == []
 
 
@@ -336,7 +344,9 @@ class TestGenerateAndGenerateBatchParity:
         assert single_result.corrupted_tokens == batch_result.corrupted_tokens
         assert len(single_result.errors) == len(batch_result.errors)
 
-        for single_err, batch_err in zip(single_result.errors, batch_result.errors, strict=True):
+        for single_err, batch_err in zip(
+            single_result.errors, batch_result.errors, strict=True
+        ):
             assert single_err.error_type == batch_err.error_type
             assert single_err.start_idx == batch_err.start_idx
             assert single_err.fix_tag == batch_err.fix_tag

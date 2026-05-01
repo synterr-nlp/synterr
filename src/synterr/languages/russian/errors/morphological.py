@@ -44,9 +44,7 @@ def _is_adj_or_participle(token: AnalyzedToken) -> bool:
     """
     if token.pos == "ADJ":
         return True
-    if token.pos == "VERB" and token.get_feature("VerbForm") == "Part":
-        return True
-    return False
+    return bool(token.pos == "VERB" and token.get_feature("VerbForm") == "Part")
 
 
 # dep_rels used by participles/adjectives pointing at their head noun
@@ -464,7 +462,9 @@ class VerbPersonNumberErrorHandler:
             return False
         parse = _get_pymorphy_parse(token)
         # Must have either person or number feature
-        return parse is not None and (token.has_feature("Person") or token.has_feature("Number"))
+        return parse is not None and (
+            token.has_feature("Person") or token.has_feature("Number")
+        )
 
     def apply(
         self,
@@ -622,12 +622,12 @@ class VerbTenseErrorHandler:
 _POLTORA_FORMS: dict[str, dict[str, list[str]]] = {
     # lemma → {correct_case_form: [wrong_substitutions]}
     "полтора": {
-        "полтора": ["полутора"],       # Nom/Acc → oblique form (rare error direction)
-        "полутора": ["полтора"],       # Oblique → Nom/Acc form (common L2 error)
+        "полтора": ["полутора"],  # Nom/Acc → oblique form (rare error direction)
+        "полутора": ["полтора"],  # Oblique → Nom/Acc form (common L2 error)
     },
     "полторы": {
-        "полторы": ["полутора"],       # Nom/Acc fem → oblique
-        "полутора": ["полторы"],       # Oblique → Nom/Acc fem
+        "полторы": ["полутора"],  # Nom/Acc fem → oblique
+        "полутора": ["полторы"],  # Oblique → Nom/Acc fem
     },
     "полтораста": {
         "полтораста": ["полутораста"],  # Nom/Acc → oblique
@@ -690,7 +690,11 @@ class NumeralDeclensionHandler:
         else:
             new_word = new_lower
 
-        subtype = "numeral_poltora" if lemma in ("полтора", "полторы") else "numeral_declension"
+        subtype = (
+            "numeral_poltora"
+            if lemma in ("полтора", "полторы")
+            else "numeral_declension"
+        )
 
         sentence[idx] = new_word
         modified.add(idx)

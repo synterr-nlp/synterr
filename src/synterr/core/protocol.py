@@ -216,12 +216,16 @@ class LanguageModule(Protocol):
         """Human-readable language name (e.g., 'Russian', 'English')."""
         ...
 
-    def get_analyzer(self, use_depparse: bool = False) -> Analyzer:
+    def get_analyzer(
+        self, use_depparse: bool = False, backend: str | None = None
+    ) -> Analyzer:
         """Get language-specific analyzer.
 
         Args:
             use_depparse: Enable dependency parsing (slower but needed for
                          agreement errors)
+            backend: Optional backend name (e.g. "stanza", "natasha", "spacy")
+                     for languages that support multiple backends.
 
         Returns:
             Configured analyzer instance

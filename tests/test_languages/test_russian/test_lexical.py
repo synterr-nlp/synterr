@@ -26,10 +26,16 @@ class TestParonymErrorHandler:
     def test_can_apply_finds_paronyms(self):
         """Test ParonymErrorHandler finds paronyms correctly."""
         tokens = [
-            AnalyzedToken(text="надеть", lemma="надеть", pos="VERB", features={}, idx=0),
+            AnalyzedToken(
+                text="надеть", lemma="надеть", pos="VERB", features={}, idx=0
+            ),
             AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=1),
-            AnalyzedToken(text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2),
-            AnalyzedToken(text="технического", lemma="технический", pos="ADJF", features={}, idx=3),
+            AnalyzedToken(
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+            ),
+            AnalyzedToken(
+                text="технического", lemma="технический", pos="ADJF", features={}, idx=3
+            ),
         ]
 
         assert self.handler.can_apply(tokens, 0) is True
@@ -102,7 +108,9 @@ class TestPrepositionErrorHandler:
         tokens = [
             AnalyzedToken(text="при", lemma="при", pos="ADP", features={}, idx=0),
             AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=1),
-            AnalyzedToken(text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2),
+            AnalyzedToken(
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+            ),
             AnalyzedToken(text="от", lemma="от", pos="ADP", features={}, idx=3),
         ]
 
@@ -116,7 +124,9 @@ class TestPrepositionErrorHandler:
         tokens = [
             AnalyzedToken(text="при", lemma="при", pos="ADP", features={}, idx=0),
             AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=1),
-            AnalyzedToken(text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2),
+            AnalyzedToken(
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+            ),
             AnalyzedToken(text="от", lemma="от", pos="ADP", features={}, idx=3),
         ]
         sentence = ["при", ".", "вопрос", "от"]
@@ -148,7 +158,9 @@ class TestConjunctionErrorHandler:
         tokens = [
             AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=0),
             AnalyzedToken(text="но", lemma="но", pos="CCONJ", features={}, idx=1),
-            AnalyzedToken(text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2),
+            AnalyzedToken(
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+            ),
             AnalyzedToken(text="чтобы", lemma="чтобы", pos="SCONJ", features={}, idx=3),
         ]
 
@@ -162,7 +174,9 @@ class TestConjunctionErrorHandler:
         tokens = [
             AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=0),
             AnalyzedToken(text="но", lemma="но", pos="CCONJ", features={}, idx=1),
-            AnalyzedToken(text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2),
+            AnalyzedToken(
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+            ),
             AnalyzedToken(text="чтобы", lemma="чтобы", pos="SCONJ", features={}, idx=3),
         ]
         sentence = ["и", "но", "вопрос", "чтобы"]

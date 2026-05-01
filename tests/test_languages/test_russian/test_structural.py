@@ -1,5 +1,8 @@
 from synterr.core.protocol import AnalyzedToken
-from synterr.languages.russian.errors.structural import WordInsertionHandler, WordOmissionHandler
+from synterr.languages.russian.errors.structural import (
+    WordInsertionHandler,
+    WordOmissionHandler,
+)
 
 
 class TestWordOmissionHandler:
@@ -25,13 +28,17 @@ class TestWordOmissionHandler:
             AnalyzedToken(text="не", lemma="не", pos="PART", features={}, idx=3),
             AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=4),
             AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=5),
-            AnalyzedToken(text="зелёный", lemma="зелёный", pos="ADJF", features={}, idx=6),
+            AnalyzedToken(
+                text="зелёный", lemma="зелёный", pos="ADJF", features={}, idx=6
+            ),
             AnalyzedToken(text="пойдёт", lemma="пойти", pos="VERB", features={}, idx=7),
         ]
 
         assert self.handler.can_apply(tokens, 0) is False
         assert self.handler.can_apply(tokens, 1) is True
-        assert self.handler.can_apply(tokens, 2) is False  # PUNCT handled by punct handlers
+        assert (
+            self.handler.can_apply(tokens, 2) is False
+        )  # PUNCT handled by punct handlers
         assert self.handler.can_apply(tokens, 3) is True
         assert self.handler.can_apply(tokens, 4) is True
         assert self.handler.can_apply(tokens, 5) is True
@@ -41,8 +48,12 @@ class TestWordOmissionHandler:
     def test_apply_delete_word_correctly(self):
         """Test WordOmissionHandler delete word correctly."""
         tokens = [
-            AnalyzedToken(text="космический", lemma="космический", pos="ADJF", features={}, idx=0),
-            AnalyzedToken(text="корабль", lemma="корабль", pos="NOUN", features={}, idx=1),
+            AnalyzedToken(
+                text="космический", lemma="космический", pos="ADJF", features={}, idx=0
+            ),
+            AnalyzedToken(
+                text="корабль", lemma="корабль", pos="NOUN", features={}, idx=1
+            ),
             AnalyzedToken(text="летит", lemma="лететь", pos="VERB", features={}, idx=2),
             AnalyzedToken(text="на", lemma="на", pos="ADP", features={}, idx=3),
             AnalyzedToken(text="Луну", lemma="Луна", pos="NOUN", features={}, idx=4),
@@ -53,7 +64,9 @@ class TestWordOmissionHandler:
         assert self.handler.apply(tokens, sentence, 0, modified) is None
         assert self.handler.apply(tokens, sentence, 1, modified) is None
         assert self.handler.apply(tokens, sentence, 2, modified) is None
-        assert self.handler.apply(tokens, sentence, 3, modified).fix_tag.startswith("$APPEND")
+        assert self.handler.apply(tokens, sentence, 3, modified).fix_tag.startswith(
+            "$APPEND"
+        )
         assert self.handler.apply(tokens, sentence, 4, modified) is None
 
 
@@ -80,7 +93,9 @@ class TestWordInsertionError:
             AnalyzedToken(text="не", lemma="не", pos="PART", features={}, idx=3),
             AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=4),
             AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=5),
-            AnalyzedToken(text="зелёный", lemma="зелёный", pos="ADJF", features={}, idx=6),
+            AnalyzedToken(
+                text="зелёный", lemma="зелёный", pos="ADJF", features={}, idx=6
+            ),
             AnalyzedToken(text="пойдёт", lemma="пойти", pos="VERB", features={}, idx=7),
         ]
 
@@ -96,8 +111,12 @@ class TestWordInsertionError:
     def test_apply_delete_word_correctly(self):
         """Test WordInsertion insert word correctly."""
         tokens = [
-            AnalyzedToken(text="космический", lemma="космический", pos="ADJF", features={}, idx=0),
-            AnalyzedToken(text="корабль", lemma="корабль", pos="NOUN", features={}, idx=1),
+            AnalyzedToken(
+                text="космический", lemma="космический", pos="ADJF", features={}, idx=0
+            ),
+            AnalyzedToken(
+                text="корабль", lemma="корабль", pos="NOUN", features={}, idx=1
+            ),
             AnalyzedToken(text="летит", lemma="лететь", pos="VERB", features={}, idx=2),
             AnalyzedToken(text="на", lemma="на", pos="ADP", features={}, idx=3),
             AnalyzedToken(text="Луну", lemma="Луна", pos="NOUN", features={}, idx=4),
@@ -105,8 +124,16 @@ class TestWordInsertionError:
         sentence = ["космический", "корабль", "летит", "на", "Луну"]
         modified = set()
 
-        assert self.handler.apply(tokens, sentence, 0, modified).fix_tag.startswith("$DELETE")
-        assert self.handler.apply(tokens, sentence, 1, modified).fix_tag.startswith("$DELETE")
-        assert self.handler.apply(tokens, sentence, 2, modified).fix_tag.startswith("$DELETE")
-        assert self.handler.apply(tokens, sentence, 3, modified).fix_tag.startswith("$DELETE")
+        assert self.handler.apply(tokens, sentence, 0, modified).fix_tag.startswith(
+            "$DELETE"
+        )
+        assert self.handler.apply(tokens, sentence, 1, modified).fix_tag.startswith(
+            "$DELETE"
+        )
+        assert self.handler.apply(tokens, sentence, 2, modified).fix_tag.startswith(
+            "$DELETE"
+        )
+        assert self.handler.apply(tokens, sentence, 3, modified).fix_tag.startswith(
+            "$DELETE"
+        )
         assert self.handler.apply(tokens, sentence, 4, modified) is None

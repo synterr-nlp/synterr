@@ -53,7 +53,9 @@ class StanzaBackend:
             import stanza
 
             processors = (
-                "tokenize,pos,lemma,depparse" if self.use_depparse else "tokenize,pos,lemma"
+                "tokenize,pos,lemma,depparse"
+                if self.use_depparse
+                else "tokenize,pos,lemma"
             )
             self._nlp = stanza.Pipeline(
                 "ru", processors=processors, verbose=False, use_gpu=self.use_gpu

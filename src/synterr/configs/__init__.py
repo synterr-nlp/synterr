@@ -84,7 +84,9 @@ def list_presets(language: str) -> list[str]:
         pkg_path = importlib.resources.files("synterr.configs") / lang_dir
         if pkg_path.is_dir():
             return [
-                p.name.removesuffix(".yaml") for p in pkg_path.iterdir() if p.name.endswith(".yaml")
+                p.name.removesuffix(".yaml")
+                for p in pkg_path.iterdir()
+                if p.name.endswith(".yaml")
             ]
     except (TypeError, AttributeError):
         pass

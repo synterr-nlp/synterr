@@ -195,7 +195,9 @@ class DistributionStats:
             return {}
         return {k: v / total for k, v in self.category_counts.items()}
 
-    def get_synterr_weights(self, include_unimplemented: bool = False) -> dict[str, float]:
+    def get_synterr_weights(
+        self, include_unimplemented: bool = False
+    ) -> dict[str, float]:
         """Convert to synterr error handler weights.
 
         Maps benchmark error types to synterr handler names.
@@ -296,7 +298,9 @@ def analyze_m2_file(path: str | Path) -> DistributionStats:
     return stats
 
 
-def aggregate_distributions(stats_list: Iterable[DistributionStats]) -> DistributionStats:
+def aggregate_distributions(
+    stats_list: Iterable[DistributionStats],
+) -> DistributionStats:
     """Aggregate multiple distribution stats into one.
 
     Args:

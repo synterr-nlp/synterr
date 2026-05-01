@@ -8,8 +8,8 @@ from synterr.languages.russian.errors.punctuation import (
     _find_comma_partner,
 )
 
-
 # ── Helper to build tokens quickly ──────────────────────────────────────────
+
 
 def _tok(text, pos, lemma=None, idx=0, dep_rel=None, head_idx=None, features=None):
     return AnalyzedToken(
@@ -24,6 +24,7 @@ def _tok(text, pos, lemma=None, idx=0, dep_rel=None, head_idx=None, features=Non
 
 
 # ── CommaDeleteHandler ─────────────────────────────────────────────────────
+
 
 class TestCommaDeleteHandler:
     handler = CommaDeleteHandler()
@@ -43,7 +44,7 @@ class TestCommaDeleteHandler:
             _tok("—", "PUNCT", idx=4),
         ]
         assert self.handler.can_apply(tokens, 0) is False  # not PUNCT
-        assert self.handler.can_apply(tokens, 1) is True   # comma
+        assert self.handler.can_apply(tokens, 1) is True  # comma
         assert self.handler.can_apply(tokens, 2) is False  # NOUN
         assert self.handler.can_apply(tokens, 3) is False  # period, not comma
         assert self.handler.can_apply(tokens, 4) is False  # dash, not comma
@@ -79,6 +80,7 @@ class TestCommaDeleteHandler:
 
 
 # ── Comma classification: dep-tree based ────────────────────────────────────
+
 
 class TestClassifyCommaDepTree:
     """Tests using realistic dep tree annotations (matching stanza output)."""
@@ -143,7 +145,14 @@ class TestClassifyCommaDepTree:
         tokens = [
             _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
-            _tok("конечно", "ADV", lemma="конечно", idx=2, dep_rel="parataxis", head_idx=5),
+            _tok(
+                "конечно",
+                "ADV",
+                lemma="конечно",
+                idx=2,
+                dep_rel="parataxis",
+                head_idx=5,
+            ),
             _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
             _tok("был", "AUX", idx=4, dep_rel="cop", head_idx=5),
             _tok("прав", "ADJ", idx=5, dep_rel="root", head_idx=None),
@@ -159,8 +168,14 @@ class TestClassifyCommaDepTree:
         tokens = [
             _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "читающий",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
             _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
             _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
@@ -173,8 +188,14 @@ class TestClassifyCommaDepTree:
     def test_isolation_advcl_gerund(self):
         # "Приехав домой, он лёг спать"
         tokens = [
-            _tok("Приехав", "VERB", idx=0, dep_rel="advcl", head_idx=3,
-                 features={"VerbForm": "Conv"}),
+            _tok(
+                "Приехав",
+                "VERB",
+                idx=0,
+                dep_rel="advcl",
+                head_idx=3,
+                features={"VerbForm": "Conv"},
+            ),
             _tok("домой", "ADV", idx=1, dep_rel="advmod", head_idx=0),
             _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=0),
             _tok("он", "PRON", idx=3, dep_rel="nsubj", head_idx=4),
@@ -200,8 +221,14 @@ class TestClassifyCommaDepTree:
         tokens = [
             _tok("колонна", "NOUN", idx=0, dep_rel="nsubj", head_idx=6),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("отступавшая", "VERB", idx=2, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "отступавшая",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("по", "ADP", idx=3, dep_rel="case", head_idx=4),
             _tok("шоссе", "NOUN", idx=4, dep_rel="obl", head_idx=2),
             _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=2),
@@ -212,6 +239,7 @@ class TestClassifyCommaDepTree:
 
 
 # ── Comma classification: POS/lemma fallbacks ───────────────────────────────
+
 
 class TestClassifyCommaFallback:
     """Tests with minimal/no dep info — verify POS/lemma fallbacks work."""
@@ -284,8 +312,14 @@ class TestClassifyCommaFallback:
         tokens = [
             _tok("колонна", "NOUN", idx=0),
             _tok(",", "PUNCT", idx=1),
-            _tok("отступавшая", "VERB", idx=2, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "отступавшая",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("по", "ADP", idx=3, dep_rel="case", head_idx=4),
             _tok("шоссе", "NOUN", idx=4, dep_rel="obl", head_idx=2),
             _tok(",", "PUNCT", idx=5),  # no head info
@@ -295,6 +329,7 @@ class TestClassifyCommaFallback:
 
 
 # ── DashDeleteHandler ───────────────────────────────────────────────────────
+
 
 class TestDashDeleteHandler:
     handler = DashDeleteHandler()
@@ -346,6 +381,7 @@ class TestDashDeleteHandler:
 
 # ── Dash classification ─────────────────────────────────────────────────────
 
+
 class TestClassifyDash:
     def test_subj_pred_noun_noun(self):
         tokens = [
@@ -381,6 +417,7 @@ class TestClassifyDash:
 
 # ── CommaPairDeleteHandler ──────────────────────────────────────────────────
 
+
 class TestFindCommaPair:
     """Test _find_comma_partner detection."""
 
@@ -389,8 +426,14 @@ class TestFindCommaPair:
         return [
             _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "читающий",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
             _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
             _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
@@ -414,8 +457,14 @@ class TestFindCommaPair:
         tokens = [
             _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("напевая", "VERB", idx=2, dep_rel="advcl", head_idx=5,
-                 features={"VerbForm": "Conv"}),
+            _tok(
+                "напевая",
+                "VERB",
+                idx=2,
+                dep_rel="advcl",
+                head_idx=5,
+                features={"VerbForm": "Conv"},
+            ),
             _tok("песню", "NOUN", idx=3, dep_rel="obj", head_idx=2),
             _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
             _tok("шёл", "VERB", idx=5, dep_rel="root", head_idx=None),
@@ -430,8 +479,14 @@ class TestFindCommaPair:
             _tok("уехал", "VERB", idx=0, dep_rel="root", head_idx=None),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
             _tok("когда", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
-            _tok("стемнело", "VERB", idx=3, dep_rel="advcl", head_idx=0,
-                 features={"VerbForm": "Fin"}),
+            _tok(
+                "стемнело",
+                "VERB",
+                idx=3,
+                dep_rel="advcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
             _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
         ]
         # advcl without VerbForm=Conv → not a gerund pair
@@ -442,7 +497,14 @@ class TestFindCommaPair:
         tokens = [
             _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("конечно", "ADV", lemma="конечно", idx=2, dep_rel="parataxis", head_idx=5),
+            _tok(
+                "конечно",
+                "ADV",
+                lemma="конечно",
+                idx=2,
+                dep_rel="parataxis",
+                head_idx=5,
+            ),
             _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
             _tok("был", "AUX", idx=4, dep_rel="cop", head_idx=5),
             _tok("прав", "ADJ", idx=5, dep_rel="root", head_idx=None),
@@ -491,8 +553,14 @@ class TestCommaPairDeleteHandler:
         tokens = [
             _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "читающий",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
             _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
             _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
@@ -504,8 +572,14 @@ class TestCommaPairDeleteHandler:
         tokens = [
             _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
-            _tok("читающий", "VERB", idx=2, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "читающий",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("книгу", "NOUN", idx=3, dep_rel="obj", head_idx=2),
             _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=2),
             _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),

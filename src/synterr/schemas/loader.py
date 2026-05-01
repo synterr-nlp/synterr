@@ -204,7 +204,9 @@ class Schema:
             "schema_name": self.name,
             "total_tags": len(self.primary_tags),
             "covered_tags": len(covered_tags),
-            "coverage_percent": round(100 * len(covered_tags) / len(self.primary_tags), 1)
+            "coverage_percent": round(
+                100 * len(covered_tags) / len(self.primary_tags), 1
+            )
             if self.primary_tags
             else 0,
             "covered_tag_names": sorted(covered_tags),
@@ -356,7 +358,9 @@ def load_schema(name_or_path: str) -> Schema:
         path = Path(name_or_path)
     else:
         available = list_schemas()
-        raise ValueError(f"Schema not found: {name_or_path}. Available: {', '.join(available)}")
+        raise ValueError(
+            f"Schema not found: {name_or_path}. Available: {', '.join(available)}"
+        )
 
     with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)

@@ -35,11 +35,15 @@ def _load_entry_points() -> None:
         try:
             language_cls = ep.load()
             # Instantiate if it's a class, use directly if already an instance
-            language = language_cls() if isinstance(language_cls, type) else language_cls
+            language = (
+                language_cls() if isinstance(language_cls, type) else language_cls
+            )
             register_language(language)
         except Exception as e:
             # Don't fail if a language module can't be loaded
-            warnings.warn(f"Failed to load language module '{ep.name}': {e}", stacklevel=2)
+            warnings.warn(
+                f"Failed to load language module '{ep.name}': {e}", stacklevel=2
+            )
 
     _LOADED_ENTRY_POINTS = True
 

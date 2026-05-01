@@ -18,8 +18,8 @@ POS, or conjugation class — distinct from the phonetic spelling handler.
 
 from __future__ import annotations
 
-import re
 import random as random_module
+import re
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 # пре-/при- prefix confusion
 # =============================================================================
 
-_PRE_PRI_RE = re.compile(r'^(пре|при)', re.IGNORECASE)
+_PRE_PRI_RE = re.compile(r"^(пре|при)", re.IGNORECASE)
 
 
 # =============================================================================
@@ -48,14 +48,38 @@ _PRE_PRI_RE = re.compile(r'^(пре|при)', re.IGNORECASE)
 
 # Russian prefixes where и→ы is correct (error = keeping и)
 _RU_PREFIXES_YI = [
-    "без", "вз", "из", "над", "об", "от", "под", "пред", "раз", "с", "через",
+    "без",
+    "вз",
+    "из",
+    "над",
+    "об",
+    "от",
+    "под",
+    "пред",
+    "раз",
+    "с",
+    "через",
 ]
 # Prefixes where и stays (error = using ы)
 _FOREIGN_PREFIXES_I = [
-    "сверх", "меж",  # Russian exceptions
-    "транс", "контр", "пост", "суб", "супер", "дез", "пан",  # Foreign
-    "спорт", "фин", "гос", "полит",  # Compound abbreviations
-    "двух", "трёх", "трех", "четырёх", "четырех",  # Numeral prefixes
+    "сверх",
+    "меж",  # Russian exceptions
+    "транс",
+    "контр",
+    "пост",
+    "суб",
+    "супер",
+    "дез",
+    "пан",  # Foreign
+    "спорт",
+    "фин",
+    "гос",
+    "полит",  # Compound abbreviations
+    "двух",
+    "трёх",
+    "трех",
+    "четырёх",
+    "четырех",  # Numeral prefixes
 ]
 
 _ALL_PREFIXES_YI = _RU_PREFIXES_YI + _FOREIGN_PREFIXES_I
@@ -85,9 +109,11 @@ _PARTICIPLE_SWAPS = [
 # =============================================================================
 
 _TS_VOWEL_SWAPS = {
-    "о": "е", "е": "о",  # stressed о, unstressed е
-    "и": "ы", "ы": "и",  # и in root/suffix, ы in -ын/endings
-    "ё": "о", # ё→о after ц
+    "о": "е",
+    "е": "о",  # stressed о, unstressed е
+    "и": "ы",
+    "ы": "и",  # и in root/suffix, ы in -ын/endings
+    "ё": "о",  # ё→о after ц
 }
 
 # =============================================================================
@@ -97,7 +123,8 @@ _TS_VOWEL_SWAPS = {
 _SIBILANTS = set("шщжчШЩЖЧ")
 
 _SIBILANT_VOWEL_SWAPS = {
-    "ё": "о", "о": "ё",
+    "ё": "о",
+    "о": "ё",
     # ю↔у removed: only applies to 3 loanwords (жюри, брошюра, парашют)
     # and produces impossible errors on native words (чудо→чюдо, шутка→шютка)
 }
@@ -119,8 +146,16 @@ _NN_EXCEPTIONS = {"деревянный", "оловянный", "стеклян�
 
 # Words that must keep single н (exception to general rules)
 _SINGLE_N_EXCEPTIONS = {
-    "багряный", "пряный", "пьяный", "рдяный", "румяный",
-    "ветреный", "зелёный", "зеленый", "юный", "свиной",
+    "багряный",
+    "пряный",
+    "пьяный",
+    "рдяный",
+    "румяный",
+    "ветреный",
+    "зелёный",
+    "зеленый",
+    "юный",
+    "свиной",
     "синий",
 }
 
@@ -191,7 +226,9 @@ class OrthographicSpellingHandler:
                 after = text_lower[len(pfx)]
                 if after in ("и", "ы"):
                     return True
-        if token.pos == "NOUN" and ("еньк" in text_lower or "оньк" in text_lower or "иньк" in text_lower):
+        if token.pos == "NOUN" and (
+            "еньк" in text_lower or "оньк" in text_lower or "иньк" in text_lower
+        ):
             return True
         if token.pos != "PROPN" and ("инск" in text_lower or "енск" in text_lower):
             return True
@@ -205,9 +242,7 @@ class OrthographicSpellingHandler:
             return True
         if any(c in text_lower for c in "шщжч"):
             return True
-        if token.pos == "ADJ" and _can_nn_swap(text_lower):
-            return True
-        return False
+        return bool(token.pos == "ADJ" and _can_nn_swap(text_lower))
 
     def apply(
         self,
@@ -231,7 +266,9 @@ class OrthographicSpellingHandler:
         if _can_yi_swap(text_lower):
             candidates.append(("y_i_after_prefix", self._weights["y_i_after_prefix"]))
 
-        if token.pos == "NOUN" and ("еньк" in text_lower or "оньк" in text_lower or "иньк" in text_lower):
+        if token.pos == "NOUN" and (
+            "еньк" in text_lower or "оньк" in text_lower or "иньк" in text_lower
+        ):
             candidates.append(("suffix_enk_onk", self._weights["suffix_enk_onk"]))
 
         if token.pos != "PROPN" and _can_insk_ensk(text_lower):
@@ -250,7 +287,9 @@ class OrthographicSpellingHandler:
             candidates.append(("vowel_after_ts", self._weights["vowel_after_ts"]))
 
         if _can_sibilant_vowel(text_lower):
-            candidates.append(("vowel_after_sibilant", self._weights["vowel_after_sibilant"]))
+            candidates.append(
+                ("vowel_after_sibilant", self._weights["vowel_after_sibilant"])
+            )
 
         if token.pos == "ADJ" and _can_nn_swap(text_lower):
             candidates.append(("nn_suffix", self._weights["nn_suffix"]))
@@ -258,7 +297,7 @@ class OrthographicSpellingHandler:
         if not candidates:
             return None
 
-        subtypes, weights = zip(*candidates)
+        subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
         # Look up stress: try exact form first, then lemma
@@ -274,7 +313,9 @@ class OrthographicSpellingHandler:
         else:
             stressed_syllable = _stressed_syllable(text_lower, stress_pos)
 
-        corrupted = _apply_subtype(chosen, word, text_lower, stressed_syllable, analyzer, lemma)
+        corrupted = _apply_subtype(
+            chosen, word, text_lower, stressed_syllable, analyzer, lemma
+        )
         if corrupted is None or corrupted == word:
             return None
 
@@ -293,6 +334,7 @@ class OrthographicSpellingHandler:
 # =============================================================================
 # Subtype applicability checks
 # =============================================================================
+
 
 def _can_yi_swap(text_lower: str) -> bool:
     for pfx in _ALL_PREFIXES_YI:
@@ -368,7 +410,18 @@ def _has_participle_pattern(text_lower: str) -> bool:
     if suffixes is None:
         return True  # Unknown word — allow (could be a rare participle)
     # Check if any participle suffix is present in the morpheme analysis
-    participle_suffixes = {"ущ", "ющ", "ащ", "ящ", "ем", "им", "енн", "янн", "анн", "нн"}
+    participle_suffixes = {
+        "ущ",
+        "ющ",
+        "ащ",
+        "ящ",
+        "ем",
+        "им",
+        "енн",
+        "янн",
+        "анн",
+        "нн",
+    }
     return bool(participle_suffixes & set(suffixes))
 
 
@@ -402,8 +455,11 @@ def _syllable_at_pos(word: str, char_pos: int) -> int:
 
 
 def _apply_subtype(
-    subtype: str, word: str, text_lower: str,
-    stressed_syllable: int = -1, analyzer: MorphemeAnalyzer | None = None,
+    subtype: str,
+    word: str,
+    text_lower: str,
+    stressed_syllable: int = -1,
+    analyzer: MorphemeAnalyzer | None = None,
     lemma: str | None = None,
 ) -> str | None:
     if subtype == "pre_pri":
@@ -423,7 +479,9 @@ def _apply_subtype(
     elif subtype == "vowel_after_ts":
         return _swap_ts_vowel(word, text_lower, stressed_syllable, analyzer, lemma)
     elif subtype == "vowel_after_sibilant":
-        return _swap_sibilant_vowel(word, text_lower, stressed_syllable, analyzer, lemma)
+        return _swap_sibilant_vowel(
+            word, text_lower, stressed_syllable, analyzer, lemma
+        )
     elif subtype == "nn_suffix":
         return _swap_nn(word, text_lower)
     return None
@@ -473,7 +531,7 @@ def _swap_yi_prefix(word: str, text_lower: str) -> str | None:
                 new_char = "Ы" if char.isupper() else "ы"
             else:
                 new_char = "И" if char.isupper() else "и"
-            return word[:pos] + new_char + word[pos + 1:]
+            return word[:pos] + new_char + word[pos + 1 :]
     return None
 
 
@@ -494,7 +552,7 @@ def _swap_enk_onk(word: str, text_lower: str) -> str | None:
                 return None
             if word[idx].isupper():
                 new_vowel = new_vowel.upper()
-            return word[:idx] + new_vowel + word[idx + 1:]
+            return word[:idx] + new_vowel + word[idx + 1 :]
     return None
 
 
@@ -504,8 +562,10 @@ def _swap_insk_ensk(word: str, text_lower: str) -> str | None:
         idx = text_lower.find(pattern)
         if idx >= 0:
             orig_vowel = word[idx]
-            new_vowel = replacement_vowel.upper() if orig_vowel.isupper() else replacement_vowel
-            return word[:idx] + new_vowel + word[idx + 1:]
+            new_vowel = (
+                replacement_vowel.upper() if orig_vowel.isupper() else replacement_vowel
+            )
+            return word[:idx] + new_vowel + word[idx + 1 :]
     return None
 
 
@@ -525,10 +585,10 @@ def _swap_its_ets(word: str, text_lower: str) -> str | None:
             prev = text_lower[i - 1]
             if prev == "и":
                 new_v = "Е" if word[i - 1].isupper() else "е"
-                return word[:i - 1] + new_v + word[i:]
+                return word[: i - 1] + new_v + word[i:]
             elif prev == "е":
                 new_v = "И" if word[i - 1].isupper() else "и"
-                return word[:i - 1] + new_v + word[i:]
+                return word[: i - 1] + new_v + word[i:]
     return None
 
 
@@ -540,7 +600,12 @@ def _swap_ek_ik(word: str, text_lower: str) -> str | None:
     # Verify -ик/-ек is a real suffix, not part of the root (человек, кулик)
     analyzer = get_morpheme_analyzer()
     suffixes = analyzer.get_suffixes(text_lower)
-    if suffixes is not None and "ик" not in suffixes and "ек" not in suffixes and "к" not in suffixes:
+    if (
+        suffixes is not None
+        and "ик" not in suffixes
+        and "ек" not in suffixes
+        and "к" not in suffixes
+    ):
         return None  # No matching suffix (человек, парик, кулик)
     if suffixes is None:
         # Unknown word — skip to avoid false positives
@@ -554,7 +619,7 @@ def _swap_ek_ik(word: str, text_lower: str) -> str | None:
         new_vowel = "Е" if orig_vowel.isupper() else "е"
     else:
         return None
-    return word[:pos] + new_vowel + word[pos + 1:]
+    return word[:pos] + new_vowel + word[pos + 1 :]
 
 
 def _swap_participle(word: str, text_lower: str) -> str | None:
@@ -567,13 +632,16 @@ def _swap_participle(word: str, text_lower: str) -> str | None:
             for j, ch in enumerate(target):
                 src_ch = word[idx + j] if idx + j < len(word) else ch
                 replacement += ch.upper() if src_ch.isupper() else ch
-            return word[:idx] + replacement + word[idx + len(orig):]
+            return word[:idx] + replacement + word[idx + len(orig) :]
     return None
 
 
 def _swap_ts_vowel(
-    word: str, text_lower: str, stressed_syllable: int = -1,
-    analyzer: MorphemeAnalyzer | None = None, lemma: str | None = None,
+    word: str,
+    text_lower: str,
+    stressed_syllable: int = -1,
+    analyzer: MorphemeAnalyzer | None = None,
+    lemma: str | None = None,
 ) -> str | None:
     """Swap vowel after ц.
 
@@ -595,20 +663,27 @@ def _swap_ts_vowel(
                 # Skip if both ц and the vowel are in the root
                 # §35 applies to suffixes/endings only (цирк is root, not target)
                 if analyzer is not None:
-                    ts_type = analyzer.char_in_morpheme_type(text_lower, i, "ROOT", lemma)
-                    vowel_type = analyzer.char_in_morpheme_type(text_lower, pos, "ROOT", lemma)
+                    ts_type = analyzer.char_in_morpheme_type(
+                        text_lower, i, "ROOT", lemma
+                    )
+                    vowel_type = analyzer.char_in_morpheme_type(
+                        text_lower, pos, "ROOT", lemma
+                    )
                     if ts_type is True and vowel_type is True:
                         continue  # Both in root — skip (церемония, цирк)
                 new_c = _TS_VOWEL_SWAPS[next_c]
                 if word[pos].isupper():
                     new_c = new_c.upper()
-                return word[:pos] + new_c + word[pos + 1:]
+                return word[:pos] + new_c + word[pos + 1 :]
     return None
 
 
 def _swap_sibilant_vowel(
-    word: str, text_lower: str, stressed_syllable: int = -1,
-    analyzer: MorphemeAnalyzer | None = None, lemma: str | None = None,
+    word: str,
+    text_lower: str,
+    stressed_syllable: int = -1,
+    analyzer: MorphemeAnalyzer | None = None,
+    lemma: str | None = None,
 ) -> str | None:
     """Swap vowel after sibilant (ш,щ,ж,ч).
 
@@ -628,8 +703,12 @@ def _swap_sibilant_vowel(
                 # (шоколад, жокей — no ё/о confusion)
                 # But allow root-boundary cases (шёпот — ё in root IS confused)
                 if analyzer is not None:
-                    sib_in_root = analyzer.char_in_morpheme_type(text_lower, i, "ROOT", lemma)
-                    vowel_in_root = analyzer.char_in_morpheme_type(text_lower, pos, "ROOT", lemma)
+                    sib_in_root = analyzer.char_in_morpheme_type(
+                        text_lower, i, "ROOT", lemma
+                    )
+                    vowel_in_root = analyzer.char_in_morpheme_type(
+                        text_lower, pos, "ROOT", lemma
+                    )
                     if sib_in_root is True and vowel_in_root is True:
                         # Both in root — only allow if vowel is stressed
                         # (stressed root ё/о IS a real confusion: шёпот↔шопот)
@@ -640,7 +719,7 @@ def _swap_sibilant_vowel(
                 new_c = _SIBILANT_VOWEL_SWAPS[next_c]
                 if word[pos].isupper():
                     new_c = new_c.upper()
-                return word[:pos] + new_c + word[pos + 1:]
+                return word[:pos] + new_c + word[pos + 1 :]
     return None
 
 
@@ -652,9 +731,7 @@ def _can_nn_swap(text_lower: str) -> bool:
     if _NN_RE.search(text_lower):
         return True
     # Has suffix pattern with single н → can double
-    if _SINGLE_N_SUFFIX_RE.search(text_lower):
-        return True
-    return False
+    return bool(_SINGLE_N_SUFFIX_RE.search(text_lower))
 
 
 def _swap_nn(word: str, text_lower: str) -> str | None:
@@ -678,7 +755,7 @@ def _swap_nn(word: str, text_lower: str) -> str | None:
                 # Still a valid target for corruption
                 pass
         # Remove one н
-        corrupted = word[:pos] + word[pos + 1:]
+        corrupted = word[:pos] + word[pos + 1 :]
         if corrupted != word:
             return corrupted
 
@@ -693,7 +770,7 @@ def _swap_nn(word: str, text_lower: str) -> str | None:
         suffix_text = suffix_m.group(1)  # "ан", "ян", or "ин"
         # The н is at suffix_start + len(suffix_text) - 1
         n_pos = suffix_start + len(suffix_text) - 1
-        corrupted = word[:n_pos + 1] + "н" + word[n_pos + 1:]
+        corrupted = word[: n_pos + 1] + "н" + word[n_pos + 1 :]
         if corrupted != word:
             return corrupted
 

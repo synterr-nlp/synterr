@@ -153,7 +153,9 @@ class CollocationHandler:
         for j in range(max(0, idx - 5), min(len(tokens), idx + 6)):
             if j == idx:
                 continue
-            other_lemma = tokens[j].lemma.lower() if tokens[j].lemma else tokens[j].text.lower()
+            other_lemma = (
+                tokens[j].lemma.lower() if tokens[j].lemma else tokens[j].text.lower()
+            )
             for cl in collocate_lemmas:
                 if other_lemma == cl:
                     return True

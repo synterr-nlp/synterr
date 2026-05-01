@@ -25,7 +25,9 @@ class TestSpellingErrorHandler:
         tokens = [
             AnalyzedToken(text="книга", lemma="книга", pos="NOUN", features={}, idx=0),
             AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=1),
-            AnalyzedToken(text="a", lemma="a", pos="X", features={}, idx=2),  # too short
+            AnalyzedToken(
+                text="a", lemma="a", pos="X", features={}, idx=2
+            ),  # too short
         ]
 
         assert handler.can_apply(tokens, 0) is True  # alphabetic, len >= 2
