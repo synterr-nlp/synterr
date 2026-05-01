@@ -159,6 +159,44 @@ uv run python scripts/generate_sft.py \
   --batch-size 128 --balance-directions
 ```
 
+## Reproducibility
+
+### Code pin
+- **Generation commit**: `898814d` ("v4 data pipeline: reproducible scarce mining, clean rublimp pool, SCONJ fix"), 2026-03-22 16:32 UTC.
+- The full pipeline above (steps 2–4) was executed against this commit. To regenerate identically:
+  ```
+  git checkout 898814d
+  # then run the four scripts above
+  ```
+- Subsequent commits on master change handler behavior (e.g. the `noun_case` dep-arc gate added in May 2026) and will produce different output if rerun.
+
+### Generation timestamps (all UTC)
+- 2026-03-22 15:57 — `build_v4_sources.py` produced `mixed_sources_v4.txt`
+- 2026-03-22 15:57 — `generate_sft.py` produced `qwen_sft_v4.jsonl`
+- 2026-03-22 16:32 — code committed as `898814d`
+- 2026-03-23 15:15 — `qwen_sft_v4.jsonl` uploaded to training host frodo via `scp`, renamed in transit to `synterr_v4.jsonl`
+
+### Checksums
+SHA256 of all v4 artifacts is recorded in `data/v4_checksums.txt`.
+
+The trained file at `frodo:~/projects/gec-eval/data/train/synterr_v4.jsonl` has been
+verified byte-identical to local `data/qwen_sft_v4.jsonl` on 2026-05-01:
+```
+72b00ac912a6bf7c2d1d2a3c27680c7fb7f3e514fa583198e2a454de8404b9cc  qwen_sft_v4.jsonl
+72b00ac912a6bf7c2d1d2a3c27680c7fb7f3e514fa583198e2a454de8404b9cc  synterr_v4.jsonl (frodo)
+```
+
+Verify locally with:
+```
+uv run python scripts/verify_v4.py
+```
+
+Since `qwen_sft_v4.jsonl` is a deterministic function of the upstream files
+(seed=42 in both `build_v4_sources.py` and `generate_sft.py`), a matching
+SFT hash implies the source files (`mixed_sources_v4.txt`, `scarce_sents_v4.txt`,
+`conjunction_sents_v4.txt` and their metas) are also intact — any byte difference
+upstream would change the SFT hash.
+
 ## Citations
 
 - **RuBLiMP**: Taktasheva et al. (EMNLP 2024) — pool sentences, benchmark exclusion

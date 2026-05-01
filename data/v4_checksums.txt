@@ -1,0 +1,17 @@
+# v4 data file SHA256 checksums.
+# Generated 2026-05-01 from local working tree.
+# The qwen_sft_v4.jsonl entry is verified byte-identical against the file
+# trained on at frodo:~/projects/gec-eval/data/train/synterr_v4.jsonl
+# (renamed in transit via scp on 2026-03-23 15:15 UTC).
+#
+# Code state at generation: commit 898814d
+# Verify with: shasum -a 256 -c data/v4_checksums.txt
+
+1237468d6557be922835d33e5938d0fa94c37e0117a67e97fee4ce6b93052ac4  data/scarce_sents_v4.txt
+0df2d55372c858c98737dcd7e9456cfd17a65cfb669509d735bdb9ce6962e953  data/scarce_sents_v4.meta.json
+46b21bf14509b46722f6e9646c6cbfeb1ef39ea26b2ef2c5a3924eb6b81f421b  data/conjunction_sents_v4.txt
+2c8f951ccb0fbbd67fec6fdc02f1392e3a544984223f8972fdfe4d3f8ccebfc7  data/conjunction_sents_v4.meta.json
+a824d2135ab4d2a3d74f95ac45f7d43b81e41e47f3cc2389385d0042090691b2  data/mixed_sources_v4.txt
+c567951324859953104542a4a2a965226a090193cf9f476b2447b56643230ea3  data/mixed_sources_v4.meta.json
+72b00ac912a6bf7c2d1d2a3c27680c7fb7f3e514fa583198e2a454de8404b9cc  data/qwen_sft_v4.jsonl
+5bf96b1e66f246d20198bd96a5763402fb3d03111efc039b14879b076b42bb26  data/qwen_sft_v4.dist.json
