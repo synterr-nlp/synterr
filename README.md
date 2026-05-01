@@ -17,7 +17,7 @@ pip install synterr[russian]  # includes stanza, pymorphy3
 ### Development (uv)
 
 ```bash
-git clone https://github.com/mechanicpanic/synterr
+git clone https://github.com/synterr-nlp/synterr
 cd synterr
 uv sync --all-extras   # install all dependencies
 ```
@@ -132,6 +132,27 @@ Source: [gramdict/zalizniak-2010](https://github.com/gramdict/zalizniak-2010). D
 **russtress** — Russian word stress prediction (fallback for words not in Zaliznyak).
 https://github.com/MashaPo/russtress
 Citation: Ponomareva M., Milintsevich K., Chernyak E., & Starostin A. (2017). Automated Word Stress Detection in Russian. In *Proceedings of the First Workshop on Subword and Character Level Models in NLP*, pp. 31–35. https://doi.org/10.18653/v1/W17-4104
+
+## Citation
+
+If you use synterr in your research, please cite:
+
+```bibtex
+@inproceedings{smirnova2026synterr,
+  title     = {TBD: paper title},
+  author    = {Smirnova, Anna and TBD},
+  booktitle = {TBD: venue},
+  year      = {2026},
+  url       = {https://github.com/synterr-nlp/synterr},
+}
+```
+
+The exact code and data used in the paper are tagged as
+[`v1.0-paper`](https://github.com/synterr-nlp/synterr/releases/tag/v1.0-paper).
+Data generation provenance and SHA256 checksums are documented in
+[`data/V4_DATA_PROVENANCE.md`](data/V4_DATA_PROVENANCE.md).
+
+<!-- TODO: archive on Zenodo and add DOI badge here once paper is camera-ready -->
 
 ## License
 
