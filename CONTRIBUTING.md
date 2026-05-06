@@ -1,5 +1,87 @@
 # Contributing to synterr
 
+Thanks for your interest. This guide covers everyday development.
+For architecture details see [`CLAUDE.md`](CLAUDE.md). The Russian-language
+guide ([`docs/CONTRIBUTING.ru.md`](docs/CONTRIBUTING.ru.md)) goes deeper into
+adding error handlers.
+
+## Setup
+
+Requirements: Python 3.11+, [uv](https://github.com/astral-sh/uv).
+
+```bash
+git clone https://github.com/synterr-nlp/synterr
+cd synterr
+uv sync --all-extras
+```
+
+Quick smoke test:
+
+```bash
+uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
+uv run pytest
+```
+
+## Workflow
+
+Feature branches off `master`, PR back to `master`.
+
+```bash
+git checkout -b your-name/short-description
+# ... commits ...
+git push -u origin your-name/short-description
+gh pr create
+```
+
+PRs need:
+- Tests (every new handler or behavior change)
+- `uv run pytest` green
+- `uv run ruff check src tests` clean
+- `uv run ruff format --check src tests` clean
+- `uv run mypy` clean (covers `src/synterr/core` + `src/synterr/schemas`)
+
+CI runs all of the above on every PR.
+
+## Adding an error handler (Russian)
+
+See [`CLAUDE.md`](CLAUDE.md) for the `ErrorHandler` protocol contract. The
+short version:
+
+1. Implement the protocol in a new file under
+   `src/synterr/languages/russian/errors/`.
+2. Register in `src/synterr/languages/russian/errors/__init__.py`.
+3. Add a default weight in `src/synterr/configs/russian/rulec.yaml`.
+4. Add schema mappings in `src/synterr/schemas/data/rlc.yaml` (and
+   `rozental.yaml` if applicable).
+5. Add tests under `tests/test_languages/test_russian/`.
+
+The Russian guide has fully-worked examples and idiom-level guidance.
+
+## Code style
+
+- Ruff handles formatting (88 char) and most lint
+- Type-annotate public APIs in `core/` and `schemas/`; the rest of the
+  codebase is opt-in
+- Default to writing no comments unless the *why* is non-obvious
+
+## Reporting bugs
+
+Use [GitHub Issues](https://github.com/synterr-nlp/synterr/issues).
+Include:
+- A minimal reproducing input sentence
+- The handler/subtype/preset involved
+- What synterr produced vs. what you expected
+
+For data-pipeline reproduction questions, see
+[`data/V4_DATA_PROVENANCE.md`](data/V4_DATA_PROVENANCE.md) first.
+
+## Citing
+
+If you use synterr in research, see the
+[Citation section in README](README.md#citation).
+
+---
+
 ## Adding a New Language
 
 synterr uses a plugin architecture for language support. Languages are discovered via Python entry points.
