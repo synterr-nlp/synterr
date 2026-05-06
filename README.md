@@ -10,8 +10,10 @@ Training GEC models requires parallel data (incorrect → correct). Real learner
 
 ## Install
 
+Until the first PyPI release lands, install from source:
+
 ```bash
-pip install synterr[russian]  # includes stanza, pymorphy3
+pip install "synterr[russian] @ git+https://github.com/synterr-nlp/synterr"
 ```
 
 ### Development (uv)
