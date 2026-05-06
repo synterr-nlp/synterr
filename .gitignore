@@ -49,3 +49,6 @@ tools/diff_viewer_internal.html
 
 # Review data (generated, not tracked)
 tools/review/
+
+# MkDocs build output
+/site/

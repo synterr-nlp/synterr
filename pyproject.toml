@@ -108,6 +108,7 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
+    "mkdocs-material>=9.7.6",
     "mypy>=1.20.2",
     "openpyxl>=3.1.5",
     "types-pyyaml>=6.0.12.20260408",
