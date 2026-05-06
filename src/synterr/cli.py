@@ -705,5 +705,111 @@ def cmd_generate_sft(
 main.add_command(cmd_generate_sft, name="generate-bea-paper")
 
 
+@main.command("classify-jsonl")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--top", type=int, default=20, help="Show top N entries")
+def cmd_classify_jsonl(path: str, top: int) -> None:
+    """Distribution-by-rule report for a GEC SFT JSONL.
+
+    \b
+    If records contain a `rule` field, counts by rule.
+    Otherwise, buckets by edit type (replace / insert / delete / multi).
+
+    Useful for auditing third-party GEC datasets — see what's actually
+    in there before training on it.
+    """
+    from synterr.diagnostics import classify_jsonl
+
+    result = classify_jsonl(path)
+    click.echo(f"Total records: {result['total']}")
+    click.echo(
+        f"Rule labels present: {'yes' if result['has_rule_labels'] else 'no (using edit-type buckets)'}"
+    )
+    click.echo(
+        f"Unique {'rules' if result['has_rule_labels'] else 'buckets'}: {result['unique_keys']}"
+    )
+    click.echo()
+    sorted_counts = sorted(result["counts"].items(), key=lambda x: -x[1])
+    click.echo(f"{'Count':>6}  {'%':>5}  Rule")
+    click.echo("-" * 80)
+    for key, count in sorted_counts[:top]:
+        pct = 100 * count / result["total"]
+        click.echo(f"{count:>6}  {pct:>5.1f}  {key}")
+    if len(sorted_counts) > top:
+        click.echo(f"... and {len(sorted_counts) - top} more")
+
+
+@main.command("audit-jsonl")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--samples", type=int, default=3, help="Sample size per issue type")
+@click.option(
+    "--no-morphology",
+    is_flag=True,
+    help="Skip the non-word check (faster, no pymorphy3 lookup)",
+)
+def cmd_audit_jsonl(path: str, samples: int, no_morphology: bool) -> None:
+    """Quality audit (no-ops, non-words) for a GEC SFT JSONL.
+
+    \b
+    Flags:
+      no_op    — src == tgt (handler didn't actually corrupt)
+      non_word — corrupted token isn't in pymorphy3's dictionary
+
+    Run on synterr output before training to catch handler bugs at
+    scale; run on third-party datasets to spot quality issues.
+    """
+    import json
+
+    from synterr.diagnostics import audit_jsonl
+
+    result = audit_jsonl(
+        path,
+        sample_flagged=samples,
+        check_morphology=not no_morphology,
+    )
+    total = result["total"]
+    click.echo(f"Total records: {total}")
+    click.echo()
+    if not result["issue_counts"]:
+        click.echo("No issues found.")
+        return
+
+    click.echo(f"{'Issue':<12}  {'Count':>6}  {'%':>5}")
+    click.echo("-" * 30)
+    for issue_type, count in sorted(
+        result["issue_counts"].items(), key=lambda x: -x[1]
+    ):
+        pct = 100 * count / total
+        click.echo(f"{issue_type:<12}  {count:>6}  {pct:>5.1f}")
+
+    # Per-rule breakdown — most actionable signal: rules where non_word is
+    # NOT expected (morph/agr/gov) but appears anyway = handler bug.
+    # SPELL-category rules naturally produce non_words by design.
+    if result["per_rule"]:
+        click.echo("\nTop 10 rules by issue count:")
+        click.echo(f"{'Rule':<55}  {'no_op':>6}  {'non_word':>9}")
+        click.echo("-" * 76)
+        rule_totals = sorted(
+            result["per_rule"].items(),
+            key=lambda r: -sum(r[1].values()),
+        )[:10]
+        for rule, counts in rule_totals:
+            click.echo(
+                f"{rule[:53]:<55}  {counts.get('no_op', 0):>6}  "
+                f"{counts.get('non_word', 0):>9}"
+            )
+        click.echo(
+            "\nNote: non_word counts are expected for SPELL-category rules "
+            "(by design)\nbut indicate handler bugs in MORPH/AGR/GOV/PUNCT rules."
+        )
+
+    if samples > 0:
+        click.echo()
+        for issue_type, sample_records in result["samples"].items():
+            click.echo(f"\n=== Sample {issue_type} records ===")
+            for rec in sample_records:
+                click.echo(json.dumps(rec, ensure_ascii=False))
+
+
 if __name__ == "__main__":
     main()
