@@ -637,7 +637,7 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
         click.echo(f"\nWeights saved to {output_path}")
 
 
-@main.command("generate-bea-paper")
+@main.command("generate-targeted")
 @click.option("-l", "--lang", default="ru", help="Language code")
 @click.option(
     "-i",
@@ -716,6 +716,11 @@ def cmd_generate_sft(
     if balance_directions:
         cmd.append("--balance-directions")
     raise SystemExit(subprocess.run(cmd).returncode)
+
+
+# Backwards-compat alias: `generate-bea-paper` was the original name.
+# Renamed to `generate-targeted` for use across multiple papers.
+main.add_command(cmd_generate_sft, name="generate-bea-paper")
 
 
 if __name__ == "__main__":

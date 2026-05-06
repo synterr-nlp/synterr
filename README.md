@@ -56,10 +56,18 @@ uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
 uv run synterr corrupt -l ru -e noun_case --depparse "Я положил книгу на столе."
 ```
 
-Output format (GECToR `.edits`):
+Output formats (`-f` flag): `gector` (default), `tsv`, `jsonl`,
+`chat` (instruction-tuning), `sft` (`{src, tgt}` JSONL), `diff`.
+
+Rule-targeted SFT generation (force-apply each LoRuGEC rule, with rule labels):
+
+```bash
+uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
+    -n 50000 --seed 42 --balance-directions
 ```
-$STARTSEPL|||SEPR$KEEP:CORRECT ОнSEPL|||SEPR$REPLACE_читает:MORPH читаетSEPL|||SEPR$KEEP:CORRECT книгу
-```
+
+Produces `{"src": corrupted, "tgt": clean, "rule": rule_name}` JSONL
+plus a `.dist.json` sidecar of per-rule counts.
 
 ## Error Types (Russian)
 
@@ -146,7 +154,7 @@ If you use synterr in your research, please cite:
 @inproceedings{smirnova2026synterr,
   title     = {TBD: paper title},
   author    = {Smirnova, Anna and TBD},
-  booktitle = {TBD: venue},
+  booktitle = {Proceedings of the 21st Workshop on Innovative Use of NLP for Building Educational Applications (BEA)},
   year      = {2026},
   url       = {https://github.com/synterr-nlp/synterr},
 }

@@ -6,7 +6,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [1.0.0] — 2026-05-01
 
-Paper release. Tagged as [`v1.0-paper`](https://github.com/synterr-nlp/synterr/releases/tag/v1.0-paper).
+BEA 2026 release. Tagged as [`v1.0-paper`](https://github.com/synterr-nlp/synterr/releases/tag/v1.0-paper).
 
 ### Added
 

@@ -56,6 +56,18 @@ uv run synterr generate -l ru --preset rulec --depparse \
     -i clean.txt -o train.jsonl -f jsonl
 ```
 
+For **rule-targeted SFT generation** (force-apply each LoRuGEC rule,
+direction-balanced, paper-style output):
+
+```bash
+uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
+    -n 50000 --seed 42 --balance-directions
+```
+
+This produces `{"src": corrupted, "tgt": clean, "rule": rule_name}`
+JSONL plus a `.dist.json` sidecar with per-rule counts. This is the
+command used to build the v4 dataset for our BEA 2026 paper.
+
 ### 3. Use the Python API
 
 ```python
