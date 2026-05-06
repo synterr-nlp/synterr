@@ -259,6 +259,13 @@ def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> No
 )
 @click.option("--backend", "-b", help="NLP backend (stanza, natasha, spacy)")
 @click.option("--schema", "-s", help="Schema for tag lookup (e.g., rlc)")
+@click.option(
+    "--depparse",
+    is_flag=True,
+    default=False,
+    help="Enable dependency parsing (required for noun_case, adj_case, "
+    "verb_person_number — slower)",
+)
 @click.option("--seed", type=int, default=42, help="Random seed")
 @click.argument("text")
 def cmd_corrupt(
@@ -267,6 +274,7 @@ def cmd_corrupt(
     position: int | None,
     backend: str | None,
     schema: str | None,
+    depparse: bool,
     seed: int,
     text: str,
 ) -> None:
@@ -311,7 +319,9 @@ def cmd_corrupt(
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
-    config = GenerationConfig(seed=seed, backend=backend, schema=schema)
+    config = GenerationConfig(
+        seed=seed, backend=backend, schema=schema, use_depparse=depparse
+    )
     pipeline = ErrorPipeline(language, config)
 
     result = pipeline.apply_error(text, error, position)

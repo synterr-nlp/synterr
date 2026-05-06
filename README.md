@@ -45,10 +45,13 @@ uv run synterr generate -l ru -i clean.txt -o train.edits --preset rulec
 uv run synterr generate -l ru -i corpus.txt -o out.edits --backend natasha
 
 # Specific error types only
-uv run synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case
+uv run synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case --depparse
 
 # Single sentence corruption (for testing)
-uv run synterr corrupt -l ru -e noun_case "Мама мыла раму."
+uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
+
+# Dep-tree-aware errors (noun_case, adj_case) need --depparse
+uv run synterr corrupt -l ru -e noun_case --depparse "Я положил книгу на столе."
 ```
 
 Output format (GECToR `.edits`):
@@ -101,9 +104,9 @@ The "rule inversion" approach: look up what's grammatically correct, then genera
 
 ## Status
 
-**v0.1.2** — Russian morphological + spelling errors working. Output formats (TSV, JSONL, diff). Lexical and structural errors in progress.
+**v1.0.0** — Paper release. 22 handlers covering spelling, morphology, lexical, structural, and punctuation errors. Output formats: GECToR tags, TSV, JSONL (with rule labels), chat (instruction-tuning), diff.
 
-See [docs/VERSIONING.md](docs/VERSIONING.md) for roadmap.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next.
 
 ## References
 
