@@ -685,37 +685,19 @@ def cmd_generate_sft(
     Targets 48 LoRuGEC evaluation rules with bidirectional split/merge.
     Saves a .dist.json sidecar with per-rule counts.
     """
-    import subprocess
+    from synterr.sft import generate_targeted
 
-    # Find the script relative to the package
-    script = Path(__file__).parent.parent.parent / "scripts" / "generate_sft.py"
-    if not script.exists():
-        # Fallback: try CWD
-        script = Path("scripts/generate_sft.py")
-    if not script.exists():
-        click.echo("Error: scripts/generate_sft.py not found", err=True)
-        raise SystemExit(1)
-    cmd = [
-        sys.executable,
-        str(script),
-        "-i",
-        input_file,
-        "-o",
-        output_file,
-        "-n",
-        str(total),
-        "--seed",
-        str(seed),
-        "--max-input",
-        str(max_input),
-        "--batch-size",
-        str(batch_size),
-    ]
-    if depparse:
-        cmd.append("--depparse")
-    if balance_directions:
-        cmd.append("--balance-directions")
-    raise SystemExit(subprocess.run(cmd).returncode)
+    generate_targeted(
+        input_path=input_file,
+        output_path=output_file,
+        total=total,
+        seed=seed,
+        depparse=depparse,
+        max_input=max_input,
+        batch_size=batch_size,
+        balance_directions=balance_directions,
+        lang=lang,
+    )
 
 
 # Backwards-compat alias: `generate-bea-paper` was the original name.

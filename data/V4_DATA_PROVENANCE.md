@@ -170,6 +170,15 @@ uv run python scripts/generate_sft.py \
   ```
 - Subsequent commits on master change handler behavior (e.g. the `noun_case` dep-arc gate added in May 2026) and will produce different output if rerun.
 
+> **Note on tooling (May 2026):** The SFT logic that lived in
+> `scripts/generate_sft.py` at commit `898814d` was later promoted into
+> the package as `synterr.sft.generate_targeted` (see commit log).
+> For new datasets, prefer `synterr generate-targeted` or
+> `from synterr.sft import generate_targeted`. The script is preserved
+> as a thin CLI wrapper for backwards compat. **For reproducing v4 byte-
+> identically, use the pinned commit above** — the refactor is logic-
+> preserving but not commit-hash-preserving.
+
 ### Generation timestamps (all UTC)
 - 2026-03-22 15:57 — `build_v4_sources.py` produced `mixed_sources_v4.txt`
 - 2026-03-22 15:57 — `generate_sft.py` produced `qwen_sft_v4.jsonl`
