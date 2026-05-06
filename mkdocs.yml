@@ -54,6 +54,7 @@ nav:
   - Getting started: getting-started.md
   - Architecture: architecture.md
   - Error types: error-types.md
+  - Extending synterr: extending.md
   - Reproducibility: reproducibility.md
   - Roadmap: roadmap.md
   - Contributing: contributing.md
