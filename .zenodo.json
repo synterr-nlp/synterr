@@ -1,0 +1,53 @@
+{
+  "title": "synterr: rule-grounded synthetic error generation for Russian GEC",
+  "description": "<p>synterr is an open-source synthetic-error generator for Russian grammatical error correction. It corrupts clean text into realistic learner-like errors and labels each error with the prescriptive rule it violates, anchored in a 98-category taxonomy from Rozental's reference grammar.</p><p>Distinguishing properties: every error carries a defensible taxonomic label (Rozental §, RLC tag, or ERRANT tag) and a syntactic justification (dependency-tree-driven handlers for agreement, government, and punctuation). Output formats include GECToR token tags, parallel TSV, rich JSONL with rule labels, instruction-tuning chat format, and rule-targeted SFT.</p><p>This release accompanies the BEA 2026 paper <em>What Aggregate Scores Hide: Per-Rule Evaluation of Russian Grammatical Error Correction</em>.</p>",
+  "creators": [
+    {
+      "name": "Smirnova, Anna",
+      "affiliation": "HEC Lausanne, University of Lausanne"
+    },
+    {
+      "name": "Kopan, Artyom",
+      "affiliation": "Saint Petersburg State University"
+    },
+    {
+      "name": "Makeev, Vladislav",
+      "affiliation": "Saint Petersburg State University"
+    },
+    {
+      "name": "Chernishev, George",
+      "affiliation": "Saint Petersburg State University"
+    }
+  ],
+  "license": "MIT",
+  "upload_type": "software",
+  "access_right": "open",
+  "keywords": [
+    "grammatical error correction",
+    "GEC",
+    "Russian",
+    "synthetic data",
+    "data augmentation",
+    "natural language processing",
+    "NLP",
+    "Rozental",
+    "rule-based generation",
+    "dependency parsing"
+  ],
+  "language": "eng",
+  "related_identifiers": [
+    {
+      "identifier": "https://synterr-nlp.github.io/papers/bea-2026/",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-article",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/synterr-nlp/synterr",
+      "relation": "isSourceOf",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ],
+  "communities": []
+}
