@@ -1,0 +1,14 @@
+{
+  "seed": 42,
+  "total_target": 150000,
+  "output_count": 149999,
+  "source_counts": {
+    "scarce": 54823,
+    "rublimp_pool_sampled": 57106,
+    "rublimp_pool_available": 728625,
+    "news_sampled": 38071,
+    "news_available": 3344664
+  },
+  "benchmark_excluded": 86655,
+  "benchmark_overlap": 0
+}

@@ -1,0 +1,30 @@
+{
+  "seed": 42,
+  "target_per_form": 500,
+  "sources": [
+    "/Users/aleph/Projects/research/gector/data/ruwiki-latest-pages-articles.xml.bz2",
+    "data/rublimp_pool_sents.txt",
+    "data/rare_conjunctions_fontanka.txt",
+    "data/rare_conjunctions_interfax.txt",
+    "data/rare_conjunctions_lenta.txt"
+  ],
+  "seen": {
+    "что бы": 8848,
+    "так же": 51414,
+    "за то": 22318,
+    "от того": 19813,
+    "при том": 8532,
+    "при чём": 3872,
+    "при чем": 2141
+  },
+  "sampled": {
+    "что бы": 500,
+    "так же": 500,
+    "за то": 500,
+    "от того": 500,
+    "при том": 500,
+    "при чём": 500,
+    "при чем": 500
+  },
+  "total_sentences": 3500
+}

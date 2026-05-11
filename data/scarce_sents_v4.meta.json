@@ -1,0 +1,26 @@
+{
+  "seed": 42,
+  "total": 54823,
+  "source_counts": {
+    "taiga_fontanka": 36275,
+    "rublimp_pool_sents": 12502,
+    "taiga_interfax": 2510,
+    "taiga_lenta": 1776,
+    "wiki_200k": 1760
+  },
+  "pattern_counts": {
+    "conjunctions_solid": 7786,
+    "conjunctions_separate": 8375,
+    "poltora": 4435,
+    "taki": 5412,
+    "enk_onk_ink": 10704,
+    "insk_ensk": 5103,
+    "pol_dash": 88,
+    "its_ets": 5630,
+    "compound_adj": 5000,
+    "parenthetical": 796,
+    "frozen_phrases": 93,
+    "indivisible": 2507,
+    "collocations": 1072
+  }
+}
