@@ -1,5 +1,8 @@
 # synterr
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20121524.svg)](https://doi.org/10.5281/zenodo.20121524)
+[![BEA 2026](https://img.shields.io/badge/paper-BEA%202026-b3261e)](https://synterr-nlp.github.io/papers/bea-2026/)
+
 Generate synthetic grammatical errors for training GEC models.
 
 synterr corrupts clean text with realistic learner-like errors, outputting GECToR-compatible training data with error type labels.
@@ -151,12 +154,25 @@ Citation: Ponomareva M., Milintsevich K., Chernyak E., & Starostin A. (2017). Au
 If you use synterr in your research, please cite:
 
 ```bibtex
-@inproceedings{smirnova2026synterr,
-  title     = {TBD: paper title},
-  author    = {Smirnova, Anna and TBD},
+@inproceedings{smirnova2026aggregate,
+  title     = {What Aggregate Scores Hide: Per-Rule Evaluation of Russian Grammatical Error Correction},
+  author    = {Smirnova, Anna and Kopan, Artyom and Makeev, Vladislav and Chernishev, George},
   booktitle = {Proceedings of the 21st Workshop on Innovative Use of NLP for Building Educational Applications (BEA)},
   year      = {2026},
-  url       = {https://github.com/synterr-nlp/synterr},
+  url       = {https://synterr-nlp.github.io/papers/bea-2026/},
+}
+```
+
+To cite the software release specifically:
+
+```bibtex
+@software{synterr_2026,
+  title   = {synterr: rule-grounded synthetic error generation for Russian GEC},
+  author  = {Smirnova, Anna and Kopan, Artyom and Makeev, Vladislav and Chernishev, George},
+  year    = {2026},
+  version = {v1.0.0},
+  doi     = {10.5281/zenodo.20121524},
+  url     = {https://github.com/synterr-nlp/synterr},
 }
 ```
 
@@ -164,8 +180,6 @@ The exact code and data used in the paper are tagged as
 [`v1.0-paper`](https://github.com/synterr-nlp/synterr/releases/tag/v1.0-paper).
 Data generation provenance and SHA256 checksums are documented in
 [`data/V4_DATA_PROVENANCE.md`](data/V4_DATA_PROVENANCE.md).
-
-<!-- TODO: archive on Zenodo and add DOI badge here once paper is camera-ready -->
 
 ## License
 
