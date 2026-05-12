@@ -29,9 +29,9 @@ uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
 # Corrupted: Мама мяла раму
 # Error:     spelling_keyboard
 
-uv run synterr corrupt -l ru -e noun_case --depparse "Я положил книгу на столе."
-# Original:  Я положил книгу на столе
-# Corrupted: Я положил книгу на стол
+uv run synterr corrupt -l ru -e noun_case --depparse "Книга лежит на столе."
+# Original:  Книга лежит на столе
+# Corrupted: Книга лежит на стол    (wrong: "лежит на" requires Prep, not Acc)
 # Error:     noun_case
 ```
 

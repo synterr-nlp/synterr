@@ -23,7 +23,7 @@ For dep-tree-aware errors (`noun_case`, `adj_case`,
 
 ```bash
 uv run synterr corrupt -l ru -e noun_case --depparse \
-    "Я положил книгу на столе."
+    "Книга лежит на столе."
 ```
 
 You can target a specific subtype:

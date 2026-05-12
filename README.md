@@ -57,7 +57,9 @@ uv run synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case --dep
 uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
 
 # Dep-tree-aware errors (noun_case, adj_case) need --depparse
-uv run synterr corrupt -l ru -e noun_case --depparse "Я положил книгу на столе."
+uv run synterr corrupt -l ru -e noun_case --depparse "Книга лежит на столе."
+# Original:  Книга лежит на столе .
+# Corrupted: Книга лежит на стол .   (wrong case: "лежит на" requires prepositional)
 ```
 
 Output formats (`-f` flag): `gector` (default), `tsv`, `jsonl`,
