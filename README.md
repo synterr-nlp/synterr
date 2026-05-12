@@ -1,7 +1,8 @@
 # synterr
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20121524.svg)](https://doi.org/10.5281/zenodo.20121524)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20121524-3b82f6)](https://doi.org/10.5281/zenodo.20121524)
 [![BEA 2026](https://img.shields.io/badge/paper-BEA%202026-b3261e)](https://synterr-nlp.github.io/papers/bea-2026/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-7a7a7a)](https://opensource.org/licenses/MIT)
 
 Generate synthetic grammatical errors for training GEC models.
 
