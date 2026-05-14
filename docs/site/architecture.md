@@ -1,8 +1,9 @@
 # Architecture
 
-The full developer-facing reference lives in
-[`CLAUDE.md`](https://github.com/synterr-nlp/synterr/blob/master/CLAUDE.md).
-This page is the conceptual orientation.
+This page is the conceptual orientation. For full developer reference
+(adding a handler, the data flow, gotchas) see [the contributing guide](https://github.com/synterr-nlp/synterr/blob/master/CONTRIBUTING.md)
+and the Russian-language deep dive in
+[`CONTRIBUTING.ru.md`](https://github.com/synterr-nlp/synterr/blob/master/docs/CONTRIBUTING.ru.md).
 
 ## The three-layer separation
 
@@ -97,12 +98,13 @@ for the analysis.
 
 ## Multiple schemas
 
-Synterr ships three schemas:
+Synterr ships four schemas:
 
 | Schema | Granularity | Use case |
 |--------|-------------|----------|
+| `synterr` (default) | Native handler subtype tags | Direct rule tracing in your own pipeline |
 | `rlc` | 35 tags | Russian Learner Corpus annotation alignment |
-| `rozental` | 8 / 29 / 100 tags (L0/L1/L2 hierarchy) | Rule-grounded error tracing |
+| `rozental` | 8 / 29 / 100 tags (L0 / L1 / L2 hierarchy) | Rule-grounded error tracing |
 | `errant` | ERRANT-style POS:operation tags | Cross-lingual GEC eval alignment |
 
 When generating data, the same corruption gets the right tag for

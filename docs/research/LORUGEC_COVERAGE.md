@@ -1,6 +1,6 @@
 # LoRuGEC Rule Coverage by Handler
 
-Generated: 2026-05-01 | synterr v0.3.4 | 22 handlers, 50+ subtypes
+Generated: 2026-05-01 (counts refreshed 2026-05-12) | synterr v1.0.0 | 24 handlers, 63 subtypes
 Source: `../gector/data/rozental_book/cross_reference.csv` (48 LoRuGEC rules)
 
 ## Summary
@@ -14,7 +14,7 @@ Source: `../gector/data/rozental_book/cross_reference.csv` (48 LoRuGEC rules)
 Total LoRuGEC rules: **48** (val=348, test=612, no train).
 
 Note: this is a *handler claim* assessment. Generation quality (audit bugs, output validity) is a
-separate question — see `M1.2` in [`ROADMAP.md`](../ROADMAP.md). The "PARTIAL" bucket reflects
+separate question — tracked separately in the team's internal queue. The "PARTIAL" bucket reflects
 rules where the handler's coverage of *this specific rule* needs spot-checking, not handler quality.
 
 ## Per-rule mapping

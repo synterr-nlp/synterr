@@ -1,6 +1,6 @@
 # Error types (Russian)
 
-Twenty-two handlers covering five categories. The full subtype lists
+Twenty-four handlers (63 subtypes) covering five categories. The full subtype lists
 and Rozental § mappings are in
 [`CLAUDE.md`](https://github.com/synterr-nlp/synterr/blob/master/CLAUDE.md);
 LoRuGEC rule coverage is verified in

@@ -26,5 +26,5 @@ Feature branches off `master`, PR back. CI must pass:
 
 - **Architecture**: [`CLAUDE.md`](https://github.com/synterr-nlp/synterr/blob/master/CLAUDE.md)
 - **Adding a handler**: see Russian guide for fully-worked examples
-- **Roadmap**: [`docs/ROADMAP.md`](https://github.com/synterr-nlp/synterr/blob/master/docs/ROADMAP.md)
+- **Open issues**: [GitHub Issues](https://github.com/synterr-nlp/synterr/issues)
 - **Open issues**: [GitHub Issues](https://github.com/synterr-nlp/synterr/issues)

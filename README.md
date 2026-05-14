@@ -63,7 +63,8 @@ uv run synterr corrupt -l ru -e noun_case --depparse "Книга лежит на
 ```
 
 Output formats (`-f` flag): `gector` (default), `tsv`, `jsonl`,
-`chat` (instruction-tuning), `sft` (`{src, tgt}` JSONL), `diff`.
+`chat` (instruction-tuning), `sft` (`{src, tgt}` JSONL).
+(`to_diff()` is available on the Python API but not exposed via CLI.)
 
 Rule-targeted SFT generation (force-apply each LoRuGEC rule, with rule labels):
 
@@ -120,9 +121,10 @@ The "rule inversion" approach: look up what's grammatically correct, then genera
 
 ## Status
 
-**v1.0.0** — Paper release. 22 handlers covering spelling, morphology, lexical, structural, and punctuation errors. Output formats: GECToR tags, TSV, JSONL (with rule labels), chat (instruction-tuning), diff.
+**v1.0.0** — Paper release. 24 handlers / 63 subtypes covering spelling, morphology, lexical, structural, and punctuation errors. Output formats: GECToR tags, TSV, JSONL (with rule labels), chat (instruction-tuning), SFT.
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next.
+Active development continues toward future releases; see the `CHANGELOG.md`
+for shipped milestones.
 
 ## References
 

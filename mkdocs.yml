@@ -62,5 +62,4 @@ nav:
     - Handlers and subtypes: reference/handlers.md
     - Schemas: reference/schemas.md
     - Output formats: reference/output-formats.md
-  - Roadmap: roadmap.md
   - Contributing: contributing.md

@@ -29,7 +29,7 @@ uv run synterr corrupt -l ru -e noun_case --depparse \
 You can target a specific subtype:
 
 ```bash
-uv run synterr corrupt -l ru -e spelling:vowel_reduction "карова"
+uv run synterr corrupt -l ru -e spelling:vowel_reduction "Молоко стоит на столе."
 ```
 
 ### 2. Generate a corpus of errors

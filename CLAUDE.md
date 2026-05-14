@@ -31,7 +31,7 @@ Schema        # primary_tags, modifiers, mappings: subtype → tag
 
 ```bash
 uv run pytest                                     # Tests
-uv run synterr coverage --lang ru --schema rlc    # 9/35 tags covered
+uv run synterr coverage --lang ru --schema rlc    # see CHANGELOG / docs/research/LORUGEC_COVERAGE.md for current
 uv run synterr corrupt -l ru -e noun_case "Мама"  # Tagged corruption
 uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 ```
@@ -135,16 +135,6 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v0.3.4**: L2 rozental schema wired into generation. 100 fine-grained tags loaded, 47/51 handler subtypes have L2 mappings. JSONL output includes `schema_tag` (L1) and `schema_l2_tag` (L2). Fixed subtype extraction for multi-prefix handler names.
+**v1.0.0** (May 2026, BEA 2026 release): 24 handlers, 63 subtypes, 235 tests. Schemas: synterr, rlc, rozental, errant. Pinned-commit reproducibility for the v4 SFT data (`data/V4_DATA_PROVENANCE.md`, `data/v4_checksums.txt`, `scripts/verify_v4.py`). Tagged software at `v1.0.0`; Zenodo DOI `10.5281/zenodo.20121524`. Per-detail version history in `CHANGELOG.md`.
 
-**v0.3.3**: CommaInsertHandler (extra commas: before как, in set phrases, between conjunctions). 193 tests, 21 handlers.
-
-**v0.3.2**: OrthographicSpellingHandler (9 subtypes: пре/при, ы/и, suffixes, participles, ц/sibilant vowels).
-
-**v0.3.1**: FunctionSpellingHandler (не/ни, conjunction split/merge, -таки).
-
-**v0.3.0**: Confusion-matrix-driven morph handlers (5 handlers upgraded), dep-tree-aware agreement errors (adj amod, verb nsubj).
-
-**v0.2.0**: Lexical handlers (paronym, preposition, conjunction), structural (word_omission, word_insertion), punctuation (comma_delete, comma_pair_delete, dash_delete). Rozental schema (8 L0 / 29 L1 / 99 L2).
-
-**Research**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`), confusion matrices (`docs/research/confusion_matrices.json`)
+**Research notes**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`), confusion matrices (`docs/research/confusion_matrices.json`), LoRuGEC coverage (`docs/research/LORUGEC_COVERAGE.md`).
