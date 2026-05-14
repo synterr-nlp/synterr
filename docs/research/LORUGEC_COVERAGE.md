@@ -130,7 +130,7 @@ rules where the handler's coverage of *this specific rule* needs spot-checking, 
 | LoRuGEC rule | Handler.subtype |
 |---|---|
 | Согласование причастий с определяемым словом | `adj_case` (via amod arc) |
-| Нарушение норм управления | `noun_case` (gated to obl/nmod/iobj/obj as of v1.0-paper) |
+| Нарушение норм управления | `noun_case` (gated to obl/nmod/iobj/obj as of v1.0) |
 
 ## What changed since the last coverage estimate (2026-03-06)
 

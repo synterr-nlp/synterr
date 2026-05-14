@@ -4,9 +4,9 @@ The paper-release v4 dataset is pinned, checksummed, and verified
 byte-identical against the trained-on file. To regenerate it from
 scratch you need:
 
-1. **The pinned generation commit**: `898814d`. The released v1.0-paper
-   tag includes some changes that came after — most notably the
-   `noun_case` arc gate. Generating against the tag will not produce
+1. **The pinned generation commit**: `898814d`. Later releases include
+   changes that came after this commit — most notably the `noun_case`
+   arc gate. Generating against any release tag will not produce
    bit-identical output.
 2. **The exact source corpora**: documented in
    [`data/V4_DATA_PROVENANCE.md`](https://github.com/synterr-nlp/synterr/blob/master/data/V4_DATA_PROVENANCE.md).
@@ -63,4 +63,4 @@ Full step-by-step (with corpus paths and benchmark exclusions) is in
 ## Citing
 
 When citing the dataset specifically (vs. the synterr tool), reference
-both the paper and the v1.0-paper tag.
+the paper and the pinned generation commit `898814d`.

@@ -135,6 +135,6 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v1.0.0** (May 2026, BEA 2026 release): 24 handlers, 63 subtypes, 235 tests. Schemas: synterr, rlc, rozental, errant. Pinned-commit reproducibility for the v4 SFT data (`data/V4_DATA_PROVENANCE.md`, `data/v4_checksums.txt`, `scripts/verify_v4.py`). Tagged software at `v1.0.0`; Zenodo DOI `10.5281/zenodo.20121524`. Per-detail version history in `CHANGELOG.md`.
+**v1.0.1** (May 2026, BEA 2026 release): 24 handlers, 63 subtypes, 235 tests. Schemas: synterr, rlc, rozental, errant. Pinned-commit reproducibility for the v4 SFT data (`data/V4_DATA_PROVENANCE.md`, `data/v4_checksums.txt`, `scripts/verify_v4.py`). Per-detail version history in `CHANGELOG.md`.
 
 **Research notes**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`), confusion matrices (`docs/research/confusion_matrices.json`), LoRuGEC coverage (`docs/research/LORUGEC_COVERAGE.md`).

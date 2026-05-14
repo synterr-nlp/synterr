@@ -4,9 +4,13 @@ All notable changes to synterr are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] — 2026-05-14
+
+Documentation cleanup pass.
+
 ## [1.0.0] — 2026-05-01
 
-BEA 2026 release. Tagged as [`v1.0-paper`](https://github.com/synterr-nlp/synterr/releases/tag/v1.0-paper).
+BEA 2026 release.
 
 ### Added
 
@@ -17,9 +21,8 @@ BEA 2026 release. Tagged as [`v1.0-paper`](https://github.com/synterr-nlp/synter
   commit `898814d`, `data/v4_checksums.txt` records SHA256 for all v4
   artifacts, `scripts/verify_v4.py` checks them.
 - **CLI**: `synterr corrupt` accepts `--depparse` for dep-aware error types.
-- **`docs/ROADMAP.md`** + **`docs/research/LORUGEC_COVERAGE.md`** —
-  release roadmap and verified LoRuGEC rule coverage map (36/48 FULL,
-  12/48 PARTIAL, 0 NONE).
+- **`docs/research/LORUGEC_COVERAGE.md`** — verified LoRuGEC rule coverage
+  map (36/48 FULL, 12/48 PARTIAL, 0 NONE).
 - **Lint/type CI**: ruff at 88-char line length plus mypy on
   `src/synterr/core` and `src/synterr/schemas`.
 

@@ -19,7 +19,6 @@ models, with two properties most synthetic-corruption tools don't have:
 - Want to understand the design? → [Architecture](architecture.md)
 - Looking for a specific error type? → [Error types](error-types.md)
 - Trying to reproduce paper results? → [Reproducibility](reproducibility.md)
-- Curious about future work? → [Roadmap](roadmap.md)
 
 ## Quick taste
 
