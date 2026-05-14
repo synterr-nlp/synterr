@@ -1,5 +1,6 @@
 # synterr
 
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20182862-3b82f6)](https://doi.org/10.5281/zenodo.20182862)
 [![BEA 2026](https://img.shields.io/badge/paper-BEA%202026-b3261e)](https://synterr-nlp.github.io/papers/bea-2026/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-7a7a7a)](https://opensource.org/licenses/MIT)
 
@@ -175,6 +176,7 @@ To cite the software release specifically:
   author  = {Smirnova, Anna and Kopan, Artyom and Makeev, Vladislav and Chernishev, George},
   year    = {2026},
   version = {v1.0.1},
+  doi     = {10.5281/zenodo.20182862},
   url     = {https://github.com/synterr-nlp/synterr},
 }
 ```
