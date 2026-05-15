@@ -90,6 +90,13 @@ PARENTHETICAL_WORDS = frozenset(
     }
 )
 
+# §103 — affirmative / negative / response words; comma typically follows
+# when they open a turn or response.
+RESPONSE_WORDS = frozenset({"да", "нет"})
+
+# §90 — repeated content-word POS classes that take commas between repetitions
+REPEATED_CONTENT_POS = frozenset({"NOUN", "VERB", "ADJ", "ADV"})
+
 FINITE_POS = frozenset({"VERB", "AUX"})
 
 DASH_CHARS = frozenset({"—", "–", "--"})
@@ -201,6 +208,28 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
 
     # The comma's head in the dep tree is the key signal
     comma_head = _get_head(tokens, comma) if comma.head_idx is not None else None
+
+    # ── 0. Surface-feature overrides (high-specificity rules) ────────────
+    # These run before dep-tree classification because they're more specific
+    # than the generic conj/punct dep relations that would otherwise win.
+
+    # §102 — Interjection: INTJ neighbor is a strong signal
+    if (left and left.pos == "INTJ") or (right and right.pos == "INTJ"):
+        return "comma_interjection"
+
+    # §103 — Affirmative/negative response at sentence start
+    if left and left.idx == 0 and left.lemma in RESPONSE_WORDS:
+        return "comma_response"
+
+    # §90 — Repeated word: same lemma + same content-POS on both sides
+    if (
+        left
+        and right
+        and left.pos == right.pos
+        and left.pos in REPEATED_CONTENT_POS
+        and left.lemma == right.lemma
+    ):
+        return "comma_repeated"
 
     # ── 1. Dep-tree based classification (when head info available) ──────
 
@@ -335,6 +364,9 @@ class CommaDeleteHandler:
         "comma_parenthetical",
         "comma_isolation",
         "comma_homogeneous",
+        "comma_interjection",
+        "comma_response",
+        "comma_repeated",
     ]
     category = "PUNCT"
     changes_length = True

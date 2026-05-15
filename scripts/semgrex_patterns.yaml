@@ -1,0 +1,85 @@
+# Semgrex patterns for synterr source-pool mining.
+#
+# Syntax: https://nlp.stanford.edu/nlp/javadoc/javanlp/edu/stanford/nlp/semgraph/semgrex/SemgrexPattern.html
+# Each pattern binds named nodes (`=name`) that the downstream JSONL records.
+#
+# stanza→CoreNLP bridge:
+#   cpos     — UD upos (NOUN, PROPN, VERB, …)        # use this, not `tag`
+#   tag      — xpos (empty in stanza UD output)
+#   word     — surface form
+#   lemma    — lemma
+#   feats    — morphological features (regex /…/)
+#
+# Russian UD relation cheat-sheet:
+#   nsubj      — subject
+#   obj/iobj   — direct / indirect object
+#   obl        — oblique nominal (PP-attached)
+#   nmod       — nominal modifier
+#   amod       — adjectival modifier
+#   acl        — clausal modifier of noun (relative / participial)
+#   acl:relcl  — relative clause
+#   advcl      — adverbial clause
+#   parataxis  — loose paratactic clause
+#   cop        — copula
+#   case       — adposition (preposition)
+#   punct      — punctuation
+
+# ────────────────────────────────────────────────────────────────────
+# Punctuation handlers
+# ────────────────────────────────────────────────────────────────────
+
+pair_gerund: |
+  {}=head >advcl {cpos:VERB;morphofeatures:/.*VerbForm=Conv.*/}=conv
+
+pair_participle: |
+  {cpos:/NOUN|PROPN/}=head >acl {cpos:VERB;morphofeatures:/.*VerbForm=Part.*/}=part
+
+pair_relative: |
+  {cpos:/NOUN|PROPN/}=head >/acl:relcl/ {cpos:VERB}=relverb
+
+pair_parenthetical: |
+  {}=head >parataxis {}=insert
+
+pair_apposition: |
+  {cpos:/NOUN|PROPN/}=head >appos {cpos:/NOUN|PROPN/}=appos
+
+dash_subj_pred: |
+  {cpos:/NOUN|PROPN/}=pred >nsubj {cpos:/NOUN|PROPN|PRON/}=subj !>cop {}
+
+# ────────────────────────────────────────────────────────────────────
+# Government / case handlers
+# ────────────────────────────────────────────────────────────────────
+
+obl_rare_prep: |
+  {}=head >obl ({cpos:/NOUN|PROPN/}=obj >case {lemma:/вопреки|согласно|благодаря|наперекор|вследствие|посредством|ввиду/}=prep)
+
+nmod_gen: |
+  {cpos:NOUN}=head >nmod {cpos:NOUN;morphofeatures:/.*Case=Gen.*/}=dep
+
+# ────────────────────────────────────────────────────────────────────
+# Negative examples (sentences where a handler should NOT fire)
+# ────────────────────────────────────────────────────────────────────
+
+neg_subj_noun: |
+  {cpos:NOUN}=n <nsubj {}=head
+
+neg_subj_pred_with_cop: |
+  {cpos:NOUN}=pred >nsubj {cpos:NOUN}=subj >cop {}=cop
+
+# ────────────────────────────────────────────────────────────────────
+# Source-pool mining for §90 / §102 / §103
+# ────────────────────────────────────────────────────────────────────
+
+# §102 — Interjection (INTJ POS is the trigger)
+interjection: |
+  {cpos:INTJ}=i
+
+# §103 — Sentence-initial да/нет (must be at index 0; runtime filter)
+sentence_initial_da_net: |
+  {lemma:/да|нет/}=a
+
+# §90 — Adjacent same-lemma content words separated by comma.
+# Semgrex can find the two repeated tokens; runtime post-filter
+# verifies the punct(,) sits between them.
+repeated_word_pair: |
+  {cpos:/NOUN|VERB|ADJ|ADV/}=a . {cpos:/NOUN|VERB|ADJ|ADV/}=b

@@ -33,7 +33,7 @@ class TestCommaDeleteHandler:
         assert self.handler.name == "comma_delete"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 5
+        assert len(self.handler.subtypes) == 8
 
     def test_can_apply_comma_only(self):
         tokens = [
@@ -326,6 +326,139 @@ class TestClassifyCommaFallback:
             _tok("обстреливалась", "VERB", idx=6),
         ]
         assert _classify_comma(tokens, 5) == "comma_isolation"
+
+
+# ── New subtypes: §102 interjection / §103 response / §90 repeated ──────────
+
+
+class TestClassifyCommaNewSubtypes:
+    """§102 INTJ, §103 да/нет, §90 repeated words.
+
+    These checks run in section 0 (before dep-tree classification) because
+    their surface signals are more specific than the generic conj/punct
+    dep-rels that would otherwise win.
+    """
+
+    # ── §102 — Interjection ────────────────────────────────────────────────
+
+    def test_interjection_left(self):
+        # "Ах, как жаль!"
+        tokens = [
+            _tok("Ах", "INTJ", lemma="ах", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("как", "ADV", idx=2),
+            _tok("жаль", "ADV", idx=3),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_interjection"
+
+    def test_interjection_right(self):
+        # "Уйдём, эх, далеко"
+        tokens = [
+            _tok("Уйдём", "VERB", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("эх", "INTJ", lemma="эх", idx=2),
+            _tok(",", "PUNCT", idx=3),
+            _tok("далеко", "ADV", idx=4),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_interjection"
+        assert _classify_comma(tokens, 3) == "comma_interjection"
+
+    def test_interjection_beats_dep_tree(self):
+        # Even with dep info pointing elsewhere, INTJ neighbor wins.
+        tokens = [
+            _tok("Ах", "INTJ", lemma="ах", idx=0, dep_rel="discourse", head_idx=3),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("как", "ADV", idx=2, dep_rel="advmod", head_idx=3),
+            _tok("жаль", "ADV", idx=3, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_interjection"
+
+    # ── §103 — Affirmative / negative response ─────────────────────────────
+
+    def test_response_da_sentence_start(self):
+        # "Да, я согласен."
+        tokens = [
+            _tok("Да", "PART", lemma="да", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("я", "PRON", idx=2),
+            _tok("согласен", "ADJ", idx=3),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_response"
+
+    def test_response_net_sentence_start(self):
+        # "Нет, нельзя."
+        tokens = [
+            _tok("Нет", "PART", lemma="нет", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("нельзя", "ADV", idx=2),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_response"
+
+    def test_response_da_not_at_start_not_response(self):
+        # "Я хочу, да не могу." — да here is conjunction, not response.
+        # Comma is between two clauses; left of comma is хочу (VERB), not да.
+        tokens = [
+            _tok("Я", "PRON", idx=0),
+            _tok("хочу", "VERB", idx=1),
+            _tok(",", "PUNCT", idx=2),
+            _tok("да", "CCONJ", lemma="да", idx=3),
+            _tok("не", "PART", idx=4),
+            _tok("могу", "VERB", idx=5),
+        ]
+        # Must NOT classify as comma_response — left is хочу, not да.
+        assert _classify_comma(tokens, 2) != "comma_response"
+
+    # ── §90 — Repeated word ────────────────────────────────────────────────
+
+    def test_repeated_noun(self):
+        # "Дождь, дождь идёт."
+        tokens = [
+            _tok("Дождь", "NOUN", lemma="дождь", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("дождь", "NOUN", lemma="дождь", idx=2),
+            _tok("идёт", "VERB", idx=3),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_repeated"
+
+    def test_repeated_verb(self):
+        # "Едешь, едешь — степь да небо."
+        tokens = [
+            _tok("Едешь", "VERB", lemma="ехать", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("едешь", "VERB", lemma="ехать", idx=2),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_repeated"
+
+    def test_repeated_beats_homogeneous(self):
+        # Realistic dep tree where second token has dep_rel=conj — section 1
+        # would otherwise classify as comma_homogeneous. Section 0 wins.
+        tokens = [
+            _tok("Дождь", "NOUN", lemma="дождь", idx=0, dep_rel="nsubj", head_idx=3),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("дождь", "NOUN", lemma="дождь", idx=2, dep_rel="conj", head_idx=0),
+            _tok("идёт", "VERB", idx=3, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_repeated"
+
+    def test_different_lemma_not_repeated(self):
+        # "красный, синий шар" — same POS, different lemmas → homogeneous, not repeated.
+        tokens = [
+            _tok("красный", "ADJ", lemma="красный", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("синий", "ADJ", lemma="синий", idx=2),
+            _tok("шар", "NOUN", idx=3),
+        ]
+        assert _classify_comma(tokens, 1) != "comma_repeated"
+
+    def test_function_word_repetition_not_caught(self):
+        # CCONJ repetition (rare; mostly impossible in clean text) — must not
+        # fire §90 because CCONJ is not in REPEATED_CONTENT_POS.
+        tokens = [
+            _tok("и", "CCONJ", lemma="и", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("и", "CCONJ", lemma="и", idx=2),
+        ]
+        assert _classify_comma(tokens, 1) != "comma_repeated"
 
 
 # ── DashDeleteHandler ───────────────────────────────────────────────────────

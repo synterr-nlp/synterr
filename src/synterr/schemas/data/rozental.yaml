@@ -856,6 +856,15 @@ mappings:
   comma_homogeneous:
     primary: pu_comma
     l2_tag: pu_comma_homogeneous
+  comma_interjection:
+    primary: pu_comma
+    l2_tag: pu_comma_parenthetical
+  comma_response:
+    primary: pu_comma
+    l2_tag: pu_comma_parenthetical
+  comma_repeated:
+    primary: pu_comma
+    l2_tag: pu_comma_repeated
 
   # Punctuation handler subtypes — comma pairs (both commas deleted)
   pair_participle:
