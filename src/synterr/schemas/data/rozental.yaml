@@ -911,6 +911,15 @@ mappings:
   dash_asyndetic:
     primary: pu_clause
     l2_tag: pu_clause_asyndetic
+  dash_to_comma_apposition:
+    primary: pu_dash
+    l2_tag: pu_dash_apposition
+
+  # comma_insert clause-junction (covers §104 exceptions + §109 clausal homogeneous)
+  comma_clause_junction:
+    primary: pu_clause
+    modifier: Extra
+    l2_tag: pu_clause_compound
 
   # Compound spelling handler subtypes
   num_dash:

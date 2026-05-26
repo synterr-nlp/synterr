@@ -3,6 +3,7 @@ from synterr.languages.russian.errors.punctuation import (
     CommaDeleteHandler,
     CommaPairDeleteHandler,
     DashDeleteHandler,
+    DashToCommaHandler,
     _classify_comma,
     _classify_dash,
     _find_comma_partner,
@@ -734,6 +735,52 @@ class TestFindCommaPair:
         ]
         # No commas adjacent to the acl subtree → no pair
         assert _find_comma_partner(tokens, 0) is None
+
+
+class TestDashToCommaHandler:
+    """§93 apposition dash → comma substitution."""
+
+    handler = DashToCommaHandler()
+
+    def test_implements_protocol(self):
+        assert self.handler.name == "dash_to_comma"
+        assert self.handler.category == "PUNCT"
+        assert self.handler.changes_length is False
+        assert self.handler.subtypes == ["dash_to_comma_apposition"]
+
+    def test_fires_on_parataxis_apposition(self):
+        # "Соляник — памятник" — stanza tags post-dash apposition as parataxis
+        tokens = [
+            _tok("Соляник", "PROPN", idx=0, dep_rel="appos", head_idx=2),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("памятник", "NOUN", idx=2, dep_rel="root", head_idx=None),
+            _tok("природы", "NOUN", idx=3, dep_rel="parataxis", head_idx=0),
+        ]
+        assert self.handler.can_apply(tokens, 1)
+        sentence = ["Соляник", "—", "памятник", "природы"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.error_type == "dash_to_comma_apposition"
+        assert result.original == "—"
+        assert result.corrupted == ","
+        assert sentence == ["Соляник", ",", "памятник", "природы"]
+
+    def test_skips_subj_pred_dash(self):
+        # "Москва — столица" is subj_pred, not apposition. Don't fire.
+        tokens = [
+            _tok("Москва", "PROPN", idx=0, dep_rel="nsubj", head_idx=2),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("столица", "NOUN", idx=2, dep_rel="root", head_idx=None),
+        ]
+        assert self.handler.can_apply(tokens, 1) is False
+
+    def test_skips_non_dash(self):
+        tokens = [
+            _tok("a", "NOUN", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("b", "NOUN", idx=2),
+        ]
+        assert self.handler.can_apply(tokens, 1) is False
 
 
 class TestCommaPairDeleteHandler:

@@ -31,7 +31,7 @@ class TestProtocol:
         assert self.handler.name == "comma_insert"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 4
+        assert len(self.handler.subtypes) == 5
 
 
 class TestCommaBeforeKak:

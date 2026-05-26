@@ -388,6 +388,22 @@ class CommaDeleteHandler:
     category = "PUNCT"
     changes_length = True
 
+    def __init__(self) -> None:
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
+
+        When set, apply() returns None for commas that classify into any
+        subtype not in this set — letting the pipeline try the next comma
+        instead of producing a mislabeled error.
+        """
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
             return False
@@ -405,6 +421,13 @@ class CommaDeleteHandler:
             return None
 
         subtype = _classify_comma(tokens, idx)
+
+        if (
+            self._enabled_subtypes is not None
+            and subtype not in self._enabled_subtypes
+        ):
+            return None
+
         del sentence[idx]
 
         return ErrorResult(
@@ -430,6 +453,16 @@ class DashDeleteHandler:
     category = "PUNCT"
     changes_length = True
 
+    def __init__(self) -> None:
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
             return False
@@ -447,6 +480,13 @@ class DashDeleteHandler:
             return None
 
         subtype = _classify_dash(tokens, idx)
+
+        if (
+            self._enabled_subtypes is not None
+            and subtype not in self._enabled_subtypes
+        ):
+            return None
+
         dash_char = sentence[idx]
         del sentence[idx]
 
@@ -458,6 +498,97 @@ class DashDeleteHandler:
             original=dash_char,
             corrupted="",
             fix_tag=f"$APPEND_{dash_char}",
+        )
+
+
+_APPOS_DEPRELS = frozenset({"appos", "parataxis"})
+
+
+def _is_appositional_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Whether a dash at `idx` bridges an appositional construction.
+
+    Stanza's Russian model uses either `appos` (inline apposition) or
+    `parataxis` (loose paratactic apposition, especially after dash) for
+    Rozental §93 constructions. We accept both, but require both endpoints
+    to be nominal (NOUN/PROPN/PRON) to avoid catching parataxis on
+    interjections or sentence-level discourse markers.
+    """
+    nominal_pos = ("NOUN", "PROPN", "PRON")
+    for t in tokens:
+        if t.dep_rel not in _APPOS_DEPRELS or t.head_idx is None:
+            continue
+        head_idx = t.head_idx
+        if not (0 <= head_idx < len(tokens)):
+            continue
+        head = tokens[head_idx]
+        if t.pos not in nominal_pos or head.pos not in nominal_pos:
+            continue
+        if (head_idx < idx < t.idx) or (t.idx < idx < head_idx):
+            return True
+    return False
+
+
+class DashToCommaHandler:
+    """Replace dash with comma — Rozental §93 apposition L1 error pattern.
+
+    Many L1 errors substitute a comma for the required dash around an
+    apposition (e.g., "Самой глубокой является пещера Соляник —
+    государственный памятник природы" → "...Соляник, государственный...").
+    This handler produces that error by detecting appositional dashes via
+    the `appos` dep arc and substituting them with commas.
+    """
+
+    name = "dash_to_comma"
+    subtypes = ["dash_to_comma_apposition"]
+    category = "PUNCT"
+    changes_length = False
+
+    def __init__(self) -> None:
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        if idx == 0:
+            return False
+        tok = tokens[idx]
+        if tok.pos != "PUNCT" or tok.text not in DASH_CHARS:
+            return False
+        return _is_appositional_dash(tokens, idx)
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        if not self.can_apply(tokens, idx):
+            return None
+
+        subtype = "dash_to_comma_apposition"
+        if (
+            self._enabled_subtypes is not None
+            and subtype not in self._enabled_subtypes
+        ):
+            return None
+
+        dash_char = sentence[idx]
+        sentence[idx] = ","
+        return ErrorResult(
+            error_type=subtype,
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx,
+            original=dash_char,
+            corrupted=",",
+            fix_tag=f"$REPLACE_{dash_char}",
         )
 
 
@@ -481,6 +612,16 @@ class CommaPairDeleteHandler:
     ]
     category = "PUNCT"
     changes_length = True
+
+    def __init__(self) -> None:
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
@@ -506,6 +647,12 @@ class CommaPairDeleteHandler:
             return None
 
         partner_idx, subtype = pair
+
+        if (
+            self._enabled_subtypes is not None
+            and subtype not in self._enabled_subtypes
+        ):
+            return None
 
         if partner_idx is None:
             # Sentence-boundary single-comma case (phrase at sentence start

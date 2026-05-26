@@ -44,6 +44,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         CommaDeleteHandler,
         CommaPairDeleteHandler,
         DashDeleteHandler,
+        DashToCommaHandler,
     )
     from synterr.languages.russian.errors.semantics import (
         CollocationHandler,
@@ -86,6 +87,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         CommaPairDeleteHandler(),
         CommaInsertHandler(),
         DashDeleteHandler(),
+        DashToCommaHandler(),
         # Structural
         WordOmissionHandler(),
         WordInsertionHandler(),

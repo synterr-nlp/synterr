@@ -272,6 +272,49 @@ def _matches_indivisible(
     return None
 
 
+def _is_clausal_head(
+    token: AnalyzedToken, tokens: Sequence[AnalyzedToken]
+) -> bool:
+    """Whether `token` heads a clause (finite verb, or has nsubj/csubj)."""
+    if token.pos == "VERB" and token.get_feature("VerbForm") == "Fin":
+        return True
+    return any(
+        t.head_idx == token.idx
+        and t.dep_rel in ("nsubj", "nsubj:pass", "csubj", "csubj:pass")
+        for t in tokens
+    )
+
+
+def _can_insert_clause_junction(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> bool:
+    """Insertion candidate for §104/§109: cc joining two clauses, no comma.
+
+    Triggers when a coordinating conjunction (и/а/но/да/или/либо) sits at
+    position `idx`, has dep_rel=cc, its head is a `conj`-attached clausal
+    element, and there's no comma immediately before it.
+
+    L1 students often add a spurious comma here. Two cases:
+    - §104 exceptions: clauses sharing a minor part (e.g., a leading adverb)
+    - §109 clausal-homogeneous: two subord clauses joined by single connective
+    """
+    if idx == 0:
+        return False
+    token = tokens[idx]
+    if token.text.lower() not in _COORDINATING:
+        return False
+    if token.dep_rel != "cc":
+        return False
+    if tokens[idx - 1].text == ",":
+        return False
+    if token.head_idx is None or not (0 <= token.head_idx < len(tokens)):
+        return False
+    head = tokens[token.head_idx]
+    if head.dep_rel != "conj":
+        return False
+    return _is_clausal_head(head, tokens)
+
+
 def _has_correlative_after(tokens: Sequence[AnalyzedToken], subord_idx: int) -> bool:
     """Check if a subordinate clause starting at subord_idx is followed by то/так/но.
 
@@ -312,19 +355,29 @@ class CommaInsertHandler:
         "comma_in_set_phrase",
         "comma_between_conjunctions",
         "comma_in_indivisible",
+        "comma_clause_junction",
     ]
     category = "PUNCT"
     changes_length = True
 
     DEFAULT_WEIGHTS = {
-        "comma_before_kak": 35,
-        "comma_in_set_phrase": 25,
-        "comma_between_conjunctions": 20,
-        "comma_in_indivisible": 20,
+        "comma_before_kak": 30,
+        "comma_in_set_phrase": 20,
+        "comma_between_conjunctions": 15,
+        "comma_in_indivisible": 15,
+        "comma_clause_junction": 20,
     }
 
     def __init__(self):
         self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
 
     def set_subtype_weights(self, weights: dict[str, float]) -> None:
         self._weights = self.DEFAULT_WEIGHTS.copy()
@@ -367,6 +420,11 @@ class CommaInsertHandler:
             if next_lower in _SUBORDINATING:
                 if _has_correlative_after(tokens, idx + 1):
                     return True
+
+        # Clause-junction CC (§104 exceptions, §109 clausal homogeneous):
+        # cc joining two clauses with no current comma — error is adding one
+        if _can_insert_clause_junction(tokens, idx):
+            return True
 
         # Indivisible expressions (цельные по смыслу сочетания)
         return bool(
@@ -424,6 +482,11 @@ class CommaInsertHandler:
                     )
                 )
 
+        if _can_insert_clause_junction(tokens, idx):
+            candidates.append(
+                ("comma_clause_junction", self._weights["comma_clause_junction"])
+            )
+
         if (
             text_lower in _INDIVISIBLE_INDEX
             and _matches_indivisible(tokens, idx) is not None
@@ -435,6 +498,12 @@ class CommaInsertHandler:
         if not candidates:
             return None
 
+        # Filter by enabled subtypes when the pipeline has restricted us
+        if self._enabled_subtypes is not None:
+            candidates = [c for c in candidates if c[0] in self._enabled_subtypes]
+            if not candidates:
+                return None
+
         subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
@@ -444,6 +513,8 @@ class CommaInsertHandler:
             return self._insert_in_set_phrase(sentence, idx, tokens)
         elif chosen == "comma_between_conjunctions":
             return self._insert_between_conjunctions(sentence, idx)
+        elif chosen == "comma_clause_junction":
+            return self._insert_clause_junction(sentence, idx)
         elif chosen == "comma_in_indivisible":
             return self._insert_in_indivisible(sentence, idx, tokens)
 
@@ -493,6 +564,25 @@ class CommaInsertHandler:
             category=self.category,
             start_idx=idx + 1,
             end_idx=idx + 2,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_clause_junction(
+        self, sentence: list[str], idx: int
+    ) -> ErrorResult | None:
+        """Insert spurious comma before clause-joining cc (§104 / §109).
+
+        "завтрак и мы" → "завтрак , и мы" — extra comma before и that joins
+        two coordinated/homogeneous clauses.
+        """
+        sentence.insert(idx, ",")
+        return ErrorResult(
+            error_type="comma_clause_junction",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
             original="",
             corrupted=",",
             fix_tag="$DELETE",
