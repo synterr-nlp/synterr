@@ -107,13 +107,16 @@ DASH_CHARS = frozenset({"—", "–", "--"})
 ISOLATION_DEPRELS = frozenset({"acl", "acl:relcl", "advcl"})
 CLAUSE_DEPRELS = frozenset({"ccomp", "advcl", "csubj", "csubj:pass"})
 
-# Dep relations that form paired-comma constructions
+# Dep relations that form isolation constructions (Rozental §92–§103).
+# `amod` covers adjectival isolation — stanza tags isolated adjectives as amod
+# rather than acl when they aren't morphologically participles.
 PAIR_DEPRELS = {
     "acl": "pair_participle",  # причастный оборот
     "acl:relcl": "pair_relative",  # relative clause (который...)
-    "advcl": "pair_gerund",  # деепричастный оборот / adverbial clause
+    "advcl": "pair_gerund",  # деепричастный оборот (refined to Conv only)
     "parataxis": "pair_parenthetical",  # вводное слово/выражение
     "appos": "pair_apposition",  # приложение
+    "amod": "pair_participle",  # isolated adjectival/participial modifier
 }
 
 
@@ -135,47 +138,61 @@ def _has_own_subject(tokens: Sequence[AnalyzedToken], verb_idx: int) -> bool:
 
 def _find_comma_partner(
     tokens: Sequence[AnalyzedToken], idx: int
-) -> tuple[int, str] | None:
-    """Find the partner comma that shares the same dep head.
+) -> tuple[int | None, str] | None:
+    """Detect an isolation construction whose boundary comma is at `idx`.
 
-    Returns (partner_idx, subtype) or None if no pair found.
-    Only returns a result when idx is the FIRST (leftmost) comma of the pair.
+    Returns (partner_idx_or_None, subtype) or None.
+
+    `partner_idx is None` indicates a sentence-boundary case: the
+    construction's phrase touches the sentence edge so only ONE comma exists
+    (e.g., "Высушенные, они..." has only a closing comma).
+
+    Approach: iterate over every token whose dep_rel is in PAIR_DEPRELS,
+    compute its non-punct subtree span, and check whether `idx` is one of
+    the phrase's boundary commas (immediately left or right of the span).
+    This is robust to stanza's habit of attaching opening and closing
+    commas of a pair to different heads in complex sentences.
+
+    Triggers only at the LEFTMOST boundary comma of the construction.
     """
     comma = tokens[idx]
-    if comma.head_idx is None:
+    if comma.text != "," or comma.pos != "PUNCT":
         return None
 
-    head = tokens[comma.head_idx] if 0 <= comma.head_idx < len(tokens) else None
-    if head is None or head.dep_rel not in PAIR_DEPRELS:
-        return None
+    n = len(tokens)
+    for head in tokens:
+        if head.dep_rel not in PAIR_DEPRELS:
+            continue
+        # advcl: only the gerund form (VerbForm=Conv) is a pair construction.
+        # Full subord clauses (VerbForm=Fin) belong to single comma_delete.
+        if head.dep_rel == "advcl" and head.get_feature("VerbForm") != "Conv":
+            continue
 
-    subtype = PAIR_DEPRELS[head.dep_rel]
+        span_left, span_right = _get_subtree_span(tokens, head.idx)
 
-    # Refine: advcl could be a gerund phrase or a full subordinate clause.
-    # Only treat as pair_gerund if the head is actually a gerund (VerbForm=Conv).
-    if head.dep_rel == "advcl" and head.get_feature("VerbForm") != "Conv":
-        return None  # Full advcl clause — handled by single comma delete
+        left_comma_idx: int | None = None
+        if span_left > 0:
+            t = tokens[span_left - 1]
+            if t.text == "," and t.pos == "PUNCT":
+                left_comma_idx = span_left - 1
 
-    # Find all commas with the same head
-    partners = [
-        t.idx
-        for t in tokens
-        if t.idx != idx
-        and t.text == ","
-        and t.pos == "PUNCT"
-        and t.head_idx == comma.head_idx
-    ]
-    if not partners:
-        return None
+        right_comma_idx: int | None = None
+        if span_right + 1 < n:
+            t = tokens[span_right + 1]
+            if t.text == "," and t.pos == "PUNCT":
+                right_comma_idx = span_right + 1
 
-    # Pick the nearest partner
-    partner = min(partners, key=lambda p: abs(p - idx))
+        if left_comma_idx is None and right_comma_idx is None:
+            continue
 
-    # Only trigger on the first (leftmost) comma to avoid double processing
-    if idx > partner:
-        return None
+        subtype = PAIR_DEPRELS[head.dep_rel]
 
-    return (partner, subtype)
+        if left_comma_idx is not None and idx == left_comma_idx:
+            return (right_comma_idx, subtype)
+        if left_comma_idx is None and right_comma_idx is not None and idx == right_comma_idx:
+            return (None, subtype)
+
+    return None
 
 
 def _get_subtree_span(
@@ -490,11 +507,24 @@ class CommaPairDeleteHandler:
 
         partner_idx, subtype = pair
 
-        # Delete second comma first (higher index) to preserve first's index
+        if partner_idx is None:
+            # Sentence-boundary single-comma case (phrase at sentence start
+            # has no opening comma; trigger comma here is the closing one).
+            del sentence[idx]
+            return ErrorResult(
+                error_type=subtype,
+                category=self.category,
+                start_idx=idx - 1,
+                end_idx=idx - 1,
+                original=",",
+                corrupted="",
+                fix_tag="$APPEND_,",
+            )
+
+        # Standard two-comma pair: delete partner first (higher index) to
+        # preserve `idx` while modifying the list.
         del sentence[partner_idx]
         del sentence[idx]
-
-        # Span covers from first comma to second comma (both removed)
         return ErrorResult(
             error_type=subtype,
             category=self.category,
@@ -502,5 +532,5 @@ class CommaPairDeleteHandler:
             end_idx=partner_idx - 1,
             original=", ... ,",
             corrupted="...",
-            fix_tag="$APPEND_,",  # Simplified — real fix needs both commas
+            fix_tag="$APPEND_,",
         )

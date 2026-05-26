@@ -671,6 +671,70 @@ class TestFindCommaPair:
         ]
         assert _find_comma_partner(tokens, 1) is None
 
+    # ── Single-comma at sentence boundary (post-fix) ───────────────────────
+
+    def test_sentence_start_preposed_participle_single_comma(self):
+        # "Высушенные, они становятся синеватыми." — preposed adj/participle
+        # at sentence start. Only ONE comma exists (the closing one); stanza
+        # tags isolated adjectives as amod.
+        tokens = [
+            _tok("Высушенные", "ADJ", idx=0, dep_rel="amod", head_idx=2),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("они", "PRON", idx=2, dep_rel="nsubj", head_idx=3),
+            _tok("становятся", "VERB", idx=3, dep_rel="root", head_idx=None),
+            _tok("синеватыми", "ADJ", idx=4, dep_rel="obl", head_idx=3),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result == (None, "pair_participle")
+
+    def test_amod_isolation_two_commas(self):
+        # "Она, чистая, имеет вид." — postnominal isolated adj, two commas.
+        tokens = [
+            _tok("Она", "PRON", idx=0, dep_rel="nsubj", head_idx=4),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("чистая", "ADJ", idx=2, dep_rel="amod", head_idx=0),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
+            _tok("имеет", "VERB", idx=4, dep_rel="root", head_idx=None),
+            _tok("вид", "NOUN", idx=5, dep_rel="obj", head_idx=4),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result == (3, "pair_participle")
+
+    def test_partner_via_subtree_when_heads_differ(self):
+        # "Хотя, родившись в году, Андреевский..." — stanza often attaches
+        # opening comma to "Хотя" (mark) and closing to gerund (advcl).
+        # Subtree-based detection should still pair them.
+        tokens = [
+            _tok("Хотя", "SCONJ", idx=0, dep_rel="mark", head_idx=6),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok(
+                "родившись",
+                "VERB",
+                idx=2,
+                dep_rel="advcl",
+                head_idx=6,
+                features={"VerbForm": "Conv"},
+            ),
+            _tok("в", "ADP", idx=3, dep_rel="case", head_idx=4),
+            _tok("году", "NOUN", idx=4, dep_rel="obl", head_idx=2),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=2),
+            _tok("Андреевский", "PROPN", idx=6, dep_rel="root", head_idx=None),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result == (5, "pair_gerund")
+
+    def test_no_pair_no_boundary_commas(self):
+        # Isolation head exists but has no commas adjacent to its span.
+        # Should not trigger.
+        tokens = [
+            _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=2),
+            _tok("читающий", "VERB", idx=1, dep_rel="acl", head_idx=0,
+                 features={"VerbForm": "Part"}),
+            _tok("книгу", "NOUN", idx=2, dep_rel="root", head_idx=None),
+        ]
+        # No commas adjacent to the acl subtree → no pair
+        assert _find_comma_partner(tokens, 0) is None
+
 
 class TestCommaPairDeleteHandler:
     handler = CommaPairDeleteHandler()
