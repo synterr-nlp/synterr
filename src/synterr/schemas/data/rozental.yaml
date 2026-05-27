@@ -911,6 +911,9 @@ mappings:
   dash_asyndetic:
     primary: pu_clause
     l2_tag: pu_clause_asyndetic
+  dash_apposition:
+    primary: pu_dash
+    l2_tag: pu_dash_apposition
   dash_to_comma_apposition:
     primary: pu_dash
     l2_tag: pu_dash_apposition

@@ -461,6 +461,25 @@ class TestClassifyCommaNewSubtypes:
         ]
         assert _classify_comma(tokens, 1) != "comma_repeated"
 
+    def test_parenthetical_closing_comma_subtree_scan(self):
+        # "...содержат в себе, по существу, приемы..." — closing comma at
+        # idx=7 has head_idx pointing at the next content token (приемы),
+        # not the parataxis ("существу"). Section 1's head-based check
+        # therefore misses it. The closing-subtree scan must catch it.
+        tokens = [
+            _tok("содержат", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("в", "ADP", idx=1, dep_rel="case", head_idx=2),
+            _tok("себе", "PRON", idx=2, dep_rel="obl", head_idx=0),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5,
+                 features={}),
+            _tok("по", "ADP", idx=4, dep_rel="case", head_idx=5),
+            _tok("существу", "NOUN", idx=5, dep_rel="parataxis", head_idx=0),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=7),
+            _tok("приемы", "NOUN", idx=7, dep_rel="obj", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 3) == "comma_parenthetical"  # opening
+        assert _classify_comma(tokens, 6) == "comma_parenthetical"  # closing
+
 
 # ── DashDeleteHandler ───────────────────────────────────────────────────────
 
@@ -472,7 +491,7 @@ class TestDashDeleteHandler:
         assert self.handler.name == "dash_delete"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 3
+        assert len(self.handler.subtypes) == 4
 
     def test_can_apply_dash_only(self):
         tokens = [
@@ -735,6 +754,47 @@ class TestFindCommaPair:
         ]
         # No commas adjacent to the acl subtree → no pair
         assert _find_comma_partner(tokens, 0) is None
+
+
+# ── Dash classification: apposition vs subj-pred ────────────────────────────
+
+
+class TestClassifyDashApposition:
+    """§93 apposition dashes must classify as dash_apposition, not subj_pred."""
+
+    def test_apposition_via_parataxis_arc(self):
+        # "Соляник — государственный памятник" — stanza attaches the post-dash
+        # nominal to the pre-dash one via parataxis. Surface PROPN—ADJ pattern
+        # would otherwise match subj_pred.
+        tokens = [
+            _tok("является", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("пещера", "NOUN", idx=1, dep_rel="nsubj", head_idx=0),
+            _tok("Соляник", "PROPN", idx=2, dep_rel="appos", head_idx=1),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+            _tok("государственный", "ADJ", idx=4, dep_rel="amod", head_idx=5),
+            _tok("памятник", "NOUN", idx=5, dep_rel="parataxis", head_idx=1),
+        ]
+        assert _classify_dash(tokens, 3) == "dash_apposition"
+
+    def test_subj_pred_still_classifies_correctly(self):
+        # "Москва — столица" — no appos/parataxis arc crosses the dash; the
+        # surface NOUN—NOUN pattern must still fire as dash_subj_pred.
+        tokens = [
+            _tok("Москва", "PROPN", idx=0, dep_rel="nsubj", head_idx=2),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("столица", "NOUN", idx=2, dep_rel="root", head_idx=None),
+            _tok("России", "PROPN", idx=3, dep_rel="nmod", head_idx=2),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+
+    def test_apposition_via_appos_arc(self):
+        # Inline apposition with appos arc bridging the dash directly
+        tokens = [
+            _tok("X", "NOUN", idx=0, dep_rel="root", head_idx=None),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Y", "NOUN", idx=2, dep_rel="appos", head_idx=0),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_apposition"
 
 
 class TestDashToCommaHandler:

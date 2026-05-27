@@ -313,11 +313,23 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
             t = tokens[i]
             if t.dep_rel in ISOLATION_DEPRELS:
                 _, subtree_max = _get_subtree_span(tokens, t.idx)
-                # Subtree ends at or just before this comma (within 2 positions
-                # to bridge punctuation tokens excluded by _get_subtree_span)
                 gap = idx - 1 - subtree_max
                 if 0 <= gap <= 2:
                     return "comma_isolation"
+
+    # Parenthetical: closing comma — symmetric to opening-comma detection
+    # in section 1, scan left for a parataxis/discourse subtree ending just
+    # before this comma. Catches the closing `,` of "..., по существу, ..."
+    # where the comma's own head_idx points at the next content token (not
+    # the parataxis), defeating the section-1 head-based check.
+    if right is not None:
+        for i in range(max(0, idx - 15), idx):
+            t = tokens[i]
+            if t.dep_rel in ("parataxis", "discourse"):
+                _, subtree_max = _get_subtree_span(tokens, t.idx)
+                gap = idx - 1 - subtree_max
+                if 0 <= gap <= 2:
+                    return "comma_parenthetical"
 
     # Homogeneous: left and right share the same head (conj siblings)
     if left and right and left.head_idx is not None and right.head_idx is not None:
@@ -344,7 +356,14 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str:
     left = tokens[idx - 1] if idx > 0 else None
     right = tokens[idx + 1] if idx + 1 < n else None
 
-    # Subject–predicate dash: NOUN/PRON — NOUN/ADJ/NUM (check first, most common)
+    # Apposition dash (Rozental §93): appos or parataxis arc with both
+    # nominal endpoints spans the dash. Must check BEFORE subj_pred because
+    # "Соляник — государственный памятник" matches the surface NOUN—ADJ
+    # pattern of subj_pred but is structurally an apposition.
+    if _is_appositional_dash(tokens, idx):
+        return "dash_apposition"
+
+    # Subject–predicate dash: NOUN/PRON — NOUN/ADJ/NUM
     if left and right:
         left_ok = left.pos in ("NOUN", "PRON", "PROPN")
         right_ok = right.pos in ("NOUN", "ADJ", "NUM", "PROPN")
@@ -448,6 +467,7 @@ class DashDeleteHandler:
     subtypes = [
         "dash_subj_pred",
         "dash_asyndetic",
+        "dash_apposition",
         "dash_other",
     ]
     category = "PUNCT"
