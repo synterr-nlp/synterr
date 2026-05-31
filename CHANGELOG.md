@@ -21,8 +21,9 @@ BEA 2026 release.
   commit `898814d`, `data/v4_checksums.txt` records SHA256 for all v4
   artifacts, `scripts/verify_v4.py` checks them.
 - **CLI**: `synterr corrupt` accepts `--depparse` for dep-aware error types.
-- **`docs/research/LORUGEC_COVERAGE.md`** — verified LoRuGEC rule coverage
-  map (36/48 FULL, 12/48 PARTIAL, 0 NONE).
+- **`docs/research/LORUGEC_COVERAGE.md`** — LoRuGEC rule handler-mapping
+  map (36/48 mapped FULL). NOTE: this is a handler-claim map, not a
+  verified-works map; see the doc's Known-broken section.
 - **Lint/type CI**: ruff at 88-char line length plus mypy on
   `src/synterr/core` and `src/synterr/schemas`.
 

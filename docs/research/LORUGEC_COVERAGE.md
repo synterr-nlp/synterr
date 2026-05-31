@@ -1,21 +1,30 @@
 # LoRuGEC Rule Coverage by Handler
 
-Generated: 2026-05-01 (counts refreshed 2026-05-12) | synterr v1.0.0 | 24 handlers, 63 subtypes
+Generated: 2026-05-01 | counts refreshed 2026-05-27 | synterr v1.0.1 | 25 handlers, 69 subtypes
 Source: `../gector/data/rozental_book/cross_reference.csv` (48 LoRuGEC rules)
+
+> **This is a handler-*claim* map, NOT a verified-works map.** A row marked FULL
+> means a handler subtype is *intended* to cover the rule — it does **not** mean
+> the handler has been validated against LoRuGEC examples. A 2026-05-27 audit
+> found several FULL rows that fire on the wrong target or return "Cannot apply"
+> on the rule's canonical inputs (see the Honest-status column and the
+> Known-broken section). Treat FULL as "mapped," PARTIAL as "mapped, specifics
+> unverified," and read the per-rule notes before trusting any number.
 
 ## Summary
 
-| Status | Count | % |
-|--------|------:|--:|
-| **FULL** — direct handler subtype matches the rule | 36 | 75% |
-| **PARTIAL** — handler exists but specifics need verification | 12 | 25% |
-| **NONE** | 0 | 0% |
+Two numbers, because they answer different questions:
 
-Total LoRuGEC rules: **48** (val=348, test=612, no train).
+| Status | Mapped (handler exists) | Verified (fires correctly on canonical inputs) |
+|--------|------:|------:|
+| **FULL** | 36 | ~32 |
+| **PARTIAL** | 12 | 15 |
+| **NONE** | 0 | 1 |
 
-Note: this is a *handler claim* assessment. Generation quality (audit bugs, output validity) is a
-separate question — tracked separately in the team's internal queue. The "PARTIAL" bucket reflects
-rules where the handler's coverage of *this specific rule* needs spot-checking, not handler quality.
+The "Mapped" column is the original handler-claim count. The "Verified" column is
+the honest 2026-05-27 recount after spot-checking against real sentences — it
+demotes the three «как» comparison rows and the general-cardinal numeral rule
+(see Known-broken). Total LoRuGEC rules: **48** (val=348, test=612, no train).
 
 ## Per-rule mapping
 
@@ -84,17 +93,17 @@ rules where the handler's coverage of *this specific rule* needs spot-checking, 
 | LoRuGEC rule | Handler.subtype | Status |
 |---|---|---|
 | Тире между подлежащим и сказуемым | `dash_delete:dash_subj_pred` | FULL |
-| Тире при приложении | `dash_delete:dash_other` | PARTIAL — generic dash; rule wants apposition specifically |
-| Тире в бессоюзных предложениях | `dash_delete:dash_asyndetic` | PARTIAL — new, no audit yet |
+| Тире при приложении | `dash_delete:dash_apposition` (delete) + `dash_to_comma:dash_to_comma_apposition` (substitute) | FULL — now apposition-specific via appos/parataxis arc (2026-05-27) |
+| Тире в бессоюзных предложениях | `dash_delete:dash_asyndetic` | PARTIAL — only 1 of §118's 8 sub-rules |
 
 ### punct_comma (4 FULL, 7 PARTIAL)
 
 | LoRuGEC rule | Handler.subtype | Status |
 |---|---|---|
 | Запятая в фразеологических выражениях | `comma_insert:comma_in_set_phrase` | FULL |
-| Запятая перед "как": 1 | `comma_insert:comma_before_kak` | FULL |
-| Запятая перед "как": 2 | `comma_insert:comma_before_kak` | FULL |
-| Запятая перед "как": 3 | `comma_insert:comma_before_kak` | FULL |
+| Запятая перед "как": 1 | `comma_insert:comma_before_kak` | **BROKEN** — see Known-broken #1 |
+| Запятая перед "как": 2 | `comma_insert:comma_before_kak` | **BROKEN** — see Known-broken #1 |
+| Запятая перед "как": 3 | `comma_insert:comma_before_kak` | **BROKEN** — see Known-broken #1 |
 | Запятая в цельных по смыслу сочетаниях | `comma_insert:comma_in_indivisible` | FULL |
 | Однородные члены: пары | `comma_delete:comma_homogeneous` | PARTIAL — "пары" condition is specific |
 | Пунктуация при вводных словах | `comma_pair_delete:pair_parenthetical` | PARTIAL — only DELETE direction; rule includes INSERT |
@@ -122,7 +131,7 @@ rules where the handler's coverage of *this specific rule* needs spot-checking, 
 
 | LoRuGEC rule | Handler.subtype |
 |---|---|
-| Склонение количественных числительных | `numeral_declension:numeral_declension` |
+| Склонение количественных числительных | `numeral_declension:numeral_declension` — **NONE**, see Known-broken #2 |
 | Склонение полтора/полторы/полтораста | `numeral_declension:numeral_poltora` |
 
 ### gov_case + syntax_advanced (2/2 FULL)
@@ -146,8 +155,31 @@ The earlier "9 missing rules / 19% NONE" estimate is **stale**. Closed since:
 What's left is not "missing rules" but **PARTIAL coverage of fine-grained punctuation conditions** —
 the rule fires, but the handler doesn't model the specific syntactic/semantic precondition LoRuGEC tests.
 
+## Known-broken (2026-05-27 audit)
+
+These are FULL/mapped rows that fail on the rule's canonical inputs. Demoted in
+the Verified column above.
+
+1. **`comma_before_kak` — fails on comparative «как» (3 rows).** Returns "Cannot
+   apply" on the canonical §93 comparison sentences ("работал как зверь", "бледна
+   как смерть", "Дети как цветы жизни", …). Root cause: stanza tags comparative
+   «как» with dep_rel `mark`/`advcl`/`cc`, all in `_KAK_CLAUSE_DEPRELS`
+   (`comma_insert.py:38`), so the handler deliberately skips. The three
+   "Запятая перед «как»" rows all ride on this one subtype. Fix needs a
+   comparative-«как» detector that distinguishes §93 (no comma) from genuine
+   subordinate «как» — likely lexical + head-POS, since stanza's dep_rel alone
+   collides. Until then these are NONE-grade, not FULL.
+
+2. **`numeral_declension` general cardinals — not implemented.** `can_apply`
+   only matches полтора/полторы/полтораста (`_POLTORA_LOOKUP`,
+   `morphological.py:660`); the general-cardinal branch is unreachable dead code.
+   "Склонение количественных числительных" has no working implementation →
+   NONE. (полтора is a separate, working FULL row.)
+
 ## What this means for M1
 
 **Original plan (stale):** close 9 missing rules.
-**Revised plan:** the audit + verification work is more important than implementation. The PARTIAL
-bucket needs spot-checking against LoRuGEC val examples, not new handlers.
+**Revised plan:** verification, not implementation, is the bottleneck. The real
+work is (a) a real-backend integration harness so FULL claims are auditable
+rather than asserted, and (b) fixing the two Known-broken rules above. Per-row
+"last verified" with the test sentence would make this doc self-checking.
