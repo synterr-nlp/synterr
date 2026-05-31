@@ -4,7 +4,7 @@
 # Three levels:
 #   L0  Detection      8 tags   (7 error categories + CORRECT)
 #   L1  Working       29 tags   → synterr handlers, training analysis, paper tables
-#   L2  Fine-grained  98 tags   → research annotation, Rozental § tracing
+#   L2  Fine-grained 100 tags   → research annotation, Rozental § tracing
 #
 # L0 prefix mapping (deterministic from tag name):
 #   sp_ → SPELL    mo_ → MORPH    ag_ → AGR    gv_ → GOV
@@ -12,7 +12,7 @@
 
 name: rozental
 version: "1.0"
-description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 98 L2)"
+description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2)"
 
 # =============================================================================
 # L0: Detection Categories (linguistically grounded, decoupled from GECToR)
@@ -241,7 +241,7 @@ primary_tags:
     rozental_chapters: ""
 
 # =============================================================================
-# L2: Fine-Grained Tags (97) — for research annotation
+# L2: Fine-Grained Tags (100) — for research annotation
 #
 # Each tag traces to specific Rozental sub-paragraphs.
 # parent: L1 tag name
@@ -752,6 +752,7 @@ mappings:
   noun_number:
     primary: mo_noun_number
     l2_tag: mo_noun_num_nom_pl
+  # reserved: no NounGender handler yet (mapping kept for planned handler)
   noun_gender:
     primary: mo_noun_gender
     l2_tag: mo_noun_gender_fluctuation
@@ -769,6 +770,7 @@ mappings:
     primary: mo_verb_person_num
   verb_tense:
     primary: mo_verb_tense
+  # reserved: no VerbAspect handler yet (mapping kept for planned handler)
   verb_aspect:
     primary: mo_verb_aspect
     l2_tag: mo_verb_asp_pair

@@ -61,7 +61,7 @@ ERRANT error taxonomy for Russian GEC evaluation
 
 Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 
-**Coverage:** 13/35 tags mapped (37.1%).
+**Coverage:** 14/35 tags mapped (40.0%).
 
 ### Covered tags
 
@@ -71,6 +71,7 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 - `AgrPers`
 - `Conj`
 - `Gov`
+- `Hyphen`
 - `Lex`
 - `Misspell`
 - `Num`
@@ -91,7 +92,6 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 - `Gender`
 - `Gerund`
 - `Graph`
-- `Hyphen`
 - `Idiom`
 - `Impers`
 - `Infl`

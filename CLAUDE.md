@@ -38,23 +38,32 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
+25 handlers / 69 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
 | spelling | vowel_reduction, devoicing, prefix_voicing, tsa_confusion, cluster, double_consonant, keyboard, soft_sign | Ortho, Misspell | SPELL |
 | function_spelling | ne_attachment, ne_detachment, conjunction_split, conjunction_merge, taki_hyphen | Ortho | SPELL |
-| orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant | Ortho | SPELL |
+| orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant, nn_suffix | Ortho | SPELL |
+| compound_spelling | num_dash, pol_spelling, compound_adj | Ortho, Hyphen | SPELL |
+| adverb_spelling | solid_to_separate, separate_to_solid, hyphen_to_separate, separate_to_hyphen | Ortho | SPELL |
 | noun_case | noun_case | Gov | MORPH |
+| noun_number | noun_number | Num | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
 | verb_person_number, verb_tense | (2) | AgrPers, Tense | MORPH |
+| numeral_declension | numeral_declension, numeral_poltora | Num | MORPH |
 | paronym | paronym | Lex | OTHER |
 | preposition | preposition | Prep | OTHER |
 | conjunction | conjunction | Conj | OTHER |
+| pleonasm | pleonasm | Lex | OTHER |
+| collocation | collocation | Lex | OTHER |
 | word_omission | word_omission | Syntax+Miss | OTHER |
 | word_insertion | word_insertion | Syntax+Extra | OTHER |
-| comma_delete | 5 subtypes (subordinate, compound, parenthetical, isolation, homogeneous) | Syntax+Miss | PUNCT |
+| comma_delete | 8 subtypes (subordinate, compound, parenthetical, isolation, homogeneous, interjection, response, repeated) | Syntax+Miss | PUNCT |
 | comma_pair_delete | 5 subtypes (participle, relative, gerund, parenthetical, apposition) | Syntax+Miss | PUNCT |
-| comma_insert | comma_before_kak, comma_in_set_phrase, comma_between_conjunctions | Syntax+Extra | PUNCT |
-| dash_delete | dash_subj_pred, dash_other | Syntax+Miss | PUNCT |
+| comma_insert | comma_before_kak, comma_in_set_phrase, comma_between_conjunctions, comma_in_indivisible, comma_clause_junction | Syntax+Extra | PUNCT |
+| dash_delete | dash_subj_pred, dash_asyndetic, dash_apposition, dash_other | Syntax+Miss | PUNCT |
+| dash_to_comma | dash_to_comma_apposition (substitution; changes_length=False) | Syntax+Miss | PUNCT |
 
 ## Adding a Handler
 
@@ -135,6 +144,6 @@ POS/lemma fallbacks when dep info unavailable. Subtree BFS for closing comma det
 
 ## Current State
 
-**v1.0.1** (May 2026, BEA 2026 release): 24 handlers, 63 subtypes, 235 tests. Schemas: synterr, rlc, rozental, errant. Pinned-commit reproducibility for the v4 SFT data (`data/V4_DATA_PROVENANCE.md`, `data/v4_checksums.txt`, `scripts/verify_v4.py`). Per-detail version history in `CHANGELOG.md`.
+**v1.0.1** (May 2026, BEA 2026 release): 25 handlers, 69 subtypes, 290 tests. Schemas: synterr, rlc, rozental, errant. Pinned-commit reproducibility for the v4 SFT data (`data/V4_DATA_PROVENANCE.md`, `data/v4_checksums.txt`, `scripts/verify_v4.py`). Per-detail version history in `CHANGELOG.md`.
 
 **Research notes**: Case confusion matrix (`docs/research/CASE_CONFUSION_PATTERNS.md`), punct heuristics (`docs/research/PUNCT_HEURISTICS.md`), confusion matrices (`docs/research/confusion_matrices.json`), LoRuGEC coverage (`docs/research/LORUGEC_COVERAGE.md`).

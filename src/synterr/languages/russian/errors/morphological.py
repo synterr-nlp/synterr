@@ -25,17 +25,6 @@ if TYPE_CHECKING:
     from synterr.core.protocol import AnalyzedToken
 
 
-def _find_tokens_by_pos(
-    tokens: Sequence[AnalyzedToken],
-    pos: str | set[str],
-    modified: set[int],
-) -> list[int]:
-    """Find token indices with given POS tag(s), excluding modified."""
-    if isinstance(pos, str):
-        pos = {pos}
-    return [t.idx for t in tokens if t.pos in pos and t.idx not in modified]
-
-
 def _is_adj_or_participle(token: AnalyzedToken) -> bool:
     """Check if token is adjective or participle (VerbForm=Part).
 

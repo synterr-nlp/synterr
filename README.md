@@ -121,7 +121,7 @@ The "rule inversion" approach: look up what's grammatically correct, then genera
 
 ## Status
 
-**v1.0.0** — Paper release. 24 handlers / 63 subtypes covering spelling, morphology, lexical, structural, and punctuation errors. Output formats: GECToR tags, TSV, JSONL (with rule labels), chat (instruction-tuning), SFT.
+**v1.0.1** — Paper release. 25 handlers / 69 subtypes covering spelling, morphology, lexical, structural, and punctuation errors. Output formats: GECToR tags, TSV, JSONL (with rule labels), chat (instruction-tuning), SFT.
 
 Active development continues toward future releases; see the `CHANGELOG.md`
 for shipped milestones.

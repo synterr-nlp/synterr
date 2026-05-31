@@ -2,7 +2,7 @@
 
 # Handlers and subtypes
 
-**24 handlers, 63 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
+**25 handlers, 69 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
 
 Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 
@@ -23,10 +23,11 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 | `preposition` | `preposition` | `OTHER` | no |
 | `word_insertion` | `word_insertion` | `OTHER` | yes |
 | `word_omission` | `word_omission` | `OTHER` | yes |
-| `comma_delete` | `comma_subordinate`, `comma_compound`, `comma_parenthetical`, `comma_isolation`, `comma_homogeneous` | `PUNCT` | yes |
-| `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible` | `PUNCT` | yes |
+| `comma_delete` | `comma_subordinate`, `comma_compound`, `comma_parenthetical`, `comma_isolation`, `comma_homogeneous`, `comma_interjection`, `comma_response`, `comma_repeated` | `PUNCT` | yes |
+| `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible`, `comma_clause_junction` | `PUNCT` | yes |
 | `comma_pair_delete` | `pair_participle`, `pair_relative`, `pair_gerund`, `pair_parenthetical`, `pair_apposition` | `PUNCT` | yes |
-| `dash_delete` | `dash_subj_pred`, `dash_asyndetic`, `dash_other` | `PUNCT` | yes |
+| `dash_delete` | `dash_subj_pred`, `dash_asyndetic`, `dash_apposition`, `dash_other` | `PUNCT` | yes |
+| `dash_to_comma` | `dash_to_comma_apposition` | `PUNCT` | no |
 | `adverb_spelling` | `adverb_solid_to_separate`, `adverb_separate_to_solid`, `adverb_hyphen_to_separate`, `adverb_separate_to_hyphen` | `SPELL` | yes |
 | `compound_spelling` | `num_dash`, `pol_spelling`, `compound_adj` | `SPELL` | no |
 | `function_spelling` | `ne_attachment`, `ne_detachment`, `conjunction_split`, `conjunction_merge`, `taki_hyphen` | `SPELL` | yes |
@@ -133,7 +134,7 @@ Delete a function word (preposition, particle, conjunction, punctuation).
 
 ## PUNCT
 
-### `comma_delete` (5 subtypes)
+### `comma_delete` (8 subtypes)
 
 Delete a comma with L2 subtype classification.
 
@@ -142,8 +143,11 @@ Delete a comma with L2 subtype classification.
 - `comma_delete:comma_parenthetical`
 - `comma_delete:comma_isolation`
 - `comma_delete:comma_homogeneous`
+- `comma_delete:comma_interjection`
+- `comma_delete:comma_response`
+- `comma_delete:comma_repeated`
 
-### `comma_insert` (4 subtypes)
+### `comma_insert` (5 subtypes)
 
 Insert spurious commas — creates extra-comma errors.
 
@@ -151,6 +155,7 @@ Insert spurious commas — creates extra-comma errors.
 - `comma_insert:comma_in_set_phrase`
 - `comma_insert:comma_between_conjunctions`
 - `comma_insert:comma_in_indivisible`
+- `comma_insert:comma_clause_junction`
 
 ### `comma_pair_delete` (5 subtypes)
 
@@ -162,13 +167,20 @@ Delete both commas of a paired construction (обособление).
 - `comma_pair_delete:pair_parenthetical`
 - `comma_pair_delete:pair_apposition`
 
-### `dash_delete` (3 subtypes)
+### `dash_delete` (4 subtypes)
 
 Delete a dash (em/en) with L2 subtype classification.
 
 - `dash_delete:dash_subj_pred`
 - `dash_delete:dash_asyndetic`
+- `dash_delete:dash_apposition`
 - `dash_delete:dash_other`
+
+### `dash_to_comma` (1 subtype)
+
+Replace dash with comma — Rozental §93 apposition L1 error pattern.
+
+- `dash_to_comma:dash_to_comma_apposition`
 
 
 ## SPELL
