@@ -39,6 +39,7 @@ weights:
   comma_pair_delete: 0.140   # P:COMMA pair ~14%
   comma_insert: 0.060        # P:COMMA extra ~6%
   dash_delete: 0.040         # P:DASH ~4%
+  dash_to_comma: 0.010       # P:DASH→COMMA substitution (appos)
 
   # Function word spelling (S:ORTH subsumes these in GERA)
   function_spelling: 0.10

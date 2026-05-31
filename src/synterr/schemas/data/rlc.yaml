@@ -238,6 +238,10 @@ mappings:
     primary: AgrPers
   verb_tense:
     primary: Tense
+  numeral_declension:
+    primary: Num
+  numeral_poltora:
+    primary: Num
 
   # ---------------------------------------------------------------------------
   # Future handlers (Artem's tasks) -> RLC tags
@@ -254,6 +258,26 @@ mappings:
   word_insertion:
     primary: Syntax
     modifier: Extra
+  collocation:
+    primary: Lex
+  pleonasm:
+    primary: Lex
+
+  # Compound + adverb spelling subtypes → RLC Ortho/Hyphen
+  compound_adj:
+    primary: Ortho
+  num_dash:
+    primary: Hyphen
+  pol_spelling:
+    primary: Ortho
+  adverb_solid_to_separate:
+    primary: Ortho
+  adverb_separate_to_solid:
+    primary: Ortho
+  adverb_hyphen_to_separate:
+    primary: Ortho
+  adverb_separate_to_hyphen:
+    primary: Ortho
 
   # Orthographic spelling subtypes → RLC Ortho
   pre_pri:
@@ -273,6 +297,8 @@ mappings:
   vowel_after_ts:
     primary: Ortho
   vowel_after_sibilant:
+    primary: Ortho
+  nn_suffix:
     primary: Ortho
 
   # Function spelling subtypes → RLC Ortho (не/ни, conjunctions, particles)
@@ -297,6 +323,12 @@ mappings:
   comma_between_conjunctions:
     primary: Syntax
     modifier: Extra
+  comma_in_indivisible:
+    primary: Syntax
+    modifier: Extra
+  comma_clause_junction:
+    primary: Syntax
+    modifier: Extra
 
   # Punctuation (RLC has no dedicated punct tags; Syntax+Miss = closest)
   comma_subordinate:
@@ -312,6 +344,15 @@ mappings:
     primary: Syntax
     modifier: Miss
   comma_homogeneous:
+    primary: Syntax
+    modifier: Miss
+  comma_interjection:
+    primary: Syntax
+    modifier: Miss
+  comma_response:
+    primary: Syntax
+    modifier: Miss
+  comma_repeated:
     primary: Syntax
     modifier: Miss
   pair_participle:
@@ -332,7 +373,17 @@ mappings:
   dash_subj_pred:
     primary: Syntax
     modifier: Miss
+  dash_asyndetic:
+    primary: Syntax
+    modifier: Miss
+  dash_apposition:
+    primary: Syntax
+    modifier: Miss
   dash_other:
+    primary: Syntax
+    modifier: Miss
+  # dash → comma substitution (replacement, not miss/extra)
+  dash_to_comma_apposition:
     primary: Syntax
     modifier: Miss
 

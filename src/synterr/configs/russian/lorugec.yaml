@@ -34,6 +34,9 @@ weights:
   # dash_delete: 3 rules (подл-сказ, приложение, бессоюзное)
   dash_delete: 0.0625           # 3/48
 
+  # dash_to_comma: substitution variant of §93 appos (тире→запятая, common L1 form)
+  dash_to_comma: 0.0208         # 1/48
+
   # numeral_declension: 2 rules (полтора, количественные)
   numeral_declension: 0.0417    # 2/48
 
@@ -92,19 +95,24 @@ subtype_weights:
     compound_adj: 33
 
   comma_insert:
-    comma_before_kak: 45   # 3 LoRuGEC rules
-    comma_in_set_phrase: 15  # 1 rule (фразеологизмы)
-    comma_between_conjunctions: 15  # 1 rule (стык союзов)
-    comma_in_indivisible: 25  # 1 rule (цельные по смыслу)
+    comma_before_kak: 40   # 3 LoRuGEC rules
+    comma_in_set_phrase: 12  # 1 rule (фразеологизмы)
+    comma_between_conjunctions: 12  # 1 rule (стык союзов)
+    comma_in_indivisible: 20  # 1 rule (цельные по смыслу)
+    comma_clause_junction: 16  # §104/§109 (СПП общая часть + однородные придаточные)
 
   comma_delete:
-    comma_subordinate: 25   # 2 rules (однородные придаточные + СПП)
-    comma_homogeneous: 25   # 2 rules (однородные пары + повторяющиеся)
-    comma_parenthetical: 25  # 1 rule
-    comma_compound: 15
-    comma_isolation: 10
+    comma_subordinate: 22   # 2 rules (однородные придаточные + СПП)
+    comma_homogeneous: 22   # 2 rules (однородные пары + повторяющиеся)
+    comma_parenthetical: 22  # 1 rule
+    comma_compound: 12
+    comma_isolation: 8
+    comma_interjection: 5   # §102 междометия
+    comma_response: 4       # §103 да/нет
+    comma_repeated: 5       # §90 повторяющиеся слова
 
   dash_delete:
-    dash_subj_pred: 33
-    dash_asyndetic: 33
-    dash_other: 33          # тире при приложении
+    dash_subj_pred: 25
+    dash_asyndetic: 25
+    dash_apposition: 25     # §93 тире при приложении (specific)
+    dash_other: 25
