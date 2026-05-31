@@ -29,6 +29,48 @@ def _data_path() -> Path:
 
 
 @lru_cache(maxsize=1)
+def _morph():
+    """Lazily build a shared pymorphy3 analyzer (heavy to instantiate)."""
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
+
+
+# Grammeme categories copied from the original token onto the replacement,
+# in priority order. We try the full set first, then drop trailing categories
+# until pymorphy can inflect — so a verb keeps tense+number+gender+person but
+# degrades gracefully if a combination is invalid.
+_INFLECT_ATTRS = ("tense", "number", "gender", "person", "case", "mood", "aspect")
+
+
+def _inflect_to_match(wrong_lemma: str, original_parse) -> str | None:
+    """Inflect `wrong_lemma` (a citation form) to match original_parse's
+    grammemes. Returns the inflected surface form, or None if inflection
+    failed at every fallback level."""
+    if original_parse is None:
+        return None
+
+    target_tag = original_parse.tag
+    grammemes: list[str] = []
+    for attr in _INFLECT_ATTRS:
+        val = getattr(target_tag, attr, None)
+        if val is not None:
+            grammemes.append(val)
+
+    parses = _morph().parse(wrong_lemma)
+    if not parses:
+        return None
+    new_parse = parses[0]
+
+    # Try full grammeme set, then progressively shorter prefixes.
+    for k in range(len(grammemes), 0, -1):
+        result = new_parse.inflect(set(grammemes[:k]))
+        if result is not None:
+            return result.word
+    return None
+
+
+@lru_cache(maxsize=1)
 def _load_pleonasms() -> dict[str, list[dict[str, str]]]:
     path = _data_path() / "pleonasms.json"
     if path.exists():
@@ -68,10 +110,52 @@ class PleonasmHandler:
             self._pleonasms = _load_pleonasms()
         return self._pleonasms
 
+    @staticmethod
+    def _redundant_present(
+        tokens: Sequence[AnalyzedToken], idx: int, redundant: str, pos: str
+    ) -> bool:
+        """Whether the redundant word is already adjacent to the core word.
+
+        Inserting "своя" before "автобиографию" in "написал свою
+        автобиографию" would produce "свою своя автобиографию" — a repetition,
+        not a pleonasm. The data stores citation forms ("своя") while the text
+        has inflected forms ("свою"), so we compare at the lemma level.
+        """
+        red = redundant.lower()
+        # Lemmatize the redundant word (first token if it's a phrase) so an
+        # inflected occurrence in the text still matches.
+        red_first = red.split()[0] if red else red
+        red_lemmas = {red_first}
+        try:
+            for p in _morph().parse(red_first):
+                red_lemmas.add(p.normal_form.lower())
+        except Exception:
+            pass
+
+        def matches(t: AnalyzedToken) -> bool:
+            if t.text.lower() == red or t.text.lower() == red_first:
+                return True
+            return bool(t.lemma and t.lemma.lower() in red_lemmas)
+
+        if pos == "before":
+            window = range(max(0, idx - 2), idx)
+        else:
+            window = range(idx + 1, min(len(tokens), idx + 3))
+        return any(matches(tokens[j]) for j in window)
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
         lemma = token.lemma.lower() if token.lemma else token.text.lower()
-        return lemma in self.pleonasms
+        if lemma not in self.pleonasms:
+            return False
+        # At least one entry must not already be present adjacently.
+        entries = self.pleonasms.get(lemma) or []
+        return any(
+            not self._redundant_present(
+                tokens, idx, e["word"], e.get("pos", "before")
+            )
+            for e in entries
+        )
 
     def apply(
         self,
@@ -89,9 +173,34 @@ class PleonasmHandler:
         if not entries:
             return None
 
-        entry = rng.choice(entries)
+        # Only consider entries whose redundant word isn't already adjacent.
+        usable = [
+            e
+            for e in entries
+            if not self._redundant_present(
+                tokens, idx, e["word"], e.get("pos", "before")
+            )
+        ]
+        if not usable:
+            return None
+
+        entry = rng.choice(usable)
         redundant = entry["word"]
         pos = entry.get("pos", "before")
+
+        # Agreement: a single-word adjectival/pronoun modifier inserted before
+        # a noun should agree with it in case/number/gender ("своя" →
+        # "свою автобиографию"). Only attempt for single tokens; fixed phrases
+        # ("из армии", "первый раз") and adverbs stay as-is.
+        if pos == "before" and " " not in redundant:
+            core_parse = token.extra.get("pymorphy_parse") if token.extra else None
+            if core_parse is not None and core_parse.tag.POS in (
+                "NOUN",
+                "NPRO",
+            ):
+                agreed = _inflect_to_match(redundant, core_parse)
+                if agreed:
+                    redundant = agreed
 
         if pos == "before":
             # Insert redundant word before the core word
@@ -196,10 +305,18 @@ class CollocationHandler:
         entry = rng.choice(matching_entries)
         wrong_word = entry["wrong"]
 
-        # Try to preserve the original word's inflection
-        # Simple approach: if original is capitalized, capitalize replacement
-        if word[0].isupper():
-            wrong_word = wrong_word[0].upper() + wrong_word[1:]
+        # Inflect the replacement to match the original token's morphology so
+        # "принял решение" → "сделал решение" (not the bare infinitive
+        # "сделать решение"). Falls back to the citation form if pymorphy
+        # can't inflect.
+        original_parse = token.extra.get("pymorphy_parse") if token.extra else None
+        inflected = _inflect_to_match(wrong_word, original_parse)
+        if inflected:
+            wrong_word = inflected
+
+        # Match capitalization of the original word
+        if word[:1].isupper():
+            wrong_word = wrong_word[:1].upper() + wrong_word[1:]
 
         sentence[idx] = wrong_word
 
