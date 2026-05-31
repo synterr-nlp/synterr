@@ -189,7 +189,11 @@ def _find_comma_partner(
 
         if left_comma_idx is not None and idx == left_comma_idx:
             return (right_comma_idx, subtype)
-        if left_comma_idx is None and right_comma_idx is not None and idx == right_comma_idx:
+        if (
+            left_comma_idx is None
+            and right_comma_idx is not None
+            and idx == right_comma_idx
+        ):
             return (None, subtype)
 
     return None
@@ -441,10 +445,7 @@ class CommaDeleteHandler:
 
         subtype = _classify_comma(tokens, idx)
 
-        if (
-            self._enabled_subtypes is not None
-            and subtype not in self._enabled_subtypes
-        ):
+        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
             return None
 
         del sentence[idx]
@@ -501,10 +502,7 @@ class DashDeleteHandler:
 
         subtype = _classify_dash(tokens, idx)
 
-        if (
-            self._enabled_subtypes is not None
-            and subtype not in self._enabled_subtypes
-        ):
+        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
             return None
 
         dash_char = sentence[idx]
@@ -593,10 +591,7 @@ class DashToCommaHandler:
             return None
 
         subtype = "dash_to_comma_apposition"
-        if (
-            self._enabled_subtypes is not None
-            and subtype not in self._enabled_subtypes
-        ):
+        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
             return None
 
         dash_char = sentence[idx]
@@ -668,10 +663,7 @@ class CommaPairDeleteHandler:
 
         partner_idx, subtype = pair
 
-        if (
-            self._enabled_subtypes is not None
-            and subtype not in self._enabled_subtypes
-        ):
+        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
             return None
 
         if partner_idx is None:

@@ -470,8 +470,7 @@ class TestClassifyCommaNewSubtypes:
             _tok("содержат", "VERB", idx=0, dep_rel="root", head_idx=None),
             _tok("в", "ADP", idx=1, dep_rel="case", head_idx=2),
             _tok("себе", "PRON", idx=2, dep_rel="obl", head_idx=0),
-            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5,
-                 features={}),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5, features={}),
             _tok("по", "ADP", idx=4, dep_rel="case", head_idx=5),
             _tok("существу", "NOUN", idx=5, dep_rel="parataxis", head_idx=0),
             _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=7),
@@ -748,8 +747,14 @@ class TestFindCommaPair:
         # Should not trigger.
         tokens = [
             _tok("Студент", "NOUN", idx=0, dep_rel="nsubj", head_idx=2),
-            _tok("читающий", "VERB", idx=1, dep_rel="acl", head_idx=0,
-                 features={"VerbForm": "Part"}),
+            _tok(
+                "читающий",
+                "VERB",
+                idx=1,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
             _tok("книгу", "NOUN", idx=2, dep_rel="root", head_idx=None),
         ]
         # No commas adjacent to the acl subtree → no pair

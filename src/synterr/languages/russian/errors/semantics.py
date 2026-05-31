@@ -151,9 +151,7 @@ class PleonasmHandler:
         # At least one entry must not already be present adjacently.
         entries = self.pleonasms.get(lemma) or []
         return any(
-            not self._redundant_present(
-                tokens, idx, e["word"], e.get("pos", "before")
-            )
+            not self._redundant_present(tokens, idx, e["word"], e.get("pos", "before"))
             for e in entries
         )
 

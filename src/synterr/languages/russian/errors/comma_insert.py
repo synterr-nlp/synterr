@@ -272,9 +272,7 @@ def _matches_indivisible(
     return None
 
 
-def _is_clausal_head(
-    token: AnalyzedToken, tokens: Sequence[AnalyzedToken]
-) -> bool:
+def _is_clausal_head(token: AnalyzedToken, tokens: Sequence[AnalyzedToken]) -> bool:
     """Whether `token` heads a clause (finite verb, or has nsubj/csubj)."""
     if token.pos == "VERB" and token.get_feature("VerbForm") == "Fin":
         return True
@@ -285,9 +283,7 @@ def _is_clausal_head(
     )
 
 
-def _can_insert_clause_junction(
-    tokens: Sequence[AnalyzedToken], idx: int
-) -> bool:
+def _can_insert_clause_junction(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """Insertion candidate for §104/§109: cc joining two clauses, no comma.
 
     Triggers when a coordinating conjunction (и/а/но/да/или/либо) sits at

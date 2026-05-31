@@ -67,9 +67,7 @@ PAIR_CASES = [
 
 
 @pytest.mark.parametrize("error,text,expected", PAIR_CASES)
-def test_comma_pair_delete_fires_on_real_sentences(
-    pipeline, error, text, expected
-):
+def test_comma_pair_delete_fires_on_real_sentences(pipeline, error, text, expected):
     fired, etype, corrupted = _apply(pipeline, error, text)
     assert fired, f"{error} did not fire on: {text}"
     assert etype == expected, f"expected {expected}, got {etype}"
@@ -94,9 +92,7 @@ COMMA_CASES = [
 
 
 @pytest.mark.parametrize("error,text,expected", COMMA_CASES)
-def test_comma_delete_classifies_on_real_sentences(
-    pipeline, error, text, expected
-):
+def test_comma_delete_classifies_on_real_sentences(pipeline, error, text, expected):
     fired, etype, _ = _apply(pipeline, error, text)
     assert fired, f"{error} did not fire on: {text}"
     assert etype == expected, f"expected {expected}, got {etype}"
@@ -153,9 +149,7 @@ def test_comma_clause_junction_on_real_sentence(pipeline):
 
 
 def test_collocation_inflects_on_real_sentence(pipeline):
-    fired, _, corrupted = _apply(
-        pipeline, "collocation", "Он принял важное решение."
-    )
+    fired, _, corrupted = _apply(pipeline, "collocation", "Он принял важное решение.")
     if not fired:
         pytest.skip("collocation lexicon lacks принять/решение")
     # Must not leave the bare infinitive in place
