@@ -92,3 +92,32 @@ class TestCollocationHandler:
         assert sentence[0] != "сделать"
         # Should be a past-tense finite form
         assert sentence[0].endswith("л") or sentence[0].endswith("ла")
+
+    def test_inflected_collocate_entry_fires_oderzhat(self):
+        # Lexicon stores the accusative collocate "победу"; the noun token's
+        # lemma is "победа". Load-time lemmatization must make these match so
+        # this previously-dead verb fires.
+        tokens = [
+            _tok("одержала", pos="VERB", lemma="одержать", idx=0),
+            _tok("победу", lemma="победа", idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 0) is True
+        sentence = ["одержала", "победу"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] != "одержала"
+        # Inflected to match the past feminine original, not a bare infinitive.
+        assert not sentence[0].endswith("ть")
+
+    def test_inflected_collocate_entry_fires_vyzvat(self):
+        # "вызвало реакцию" — collocate stored as accusative "реакцию".
+        tokens = [
+            _tok("вызвало", pos="VERB", lemma="вызвать", idx=0),
+            _tok("реакцию", lemma="реакция", idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 0) is True
+        sentence = ["вызвало", "реакцию"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] != "вызвало"
+        assert not sentence[0].endswith("ть")

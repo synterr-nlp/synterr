@@ -80,14 +80,36 @@ def _load_pleonasms() -> dict[str, list[dict[str, str]]]:
     return {}
 
 
+def _lemmatize(word: str) -> str:
+    """Normal form of `word`, lowercased. Falls back to the lowercased word."""
+    try:
+        parses = _morph().parse(word)
+        if parses:
+            return parses[0].normal_form.lower()
+    except Exception:
+        pass
+    return word.lower()
+
+
 @lru_cache(maxsize=1)
 def _load_collocations() -> dict[str, list[dict[str, str]]]:
     path = _data_path() / "collocations.json"
-    if path.exists():
-        with path.open(encoding="utf-8") as f:
-            data = json.load(f)
-            return {k: v for k, v in data.items() if not k.startswith("_")}
-    return {}
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as f:
+        data = json.load(f)
+    # The data file keeps collocates human-readable (often inflected, e.g.
+    # "победу", "реакцию"), but the matcher compares against token *lemmas*.
+    # Normalize collocate values to their lemma at load time so inflected
+    # entries fire instead of becoming dead no-ops.
+    collocations: dict[str, list[dict[str, str]]] = {}
+    for verb, entries in data.items():
+        if verb.startswith("_"):
+            continue
+        collocations[verb] = [
+            {**entry, "collocate": _lemmatize(entry["collocate"])} for entry in entries
+        ]
+    return collocations
 
 
 class PleonasmHandler:
