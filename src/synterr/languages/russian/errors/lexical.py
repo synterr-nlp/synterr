@@ -90,7 +90,14 @@ class ParonymErrorHandler:
 
 
 class PrepositionErrorHandler:
-    """Replace preposition to another preposition from the same semantic group"""
+    """Replace preposition to another preposition from the same semantic group.
+
+    The handler is length-preserving (single ``$REPLACE``), so it only
+    substitutes single-token replacements. Multi-word entries in the lexicon
+    (e.g. ``"в результате"``, ``"рядом с"``) are skipped: writing one into a
+    single token slot would smuggle an intra-token space into the GECToR unit
+    and misalign the token/tag stream.
+    """
 
     name = "preposition"
     subtypes = ["preposition"]
@@ -109,8 +116,12 @@ class PrepositionErrorHandler:
         return self._prepositions
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        return tokens[idx].pos == "ADP" and any(
-            tokens[idx].lemma in lst for lst in self.prepositions.values()
+        if tokens[idx].pos != "ADP":
+            return False
+        lemma = tokens[idx].lemma
+        return any(
+            lemma in lst and any(x != lemma and " " not in x for x in lst)
+            for lst in self.prepositions.values()
         )
 
     def apply(
@@ -132,11 +143,10 @@ class PrepositionErrorHandler:
 
         for v in self.prepositions.values():
             if word.lower() in v:
-                candidates = [x for x in v if x != word.lower()]
-                if not candidates:
-                    return None
-                new_word = rng.choice(candidates)
-                break
+                candidates = [x for x in v if x != word.lower() and " " not in x]
+                if candidates:
+                    new_word = rng.choice(candidates)
+                    break
         else:
             return None
 
@@ -176,8 +186,12 @@ class ConjunctionErrorHandler:
         return self._conjunctions
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        return tokens[idx].pos in ["CCONJ", "SCONJ"] and any(
-            tokens[idx].lemma in lst for lst in self.conjunctions.values()
+        if tokens[idx].pos not in ["CCONJ", "SCONJ"]:
+            return False
+        lemma = tokens[idx].lemma
+        return any(
+            lemma in lst and any(x != lemma and " " not in x for x in lst)
+            for lst in self.conjunctions.values()
         )
 
     def apply(
@@ -199,11 +213,10 @@ class ConjunctionErrorHandler:
 
         for v in self.conjunctions.values():
             if word.lower() in v:
-                candidates = [x for x in v if x != word.lower()]
-                if not candidates:
-                    return None
-                new_word = rng.choice(candidates)
-                break
+                candidates = [x for x in v if x != word.lower() and " " not in x]
+                if candidates:
+                    new_word = rng.choice(candidates)
+                    break
         else:
             return None
 
