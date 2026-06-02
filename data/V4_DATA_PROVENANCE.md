@@ -65,7 +65,8 @@ Overrepresented categories capped at 5K via seeded shuffle + truncation.
 
 ## Step 3: Build source mix
 
-Script: `build_v4_sources.py`
+Script: `build_v4_sources.py` (intended clean pipeline — see Provenance caveat below
+for what the shipped file actually is)
 
 1. Load scarce sents (54,823 — kept in full)
 2. Load rublimp pool (741K), remove scarce + benchmark → 729K remaining
@@ -76,11 +77,25 @@ Script: `build_v4_sources.py`
 
 **Output**: `mixed_sources_v4.txt` — 150,000 sentences.
 
-**Composition**:
+**Composition** (intended):
 - Scarce enrichment: 54,823 (37%)
 - RuBLiMP pool (librusec/wiki/wikinews): 57,106 (38%)
 - News (Taiga + articles): 38,071 (25%)
 - RuBLiMP benchmark contamination: 0
+
+> **Provenance caveat (added by 2026-06-02 audit).** The block above is the
+> *intended* clean pipeline. The shipped `mixed_sources_v4.txt` does **not** match
+> it: it has 154,806 non-blank lines — only **107,265 unique** (~47K duplicate
+> lines, one sentence repeated 4,694×), plus 267 blank lines. `build_v4_sources.py`
+> does `sorted(set(...))` and provably emits only unique, blank-free, sorted lines,
+> so it did not produce the shipped file. The companion `mixed_sources_v4.meta.json`
+> describes the *intended* build (149,999 unique, 3 sources) and matches neither the
+> actual file nor a 5-source mixer. The shipped intermediate was produced during v4
+> development by `build_source_mix.py` (a 5-source mixer — articles/wiki/rublimp_pool/
+> conjunction/scarce — that appends without a global dedup), committed alongside this
+> doc. **It is archived and checksummed as-is, not bit-regenerable from any committed
+> script.** This concerns only the *input corpus*. The trained-on SFT artifact
+> (`qwen_sft_v4.jsonl`) is byte-verified against the training host — see Reproducibility.
 
 ## Step 4: Generate SFT
 
@@ -162,27 +177,30 @@ uv run python scripts/generate_sft.py \
 ## Reproducibility
 
 ### Code pin
-- **Generation commit**: `898814d` ("v4 data pipeline: reproducible scarce mining, clean rublimp pool, SCONJ fix"), 2026-03-22 16:32 UTC.
-- The full pipeline above (steps 2–4) was executed against this commit. To regenerate identically:
-  ```
-  git checkout 898814d
-  # then run the four scripts above
-  ```
-- Subsequent commits on master change handler behavior (e.g. the `noun_case` dep-arc gate added in May 2026) and will produce different output if rerun.
-
-> **Note on tooling (May 2026):** The SFT logic that lived in
-> `scripts/generate_sft.py` at commit `898814d` was later promoted into
-> the package as `synterr.sft.generate_targeted` (see commit log).
-> For new datasets, prefer `synterr generate-targeted` or
-> `from synterr.sft import generate_targeted`. The script is preserved
-> as a thin CLI wrapper for backwards compat. **For reproducing v4 byte-
-> identically, use the pinned commit above** — the refactor is logic-
-> preserving but not commit-hash-preserving.
+- **Generation commit**: `2fd4d78` ("v4 data pipeline: reproducible scarce mining,
+  clean rublimp pool, SCONJ fix"), 2026-03-22 16:32 UTC. Also reachable via the
+  tag **`v4-data`**.
+  - *History note:* this doc originally pinned `898814d`. The May 2026 repository
+    history rewrite (a `git filter-repo` scrub) re-hashed every commit; the same
+    generation commit is now `2fd4d78`. The tag `v4-data` is fixed to it so future
+    rewrites can't invalidate the pin again.
+- **Reproducibility is archival, not regenerative.** The trained-on artifact
+  `qwen_sft_v4.jsonl` is archived and SHA256-verified byte-identical against the
+  training host (see below) — that is the authoritative, reproducible object.
+  The pipeline is **not** bit-regenerable from a clean `git checkout`:
+  1. `mixed_sources_v4.txt` was not produced by the committed `build_v4_sources.py`
+     (see the Provenance caveat in Step 3); the exact source-mix run is not recoverable.
+  2. Post-pin commits change handler behavior (the `noun_case` dep-arc gate, the
+     May 2026 semantics fixes), so rerunning the SFT step against current `master`
+     produces different output by design.
+- For new datasets, prefer `synterr generate-targeted` / `from synterr.sft import
+  generate_targeted` (the `scripts/generate_sft.py` logic was promoted into the
+  package; the script remains as a thin compat wrapper).
 
 ### Generation timestamps (all UTC)
-- 2026-03-22 15:57 — `build_v4_sources.py` produced `mixed_sources_v4.txt`
+- 2026-03-22 15:57 — source mix `mixed_sources_v4.txt` produced (generator: see Step 3 caveat)
 - 2026-03-22 15:57 — `generate_sft.py` produced `qwen_sft_v4.jsonl`
-- 2026-03-22 16:32 — code committed as `898814d`
+- 2026-03-22 16:32 — code committed (now `2fd4d78`, tag `v4-data`; originally `898814d` pre-rewrite)
 - 2026-03-23 15:15 — `qwen_sft_v4.jsonl` uploaded to training host frodo via `scp`, renamed in transit to `synterr_v4.jsonl`
 
 ### Checksums
@@ -200,11 +218,24 @@ Verify locally with:
 uv run python scripts/verify_v4.py
 ```
 
-Since `qwen_sft_v4.jsonl` is a deterministic function of the upstream files
-(seed=42 in both `build_v4_sources.py` and `generate_sft.py`), a matching
-SFT hash implies the source files (`mixed_sources_v4.txt`, `scarce_sents_v4.txt`,
-`conjunction_sents_v4.txt` and their metas) are also intact — any byte difference
-upstream would change the SFT hash.
+`verify_v4.py` checks the SHA256 of all 8 artifacts against `data/v4_checksums.txt`,
+so byte-integrity of every file (including `mixed_sources_v4.txt`) is confirmed
+directly. (An earlier version of this section argued integrity *transitively* from
+the SFT hash; that reasoning is unnecessary — the checksums verify each file — and
+was also misleading, since it implied a clean upstream pipeline that the Step 3
+caveat shows did not hold.)
+
+## Limitations
+
+- **Input-corpus duplication.** The shipped `mixed_sources_v4.txt` contains ~47K
+  duplicate lines (107,265 unique of 154,806 non-blank); `generate_sft.py` read its
+  first 150,000 lines with `--max-input 150000`, so the SFT generation drew from a
+  corpus that over-represents some sentences. The 39,209 training examples therefore
+  likely contain repeated/near-repeated source sentences. This is a known
+  data-quality limitation of v4, not a defect in the trained artifact (which is
+  fixed and verified). It is **not** retroactively fixable without regenerating the
+  training data, which would invalidate the trained models — so it stands as a
+  documented limitation for v4 and a fix target for v5.
 
 ## Citations
 

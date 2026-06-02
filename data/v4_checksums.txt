@@ -4,7 +4,8 @@
 # trained on at frodo:~/projects/gec-eval/data/train/synterr_v4.jsonl
 # (renamed in transit via scp on 2026-03-23 15:15 UTC).
 #
-# Code state at generation: commit 898814d
+# Code state at generation: commit 2fd4d78 (tag v4-data; originally 898814d, re-hashed
+# by the May 2026 history rewrite — see data/V4_DATA_PROVENANCE.md).
 # Verify with: shasum -a 256 -c data/v4_checksums.txt
 
 1237468d6557be922835d33e5938d0fa94c37e0117a67e97fee4ce6b93052ac4  data/scarce_sents_v4.txt
