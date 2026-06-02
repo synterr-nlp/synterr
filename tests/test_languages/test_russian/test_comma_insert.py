@@ -6,13 +6,17 @@ from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.comma_insert import CommaInsertHandler
 
 
-def _tok(text, pos="NOUN", lemma=None, idx=0):
+def _tok(
+    text, pos="NOUN", lemma=None, idx=0, dep_rel=None, head_idx=None, features=None
+):
     return AnalyzedToken(
         text=text,
         lemma=lemma or text.lower(),
         pos=pos,
-        features={},
+        features=features or {},
         idx=idx,
+        dep_rel=dep_rel,
+        head_idx=head_idx,
     )
 
 
@@ -71,6 +75,118 @@ class TestCommaBeforeKak:
         handler = CommaInsertHandler()
         tokens = [_tok("как", pos="SCONJ", idx=0)]
         assert not handler.can_apply(tokens, 0)
+
+    def test_real_stanza_mark_appositive_fires(self):
+        """Real stanza output: appositive «как» is dep_rel=mark with a nominal head.
+
+        "Лес стоял как стена." → stanza tags "как" as mark, head=стена (NOUN),
+        no finite verb after «как». A comma here is an error → handler must fire.
+        """
+        handler = CommaInsertHandler()
+        tokens = [
+            _tok("Лес", pos="NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "стоял",
+                pos="VERB",
+                idx=1,
+                dep_rel="root",
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("как", pos="SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok("стена", pos="NOUN", idx=3, dep_rel="advcl", head_idx=1),
+            _tok(".", pos="PUNCT", idx=4, dep_rel="punct", head_idx=1),
+        ]
+        assert handler.can_apply(tokens, 2)
+
+    def test_real_stanza_mark_appositive_after_obj_fires(self):
+        """ "Я знаю его как честного человека." — mark, head=человека (NOUN)."""
+        handler = CommaInsertHandler()
+        tokens = [
+            _tok("Я", pos="PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "знаю", pos="VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}
+            ),
+            _tok("его", pos="PRON", idx=2, dep_rel="obj", head_idx=1),
+            _tok("как", pos="SCONJ", idx=3, dep_rel="mark", head_idx=5),
+            _tok("честного", pos="ADJ", idx=4, dep_rel="amod", head_idx=5),
+            _tok("человека", pos="NOUN", idx=5, dep_rel="obl", head_idx=1),
+            _tok(".", pos="PUNCT", idx=6, dep_rel="punct", head_idx=1),
+        ]
+        assert handler.can_apply(tokens, 3)
+
+    def test_real_stanza_mark_clause_skips(self):
+        """Real stanza output: clausal «как» is dep_rel=mark with a VERBAL head.
+
+        "Я помню, как мы встретились." → "как" is mark, head=встретились (VERB).
+        The comma is correct, so the handler must NOT insert a spurious one.
+        """
+        handler = CommaInsertHandler()
+        tokens = [
+            _tok("Я", pos="PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "помню", pos="VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}
+            ),
+            _tok("как", pos="SCONJ", idx=2, dep_rel="mark", head_idx=4),
+            _tok("мы", pos="PRON", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok(
+                "встретились",
+                pos="VERB",
+                idx=4,
+                dep_rel="ccomp",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(".", pos="PUNCT", idx=5, dep_rel="punct", head_idx=1),
+        ]
+        assert not handler.can_apply(tokens, 2)
+
+    def test_real_stanza_mark_nominal_head_but_finite_verb_after_skips(self):
+        """Nominal head but a finite verb follows → subordinate clause → skip.
+
+        Guard against firing when "как" introduces a clause whose nominal subject
+        precedes its finite verb (e.g. "..., как небо потемнело"): the trailing
+        finite verb vetoes the appositive reading.
+        """
+        handler = CommaInsertHandler()
+        # A leading verb makes idx > 0 so the comma-before-«как» branch is reached.
+        tokens = [
+            _tok(
+                "видел", pos="VERB", idx=0, dep_rel="root", features={"VerbForm": "Fin"}
+            ),
+            _tok("как", pos="SCONJ", idx=1, dep_rel="mark", head_idx=3),
+            _tok("небо", pos="NOUN", idx=2, dep_rel="nsubj", head_idx=3),
+            _tok(
+                "потемнело",
+                pos="VERB",
+                idx=3,
+                dep_rel="advcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert not handler.can_apply(tokens, 1)
+
+    def test_real_stanza_mark_appositive_inserts_comma(self):
+        """End-to-end apply on the mark/nominal-head appositive sense."""
+        h = _force_subtype("comma_before_kak")
+        tokens = [
+            _tok("Лес", pos="NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "стоял",
+                pos="VERB",
+                idx=1,
+                dep_rel="root",
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("как", pos="SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok("стена", pos="NOUN", idx=3, dep_rel="advcl", head_idx=1),
+            _tok(".", pos="PUNCT", idx=4, dep_rel="punct", head_idx=1),
+        ]
+        sentence = ["Лес", "стоял", "как", "стена", "."]
+        result = h.apply(tokens, sentence, 2, set(), rng=Random(42))
+        assert result is not None
+        assert sentence == ["Лес", "стоял", ",", "как", "стена", "."]
+        assert result.fix_tag == "$DELETE"
 
 
 class TestCommaInSetPhrase:

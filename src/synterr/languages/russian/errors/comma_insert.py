@@ -2,8 +2,11 @@
 
 Covers LoRuGEC rules about EXTRA commas (the error = spurious comma):
 - Before "как" when it means "в качестве" (no comma per §93 Прим.) or is part of
-  idiom (§114). Uses dep-tree: only targets "как" with dep_rel=case/fixed/flat
-  (adjunct/apposition sense), NOT advcl/ccomp/mark (subordinate clause).
+  idiom (§114). Stanza tags virtually all "как" with dep_rel=mark, so the sense
+  is disambiguated by the head's POS: a nominal head with no following finite
+  verb ("работал как экономист") is the comma-wrong appositive/comparative sense
+  and fires; a verbal head ("как мы встретились") is a subordinate clause where
+  the comma is correct and is skipped. advcl/ccomp/csubj/acl/cc are also skipped.
 - Inside frozen phraseological expressions: ни слуху ни духу, и стар и млад, etc.
   (§87 п.5). Uses a curated lexicon from Rozental — NOT all repeated conjunctions.
 - Between adjacent conjunctions at clause boundaries (§110). Only fires when a
@@ -32,10 +35,21 @@ if TYPE_CHECKING:
 # "как" patterns: dep_rel-based filtering
 # =============================================================================
 
-# dep_rels where "как" takes a comma (clause/comparative) → comma IS correct
-# We must NOT insert a comma here (it would produce correct punctuation, not an error)
-# cc: coordinating "как... так и..." — comma usually correct
-_KAK_CLAUSE_DEPRELS = {"mark", "advcl", "ccomp", "csubj", "acl", "cc"}
+# dep_rels where "как" introduces a subordinate clause → comma IS correct.
+# We must NOT insert a comma here (it would produce correct punctuation, not an error).
+# cc: coordinating "как... так и..." — comma usually correct.
+#
+# NB: 'mark' is deliberately NOT in this set. Real stanza tags essentially all
+# "как" as dep_rel=mark, including the comma-erroneous appositive sense
+# ("Дети как цветы жизни" — comma wrong) and the comma-correct clausal sense
+# ("Я помню, как мы встретились" — comma correct). 'mark' is disambiguated by
+# the head's POS in _is_appositive_kak: nominal head → appositive (fire),
+# verbal head → clause (skip).
+_KAK_CLAUSE_DEPRELS = {"advcl", "ccomp", "csubj", "acl", "cc"}
+
+# POS tags of the head of an appositive/comparative "как" (the "в качестве"
+# sense, §93 Прим.) where a comma is WRONG: "работал как экономист".
+_KAK_APPOSITIVE_HEAD_POS = {"NOUN", "PROPN", "ADJ", "NUM"}
 
 # =============================================================================
 # Frozen phraseological expressions from Rozental §87 п.5
@@ -272,6 +286,49 @@ def _matches_indivisible(
     return None
 
 
+def _has_finite_verb_after(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Whether a finite verb appears between idx and the clause/sentence end.
+
+    A finite verb after "как" signals a subordinate clause (comma correct),
+    so its presence vetoes the appositive insertion.
+    """
+    for j in range(idx + 1, len(tokens)):
+        tok = tokens[j]
+        if tok.text in (".", "!", "?", ";", ","):
+            break
+        if tok.pos in ("VERB", "AUX") and tok.get_feature("VerbForm") == "Fin":
+            return True
+    return False
+
+
+def _is_appositive_kak(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Whether "как" at idx is the comma-erroneous appositive/comparative sense.
+
+    Stanza tags almost all "как" with dep_rel=mark regardless of sense, so the
+    dep_rel alone cannot separate the comma-wrong appositive "как" (в качестве)
+    from the comma-correct subordinate-clause "как". We disambiguate on the
+    head's POS plus a no-finite-verb guard:
+
+    - head is a NOUN/PROPN/ADJ/NUM AND no finite verb follows in the clause
+      → appositive "работал как экономист" / comparative "стоял как стена"
+      → a comma here is an ERROR → fire.
+    - head is a VERB/AUX, or a finite verb follows → subordinate clause
+      ("как мы встретились") → comma correct → skip.
+
+    PRECISION NOTE: this is a heuristic over stanza output. A handful of
+    comparative "как" phrases (e.g. set idioms, "как по маслу") are headed by a
+    noun and will fire even though Rozental treats some of them as comma-taking;
+    these are rare relative to the dominant в-качестве/comparative cases.
+    """
+    token = tokens[idx]
+    if token.head_idx is None or not (0 <= token.head_idx < len(tokens)):
+        return False
+    head = tokens[token.head_idx]
+    if head.pos not in _KAK_APPOSITIVE_HEAD_POS:
+        return False
+    return not _has_finite_verb_after(tokens, idx)
+
+
 def _is_clausal_head(token: AnalyzedToken, tokens: Sequence[AnalyzedToken]) -> bool:
     """Whether `token` heads a clause (finite verb, or has nsubj/csubj)."""
     if token.pos == "VERB" and token.get_feature("VerbForm") == "Fin":
@@ -391,6 +448,13 @@ class CommaInsertHandler:
             if prev.text != ",":
                 if token.dep_rel in _KAK_CLAUSE_DEPRELS:
                     pass  # Clause-introducing — comma is correct, don't insert
+                elif token.dep_rel == "mark":
+                    # Stanza tags virtually all "как" as mark. Disambiguate by the
+                    # head's POS: nominal head + no finite verb → appositive
+                    # ("работал как экономист", comma wrong) → fire; verbal head
+                    # → subordinate clause ("как мы встретились") → skip.
+                    if _is_appositive_kak(tokens, idx):
+                        return True
                 elif token.dep_rel == "advmod" and token.head_idx is not None:
                     # advmod как: Stanza mislabels clause-introducing как as advmod
                     # ("непонятно, как можно" — comma correct, should skip).
@@ -448,6 +512,9 @@ class CommaInsertHandler:
                 allow = False
                 if token.dep_rel in _KAK_CLAUSE_DEPRELS:
                     pass  # clause — comma correct
+                elif token.dep_rel == "mark":
+                    if _is_appositive_kak(tokens, idx):
+                        allow = True  # appositive/comparative — comma wrong
                 elif token.dep_rel == "advmod" and token.head_idx is not None:
                     head = (
                         tokens[token.head_idx]
