@@ -658,3 +658,216 @@ class TestSampleConfusedGrammeme:
                 gen_count += 1
         ratio = gen_count / 500
         assert ratio > 0.90, f"Expected ~99% Gen, got {ratio:.2%}"
+
+
+def _verb_tense_handler():
+    from synterr.languages.russian.errors.morphological import VerbTenseErrorHandler
+
+    return VerbTenseErrorHandler()
+
+
+class TestVerbTensePreservesAgreement:
+    """verb_tense must keep person/number/gender across the tense change.
+
+    Regression for the bug where inflect({'futr'}) defaulted to 1st person:
+    "Он прочитал" → "Он прочитаю" instead of "прочитает".
+    """
+
+    def test_past_to_future_keeps_3rd_person_singular(self):
+        handler = _verb_tense_handler()
+        # перфектив: present unreachable, so future is the only target.
+        verb_parse = morph.parse("прочитал")[0]  # Past Masc Sing
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={"Number": "Sing", "Person": "3", "Gender": "Masc"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("он")[0]},
+            ),
+            AnalyzedToken(
+                text="прочитал",
+                lemma="прочитать",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Masc"},
+                idx=1,
+                dep_rel="root",
+                head_idx=1,
+                extra={"pymorphy_parse": verb_parse},
+            ),
+        ]
+        sentence = ["Он", "прочитал"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+
+        assert result is not None
+        assert sentence[1] == "прочитает"  # 3rd person sing, NOT "прочитаю"
+
+    def test_past_to_future_keeps_3rd_person_plural(self):
+        handler = _verb_tense_handler()
+        verb_parse = morph.parse("прочитали")[0]  # Past Plur
+        tokens = [
+            AnalyzedToken(
+                text="Они",
+                lemma="они",
+                pos="PRON",
+                features={"Number": "Plur", "Person": "3"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("они")[0]},
+            ),
+            AnalyzedToken(
+                text="прочитали",
+                lemma="прочитать",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Plur"},
+                idx=1,
+                dep_rel="root",
+                head_idx=1,
+                extra={"pymorphy_parse": verb_parse},
+            ),
+        ]
+        sentence = ["Они", "прочитали"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+
+        assert result is not None
+        assert sentence[1] == "прочитают"  # NOT "прочитаем"
+
+    def test_present_to_past_keeps_feminine_gender(self):
+        handler = _verb_tense_handler()
+        # имперфектив: future is periphrastic (unreachable), so past is the only
+        # candidate that inflects — and it must keep feminine gender.
+        verb_parse = morph.parse("читает")[0]  # Pres 3 Sing
+        tokens = [
+            AnalyzedToken(
+                text="Она",
+                lemma="она",
+                pos="PRON",
+                features={"Number": "Sing", "Person": "3", "Gender": "Fem"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("она")[0]},
+            ),
+            AnalyzedToken(
+                text="читает",
+                lemma="читать",
+                pos="VERB",
+                features={"Tense": "Pres", "Number": "Sing", "Person": "3"},
+                idx=1,
+                dep_rel="root",
+                head_idx=1,
+                extra={"pymorphy_parse": verb_parse},
+            ),
+        ]
+        for seed in range(10):
+            sentence = ["Она", "читает"]
+            result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(seed))
+            assert result is not None
+            assert sentence[1] == "читала"  # feminine, NOT masculine "читал"
+
+    def test_perfective_past_does_not_no_op(self):
+        """morph-2: perfective verb can't go present, but future must fire."""
+        handler = _verb_tense_handler()
+        verb_parse = morph.parse("написал")[0]  # Past Masc Sing, perfective
+        tokens = [
+            AnalyzedToken(
+                text="написал",
+                lemma="написать",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Masc"},
+                idx=0,
+                dep_rel="root",
+                head_idx=0,
+                extra={"pymorphy_parse": verb_parse},
+            ),
+        ]
+        for seed in range(10):
+            sentence = ["написал"]
+            result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(seed))
+            assert result is not None  # never None despite unreachable present
+            assert sentence[0] == "напишет"
+
+
+class TestNumeralDeclensionGeneralCardinals:
+    """numeral_declension fires on oblique general cardinals, not only полтора.
+
+    Regression for the bug where can_apply gated solely on _POLTORA_LOOKUP,
+    so general cardinals (пятьдесят/двести/триста…) never fired.
+    """
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NumeralDeclensionHandler,
+        )
+
+        return NumeralDeclensionHandler()
+
+    def _cardinal_token(self, text, case):
+        return AnalyzedToken(
+            text=text,
+            lemma=text,
+            pos="NUM",
+            features={"Case": case, "NumType": "Card"},
+            idx=0,
+            dep_rel="nummod",
+            head_idx=1,
+            extra={"pymorphy_parse": morph.parse(text)[0]},
+        )
+
+    def test_oblique_cardinal_can_apply(self):
+        handler = self._handler()
+        for text, case in [
+            ("пятидесяти", "Loc"),
+            ("трёхсот", "Gen"),
+            ("двумястами", "Ins"),
+            ("пятистам", "Dat"),
+        ]:
+            tok = self._cardinal_token(text, case)
+            assert handler.can_apply([tok], 0) is True, text
+
+    def test_oblique_cardinal_loses_declension(self):
+        handler = self._handler()
+        tok = self._cardinal_token("пятидесяти", "Loc")
+        sentence = ["пятидесяти"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+
+        assert result is not None
+        assert sentence[0] == "пятьдесят"  # citation form, fails to decline
+        assert result.error_type == "numeral_declension_numeral_declension"
+
+    def test_nominative_cardinal_does_not_fire(self):
+        """A Nom/Acc cardinal governing genitive is correct — no error."""
+        handler = self._handler()
+        tok = self._cardinal_token("пятьдесят", "Acc")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_non_numeral_parse_does_not_fire(self):
+        """Guard: oblique-cased token whose pymorphy parse is not NUMR is skipped.
+
+        "сто" parses as a NOUN, so even in an oblique slot it must not be
+        treated as a declinable cardinal here.
+        """
+        handler = self._handler()
+        tok = self._cardinal_token("сто", "Gen")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_poltora_family_still_works(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="полутора",
+            lemma="полтора",
+            pos="NUM",
+            features={"Case": "Gen"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("полутора")[0]},
+        )
+        sentence = ["полутора"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+
+        assert result is not None
+        assert sentence[0] in {"полтора", "полторы"}
+        assert result.error_type == "numeral_declension_numeral_poltora"

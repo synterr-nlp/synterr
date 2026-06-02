@@ -17,14 +17,16 @@ Two numbers, because they answer different questions:
 
 | Status | Mapped (handler exists) | Verified (fires correctly on canonical inputs) |
 |--------|------:|------:|
-| **FULL** | 36 | ~32 |
+| **FULL** | 36 | ~33 |
 | **PARTIAL** | 12 | 15 |
-| **NONE** | 0 | 1 |
+| **NONE** | 0 | 0 |
 
 The "Mapped" column is the original handler-claim count. The "Verified" column is
-the honest 2026-05-27 recount after spot-checking against real sentences — it
-demotes the three «как» comparison rows and the general-cardinal numeral rule
-(see Known-broken). Total LoRuGEC rules: **48** (val=348, test=612, no train).
+the honest recount after spot-checking against real sentences — it still demotes
+the three «как» comparison rows (Known-broken #1). The general-cardinal numeral
+rule was demoted in the 2026-05-27 audit but is now implemented and restored
+(Known-broken #2, resolved 2026-06-02). Total LoRuGEC rules: **48** (val=348,
+test=612, no train).
 
 ## Per-rule mapping
 
@@ -131,7 +133,7 @@ demotes the three «как» comparison rows and the general-cardinal numeral ru
 
 | LoRuGEC rule | Handler.subtype |
 |---|---|
-| Склонение количественных числительных | `numeral_declension:numeral_declension` — **NONE**, see Known-broken #2 |
+| Склонение количественных числительных | `numeral_declension:numeral_declension` — oblique general cardinal reverts to its Nom/Acc citation form (о пятидесяти → о пятьдесят) |
 | Склонение полтора/полторы/полтораста | `numeral_declension:numeral_poltora` |
 
 ### gov_case + syntax_advanced (2/2 FULL)
@@ -170,16 +172,20 @@ the Verified column above.
    subordinate «как» — likely lexical + head-POS, since stanza's dep_rel alone
    collides. Until then these are NONE-grade, not FULL.
 
-2. **`numeral_declension` general cardinals — not implemented.** `can_apply`
-   only matches полтора/полторы/полтораста (`_POLTORA_LOOKUP`,
-   `morphological.py:660`); the general-cardinal branch is unreachable dead code.
-   "Склонение количественных числительных" has no working implementation →
-   NONE. (полтора is a separate, working FULL row.)
+2. ~~**`numeral_declension` general cardinals — not implemented.**~~
+   **RESOLVED (2026-06-02).** `can_apply` now also matches oblique general
+   cardinals: when a NUMR-parsed token is in Gen/Dat/Ins/Loc, the handler
+   inflects it back to its Nom/Acc citation form (о пятидесяти → о пятьдесят,
+   около трёхсот → около триста), reproducing the canonical "fails to decline"
+   L2 error. `_general_cardinal_target` guards against non-numerals (e.g. "сто"
+   parses as NOUN) and forms whose nominative equals the surface. полтора
+   remains a separate working row.
 
 ## What this means for M1
 
 **Original plan (stale):** close 9 missing rules.
 **Revised plan:** verification, not implementation, is the bottleneck. The real
 work is (a) a real-backend integration harness so FULL claims are auditable
-rather than asserted, and (b) fixing the two Known-broken rules above. Per-row
-"last verified" with the test sentence would make this doc self-checking.
+rather than asserted, and (b) fixing the remaining Known-broken row (the three
+«как» comparison rows; #2 is now resolved). Per-row "last verified" with the
+test sentence would make this doc self-checking.

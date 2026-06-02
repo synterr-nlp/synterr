@@ -37,7 +37,10 @@ weights:
   # dash_to_comma: substitution variant of §93 appos (тире→запятая, common L1 form)
   dash_to_comma: 0.0208         # 1/48
 
-  # numeral_declension: 2 rules (полтора, количественные)
+  # numeral_declension: 2 rules
+  #   - полтора/полторы/полтораста: two-form (Nom/Acc ↔ oblique) confusion
+  #   - количественные числительных: oblique general cardinal fails to decline,
+  #     reverting to its Nom/Acc citation form (о пятидесяти → о пятьдесят)
   numeral_declension: 0.0417    # 2/48
 
   # 2 rules each:

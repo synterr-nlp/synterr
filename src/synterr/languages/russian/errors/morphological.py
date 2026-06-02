@@ -12,6 +12,7 @@ from synterr.languages.russian.inflector import (
     PERSONS,
     UD_TO_PYMORPHY_CASE,
     UD_TO_PYMORPHY_GENDER,
+    UD_TO_PYMORPHY_NUMBER,
     UD_TO_PYMORPHY_PERSON,
     UD_TO_PYMORPHY_TENSE,
     inflect_word,
@@ -575,27 +576,77 @@ class VerbTenseErrorHandler:
         if current_tense is None:
             return None
 
+        # Subject (nsubj) supplies the agreement features the verb itself lacks:
+        # past forms carry no Person, pres/futr forms carry no Gender.
+        subject = _find_dependent(tokens, idx, "nsubj")
+
         other_tenses = [t for t in self.TENSES if t != current_tense]
-        target_tense = rng.choice(other_tenses)
+        rng.shuffle(other_tenses)
 
-        new_word = inflect_word(parse, {target_tense}, word)
+        # Try each candidate tense, carrying the original agreement features, and
+        # take the first that inflects to a genuinely different real form. A
+        # constrained .inflect() returning None means that tense is unreachable
+        # (e.g. perfective verb → present) — skip it rather than emit a
+        # person/gender-mismatched form from an unconstrained call.
+        for target_tense in other_tenses:
+            grammemes = self._target_grammemes(target_tense, token, subject)
+            new_word = inflect_word(parse, grammemes, word)
+            if new_word and new_word != word:
+                sentence[idx] = new_word
+                modified.add(idx)
 
-        if new_word and new_word != word:
-            sentence[idx] = new_word
-            modified.add(idx)
-
-            original_tense = token.get_feature("Tense", "Pres")
-            return ErrorResult(
-                error_type="verb_tense",
-                category=self.category,
-                start_idx=idx,
-                end_idx=idx + 1,
-                original=word,
-                corrupted=new_word,
-                fix_tag=f"$TRANSFORM_TENSE_{original_tense}",
-            )
+                original_tense = token.get_feature("Tense", "Pres")
+                return ErrorResult(
+                    error_type="verb_tense",
+                    category=self.category,
+                    start_idx=idx,
+                    end_idx=idx + 1,
+                    original=word,
+                    corrupted=new_word,
+                    fix_tag=f"$TRANSFORM_TENSE_{original_tense}",
+                )
 
         return None
+
+    @staticmethod
+    def _target_grammemes(
+        target_tense: str,
+        token: AnalyzedToken,
+        subject: AnalyzedToken | None,
+    ) -> set[str]:
+        """Build the constrained grammeme set for a tense change.
+
+        Carries Number always, plus Person (pres/futr targets) or Gender
+        (past targets), preferring the verb's own features and falling back to
+        the subject's. Without these constraints pymorphy defaults to 1st
+        person / masculine, producing agreement errors instead of tense errors.
+        """
+        grammemes = {target_tense}
+
+        number = token.get_feature("Number")
+        if number is None and subject is not None:
+            number = subject.get_feature("Number")
+        py_number = UD_TO_PYMORPHY_NUMBER.get(number) if number else None
+        if py_number:
+            grammemes.add(py_number)
+
+        if target_tense == "past":
+            # Gender only matters in the singular; plural past has no gender.
+            if py_number != "plur":
+                gender = token.get_feature("Gender")
+                if gender is None and subject is not None:
+                    gender = subject.get_feature("Gender")
+                py_gender = UD_TO_PYMORPHY_GENDER.get(gender) if gender else None
+                if py_gender:
+                    grammemes.add(py_gender)
+        else:
+            person = token.get_feature("Person")
+            if person is None and subject is not None:
+                person = subject.get_feature("Person")
+            py_person = UD_TO_PYMORPHY_PERSON.get(person) if person else "3per"
+            grammemes.add(py_person)
+
+        return grammemes
 
 
 # =============================================================================
@@ -631,15 +682,25 @@ for _lemma, _forms in _POLTORA_FORMS.items():
         _POLTORA_LOOKUP[_form] = _lemma
 
 
+# Oblique UD cases for which a general cardinal must inflect both elements.
+# Failing to decline → leaving the numeral in its Nom/Acc citation form.
+_OBLIQUE_CASES = {"Gen", "Dat", "Ins", "Loc"}
+
+
 class NumeralDeclensionHandler:
-    """Corrupt numeral declension — currently полтора/полторы/полтораста.
+    """Corrupt numeral declension.
 
-    These three words have a two-form declension:
-    - Nom/Acc: полтора (m/n), полторы (f), полтораста
-    - All oblique: полутора, полутора, полутораста
+    Two error families:
 
-    Common L2 error: using Nom/Acc form in oblique position or vice versa.
-    Rozental §164.
+    - полтора/полторы/полтораста: two-form declension (Nom/Acc vs oblique).
+      Common L2 error: using the Nom/Acc form in oblique position or vice
+      versa. Rozental §164. Subtype ``numeral_poltora``.
+    - general cardinals (пятьдесят, двести, триста, пятьсот, …): all parts
+      decline. The canonical L2 error is failing to decline — leaving the
+      numeral in its citation (Nom/Acc) form in an oblique slot
+      ("о пятьдесят книгах" for "о пятидесяти книгах"). We reproduce it by
+      inflecting an oblique cardinal back to nominative. Subtype
+      ``numeral_declension``. Rozental §164.
     """
 
     name = "numeral_declension"
@@ -648,8 +709,27 @@ class NumeralDeclensionHandler:
     changes_length = False
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        text_lower = tokens[idx].text.lower()
-        return text_lower in _POLTORA_LOOKUP
+        if tokens[idx].text.lower() in _POLTORA_LOOKUP:
+            return True
+        return self._general_cardinal_target(tokens[idx]) is not None
+
+    def _general_cardinal_target(self, token: AnalyzedToken) -> str | None:
+        """If token is an oblique general cardinal, return its Nom/Acc form.
+
+        Returns None when the token is not a declinable cardinal, is not in an
+        oblique case, or already equals its nominative form (indeclinable
+        numerals like сорок/девяносто/сто share their oblique/nominative
+        surface forms and so produce no error).
+        """
+        if token.get_feature("Case") not in _OBLIQUE_CASES:
+            return None
+        parse = _get_pymorphy_parse(token)
+        if parse is None or getattr(parse.tag, "POS", None) != "NUMR":
+            return None
+        nom = inflect_word(parse, {"nomn"}, token.text)
+        if nom and nom != token.text:
+            return nom
+        return None
 
     def apply(
         self,
@@ -663,27 +743,27 @@ class NumeralDeclensionHandler:
         word = sentence[idx]
         text_lower = word.lower()
 
-        if text_lower not in _POLTORA_LOOKUP:
-            return None
+        if text_lower in _POLTORA_LOOKUP:
+            lemma = _POLTORA_LOOKUP[text_lower]
+            substitutions = _POLTORA_FORMS[lemma].get(text_lower)
+            if not substitutions:
+                return None
 
-        lemma = _POLTORA_LOOKUP[text_lower]
-        substitutions = _POLTORA_FORMS[lemma].get(text_lower)
-        if not substitutions:
-            return None
+            new_lower = rng.choice(substitutions)
+            new_word = (
+                new_lower[0].upper() + new_lower[1:] if word[0].isupper() else new_lower
+            )
 
-        new_lower = rng.choice(substitutions)
-
-        # Preserve capitalization
-        if word[0].isupper():
-            new_word = new_lower[0].upper() + new_lower[1:]
+            subtype = (
+                "numeral_poltora"
+                if lemma in ("полтора", "полторы")
+                else "numeral_declension"
+            )
         else:
-            new_word = new_lower
-
-        subtype = (
-            "numeral_poltora"
-            if lemma in ("полтора", "полторы")
-            else "numeral_declension"
-        )
+            new_word = self._general_cardinal_target(tokens[idx])
+            if new_word is None:
+                return None
+            subtype = "numeral_declension"
 
         sentence[idx] = new_word
         modified.add(idx)
