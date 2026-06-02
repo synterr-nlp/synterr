@@ -160,6 +160,13 @@ def _find_comma_partner(
         return None
 
     n = len(tokens)
+
+    # Collect every PAIR_DEPRELS head whose boundary comma touches `idx`, then
+    # prefer the largest enclosing span and demote bare `amod`. A leading
+    # attributive adjective (also tagged amod) otherwise shadows the real
+    # appos/acl head whose subtree *encloses* it, leaving an orphaned closing
+    # comma; and a homogeneous list's per-item amod would false-fire.
+    candidates: list[tuple[int, int | None, str, bool]] = []
     for head in tokens:
         if head.dep_rel not in PAIR_DEPRELS:
             continue
@@ -185,18 +192,34 @@ def _find_comma_partner(
         if left_comma_idx is None and right_comma_idx is None:
             continue
 
+        is_amod = head.dep_rel == "amod"
+        # A bare amod is an isolated adjective only when bounded by commas on
+        # BOTH sides, or preposed at the sentence start with a closing comma.
+        # Otherwise it is an ordinary leading attributive (e.g. a list item).
+        if is_amod:
+            both_sides = left_comma_idx is not None and right_comma_idx is not None
+            preposed = span_left == 0 and right_comma_idx is not None
+            if not (both_sides or preposed):
+                continue
+
         subtype = PAIR_DEPRELS[head.dep_rel]
+        span_size = span_right - span_left
 
         if left_comma_idx is not None and idx == left_comma_idx:
-            return (right_comma_idx, subtype)
-        if (
+            candidates.append((span_size, right_comma_idx, subtype, is_amod))
+        elif (
             left_comma_idx is None
             and right_comma_idx is not None
             and idx == right_comma_idx
         ):
-            return (None, subtype)
+            candidates.append((span_size, None, subtype, is_amod))
 
-    return None
+    if not candidates:
+        return None
+
+    # Prefer the largest enclosing span; among equals, prefer non-amod heads.
+    best = max(candidates, key=lambda c: (c[0], not c[3]))
+    return (best[1], best[2])
 
 
 def _get_subtree_span(
@@ -259,8 +282,16 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
         if comma_head.dep_rel in ("parataxis", "discourse"):
             return "comma_parenthetical"
 
-        # Isolation: comma's head is an acl/acl:relcl/advcl node
+        # Isolation: comma's head is an acl/acl:relcl/advcl node.
+        # advcl is isolation only as a gerund (VerbForm=Conv); a fronted finite
+        # subordinate clause ("Когда…,") is comma_subordinate. Mirrors the
+        # _find_comma_partner advcl guard.
         if comma_head.dep_rel in ISOLATION_DEPRELS:
+            if (
+                comma_head.dep_rel == "advcl"
+                and comma_head.get_feature("VerbForm") != "Conv"
+            ):
+                return "comma_subordinate"
             return "comma_isolation"
 
         # Subordinate/compound: comma's head is a conj or clausal node

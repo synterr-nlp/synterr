@@ -98,24 +98,24 @@ class TestClassifyCommaDepTree:
         ]
         assert _classify_comma(tokens, 2) == "comma_subordinate"
 
-    def test_subordinate_advcl_with_mark(self):
-        # "уехал, когда стемнело"
+    def test_subordinate_advcl_finite_clause(self):
+        # "уехал, когда стемнело" — advcl head is a finite verb (no VerbForm=Conv),
+        # i.e. a subordinate clause, not a gerund isolation. The advcl guard in
+        # _classify_comma routes finite advcl to comma_subordinate.
         tokens = [
             _tok("уехал", "VERB", idx=0, dep_rel="root", head_idx=None),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
             _tok("когда", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
-            _tok("стемнело", "VERB", idx=3, dep_rel="advcl", head_idx=0),
+            _tok(
+                "стемнело",
+                "VERB",
+                idx=3,
+                dep_rel="advcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
         ]
-        # comma head is advcl → isolation? No — advcl with mark is a subordinate clause.
-        # But our code checks: comma_head.dep_rel in ISOLATION_DEPRELS → returns isolation.
-        # Hmm, this is actually a subordinate clause. Let me check priority...
-        # Actually advcl IS in ISOLATION_DEPRELS. For "когда"-clauses this is debatable.
-        # With the current code, comma head=advcl → isolation. But "mark" on когда = subordinate.
-        # The fallback catches it: right token has dep_rel="mark" → subordinate.
-        # But the dep-tree check runs first and returns isolation.
-        # This is a known ambiguity: advcl can be both isolation (gerund) and subordinate
-        # (когда-clause). Let's accept "comma_isolation" here — it's defensible.
-        assert _classify_comma(tokens, 1) == "comma_isolation"
+        assert _classify_comma(tokens, 1) == "comma_subordinate"
 
     def test_compound_conj_with_subjects(self):
         # "Солнце светило, и птицы пели"
@@ -204,6 +204,47 @@ class TestClassifyCommaDepTree:
         ]
         # Comma head is "Приехав" (advcl) → isolation
         assert _classify_comma(tokens, 2) == "comma_isolation"
+
+    def test_subordinate_fronted_advcl_kogda(self):
+        # "Когда стемнело, они вернулись домой." — fronted finite advcl clause.
+        # The comma's head is the finite advcl verb (VerbForm=Fin), which must
+        # classify as comma_subordinate, NOT comma_isolation. Matches stanza.
+        tokens = [
+            _tok("Когда", "SCONJ", idx=0, dep_rel="mark", head_idx=1),
+            _tok(
+                "стемнело",
+                "VERB",
+                idx=1,
+                dep_rel="advcl",
+                head_idx=4,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=1),
+            _tok("они", "PRON", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok("вернулись", "VERB", idx=4, dep_rel="root", head_idx=None),
+            _tok("домой", "ADV", idx=5, dep_rel="advmod", head_idx=4),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_subordinate"
+
+    def test_subordinate_fronted_advcl_poskolku(self):
+        # "Поскольку шёл дождь, мы остались дома." — fronted finite advcl.
+        tokens = [
+            _tok("Поскольку", "SCONJ", idx=0, dep_rel="mark", head_idx=1),
+            _tok(
+                "шёл",
+                "VERB",
+                idx=1,
+                dep_rel="advcl",
+                head_idx=5,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("дождь", "NOUN", idx=2, dep_rel="nsubj", head_idx=1),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=1),
+            _tok("мы", "PRON", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok("остались", "VERB", idx=5, dep_rel="root", head_idx=None),
+            _tok("дома", "ADV", idx=6, dep_rel="advmod", head_idx=5),
+        ]
+        assert _classify_comma(tokens, 3) == "comma_subordinate"
 
     def test_compound_not_triggered_without_subject(self):
         # "яблоки, и груши" — conj but no subject on conj side
@@ -742,6 +783,52 @@ class TestFindCommaPair:
         result = _find_comma_partner(tokens, 1)
         assert result == (5, "pair_gerund")
 
+    def test_apposition_with_leading_adjective_pairs_both_commas(self):
+        # "Мой старший брат, талантливый инженер, работает в Москве."
+        # The apposition "талантливый инженер" leads with an attributive adj
+        # tagged amod (head=инженер). A bare amod must NOT shadow the appos
+        # head: the appos subtree encloses the amod, so the enclosing span
+        # wins and BOTH commas pair correctly as pair_apposition.
+        tokens = [
+            _tok("Мой", "DET", idx=0, dep_rel="det", head_idx=2),
+            _tok("старший", "ADJ", idx=1, dep_rel="amod", head_idx=2),
+            _tok("брат", "NOUN", idx=2, dep_rel="nsubj", head_idx=7),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+            _tok("талантливый", "ADJ", idx=4, dep_rel="amod", head_idx=5),
+            _tok("инженер", "NOUN", idx=5, dep_rel="appos", head_idx=2),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=2),
+            _tok("работает", "VERB", idx=7, dep_rel="root", head_idx=None),
+            _tok("в", "ADP", idx=8, dep_rel="case", head_idx=9),
+            _tok("Москве", "PROPN", idx=9, dep_rel="obl", head_idx=7),
+            _tok(".", "PUNCT", idx=10, dep_rel="punct", head_idx=7),
+        ]
+        result = _find_comma_partner(tokens, 3)
+        assert result == (6, "pair_apposition")
+        # The orphaned-comma bug deleted only the first comma; the closing
+        # comma (idx=6) must NOT itself trigger a separate pair.
+        assert _find_comma_partner(tokens, 6) is None
+
+    def test_homogeneous_list_not_paired(self):
+        # "Я купил свежие яблоки, спелые груши, сочные апельсины."
+        # Each list item leads with an attributive adjective (amod). A bare
+        # amod with a comma on only one side is an ordinary attributive, not an
+        # isolation — comma_pair_delete must NOT touch homogeneous separators.
+        tokens = [
+            _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("купил", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok("свежие", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("яблоки", "NOUN", idx=3, dep_rel="obj", head_idx=1),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=6),
+            _tok("спелые", "ADJ", idx=5, dep_rel="amod", head_idx=6),
+            _tok("груши", "NOUN", idx=6, dep_rel="conj", head_idx=3),
+            _tok(",", "PUNCT", idx=7, dep_rel="punct", head_idx=9),
+            _tok("сочные", "ADJ", idx=8, dep_rel="amod", head_idx=9),
+            _tok("апельсины", "NOUN", idx=9, dep_rel="conj", head_idx=3),
+            _tok(".", "PUNCT", idx=10, dep_rel="punct", head_idx=1),
+        ]
+        assert _find_comma_partner(tokens, 4) is None
+        assert _find_comma_partner(tokens, 7) is None
+
     def test_no_pair_no_boundary_commas(self):
         # Isolation head exists but has no commas adjacent to its span.
         # Should not trigger.
@@ -909,3 +996,60 @@ class TestCommaPairDeleteHandler:
             _tok("придёт", "VERB", idx=3, dep_rel="ccomp", head_idx=0),
         ]
         assert self.handler.can_apply(tokens, 1) is False
+
+    def _leading_adj_apposition_tokens(self):
+        # "Мой старший брат, талантливый инженер, работает в Москве."
+        return [
+            _tok("Мой", "DET", idx=0, dep_rel="det", head_idx=2),
+            _tok("старший", "ADJ", idx=1, dep_rel="amod", head_idx=2),
+            _tok("брат", "NOUN", idx=2, dep_rel="nsubj", head_idx=7),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+            _tok("талантливый", "ADJ", idx=4, dep_rel="amod", head_idx=5),
+            _tok("инженер", "NOUN", idx=5, dep_rel="appos", head_idx=2),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=2),
+            _tok("работает", "VERB", idx=7, dep_rel="root", head_idx=None),
+            _tok("в", "ADP", idx=8, dep_rel="case", head_idx=9),
+            _tok("Москве", "PROPN", idx=9, dep_rel="obl", head_idx=7),
+            _tok(".", "PUNCT", idx=10, dep_rel="punct", head_idx=7),
+        ]
+
+    def test_apply_deletes_both_commas_leading_adj_apposition(self):
+        tokens = self._leading_adj_apposition_tokens()
+        sentence = [t.text for t in tokens]
+        result = self.handler.apply(tokens, sentence, 3, set())
+
+        assert result is not None
+        assert result.error_type == "pair_apposition"
+        assert result.category == "PUNCT"
+        # Both commas gone — no orphan left behind.
+        assert "," not in sentence
+        assert sentence == [
+            "Мой",
+            "старший",
+            "брат",
+            "талантливый",
+            "инженер",
+            "работает",
+            "в",
+            "Москве",
+            ".",
+        ]
+
+    def test_can_apply_false_on_homogeneous_list(self):
+        # "Я купил свежие яблоки, спелые груши, сочные апельсины." — leading
+        # attributive adjectives (amod) must not let comma_pair_delete fire.
+        tokens = [
+            _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("купил", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok("свежие", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("яблоки", "NOUN", idx=3, dep_rel="obj", head_idx=1),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=6),
+            _tok("спелые", "ADJ", idx=5, dep_rel="amod", head_idx=6),
+            _tok("груши", "NOUN", idx=6, dep_rel="conj", head_idx=3),
+            _tok(",", "PUNCT", idx=7, dep_rel="punct", head_idx=9),
+            _tok("сочные", "ADJ", idx=8, dep_rel="amod", head_idx=9),
+            _tok("апельсины", "NOUN", idx=9, dep_rel="conj", head_idx=3),
+            _tok(".", "PUNCT", idx=10, dep_rel="punct", head_idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 4) is False
+        assert self.handler.can_apply(tokens, 7) is False
