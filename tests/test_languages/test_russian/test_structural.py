@@ -137,3 +137,65 @@ class TestWordInsertionError:
             "$DELETE"
         )
         assert self.handler.apply(tokens, sentence, 4, modified) is None
+
+    def test_lexicon_has_no_whitespace_fillers(self):
+        """All fillers must be single GECToR tokens (no embedded whitespace).
+
+        GECToR output is whitespace-tokenized, so a filler with a space would
+        occupy one corrupted-token slot (one $DELETE) yet split into two tokens
+        downstream — an off-by-one tag/token misalignment.
+        """
+        for filler in self.handler.fillers:
+            assert filler.split() == [filler], (
+                f"multi-word filler {filler!r} would break token/tag alignment"
+            )
+
+    def test_guard_filters_multiword_fillers_from_raw_lexicon(self, monkeypatch):
+        """A multi-word entry in fillers.json is dropped before reaching apply()."""
+        import synterr.languages.russian.resources as resources
+
+        monkeypatch.setattr(
+            resources,
+            "get_filler_list",
+            lambda: ["вот", "как бы", "ну", "   ", ""],
+        )
+        handler = WordInsertionHandler()
+        loaded = handler.fillers
+
+        assert "как бы" not in loaded
+        assert all(f.split() == [f] for f in loaded)
+        assert loaded == ["вот", "ну"]
+
+    def test_single_filler_insertion_is_token_tag_consistent(self):
+        """Each inserted filler yields one corrupted token and exactly one $DELETE."""
+        tokens = [
+            AnalyzedToken(text="Мама", lemma="мама", pos="NOUN", features={}, idx=0),
+            AnalyzedToken(text="мыла", lemma="мыть", pos="VERB", features={}, idx=1),
+            AnalyzedToken(text="раму", lemma="рама", pos="NOUN", features={}, idx=2),
+        ]
+        handler = WordInsertionHandler()
+
+        for filler in handler.fillers:
+            sentence = ["Мама", "мыла", "раму"]
+            before = len(sentence)
+            result = handler.apply(tokens, sentence, 0, set(), rng=_FixedChoice(filler))
+
+            assert result is not None
+            # Inserted exactly one corrupted-token slot...
+            assert len(sentence) == before + 1
+            # ...which is a single whitespace token...
+            assert len(" ".join(sentence).split()) == before + 1
+            # ...carrying exactly one $DELETE edit.
+            assert result.fix_tag == "$DELETE"
+            assert result.corrupted == filler
+            assert result.corrupted.split() == [result.corrupted]
+
+
+class _FixedChoice:
+    """Minimal rng stub: choice() always returns the configured value."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def choice(self, _seq):
+        return self._value

@@ -71,7 +71,11 @@ class WordInsertionHandler:
         if self._fillers is None:
             from synterr.languages.russian.resources import get_filler_list
 
-            self._fillers = get_filler_list()
+            # GECToR output is whitespace-tokenized: one corrupted token = one tag.
+            # A filler containing a space would occupy a single corrupted-token slot
+            # (one $DELETE) but split into two whitespace tokens downstream, causing
+            # an off-by-one tag/token misalignment. Keep only single-token fillers.
+            self._fillers = [f for f in get_filler_list() if f and len(f.split()) == 1]
         return self._fillers
 
     def can_apply(self, tokens, idx):
