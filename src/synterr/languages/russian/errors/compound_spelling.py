@@ -104,20 +104,50 @@ _HYPHENATED_COMPOUNDS: set[str] = {
 }
 
 
+# Numerals matching ^пол... that pymorphy may tag as Sgtm nouns but which
+# are NOT пол- ("half of X") compounds.
+_POL_DENYLIST: frozenset[str] = frozenset(
+    {
+        "полтора",
+        "полтораста",
+    }
+)
+
+
 def _is_pol_compound(text_lower: str) -> bool:
-    """Check if word is a real пол- compound (полвека, полдня), not полный/получить."""
+    """Check if word is a real пол- compound (полвека, полдня), not полный/получить.
+
+    Positive test — two cases for "полX":
+    - X already lexicalized as a whole word (полвека, полгода, полминуты): real
+      пол- compounds are singularia tantum (Sgtm) — "half of X" has no plural —
+      so accept only when pymorphy tags it Sgtm with itself as the lemma. This
+      rejects ordinary words that merely start with пол (полоса, политика,
+      полено, полюс, полночь, полдень).
+    - X not lexicalized (полкниги, полшага): accept when the remainder after
+      "пол" parses as a genitive noun (книги, шага).
+
+    Both cases reject полный, получить, положение, etc.
+    """
     m = _POL_MERGED_RE.match(text_lower)
     if not m:
         return False
-    m.group(1)
-    # Real пол- compounds: remainder is a noun in genitive (полвека, полдня, полгода)
-    # False positives: полный, получить, полоса, положение, etc.
-    # Use pymorphy to check if the full word parses as a normal word
-    analyzer = get_morpheme_analyzer()
-    if analyzer.word_is_known(text_lower):
-        # "полный", "получили" etc. are real words — not пол- compounds
+    if text_lower in _POL_DENYLIST:
         return False
-    return True
+    remainder = m.group(1)
+    analyzer = get_morpheme_analyzer()
+
+    if analyzer.word_is_known(text_lower):
+        for parse in analyzer.pymorphy.parse(text_lower):
+            tag = parse.tag
+            if "NOUN" in tag and "Sgtm" in tag and parse.normal_form == text_lower:
+                return True
+        return False
+
+    for parse in analyzer.pymorphy.parse(remainder):
+        tag = parse.tag
+        if "NOUN" in tag and "gent" in tag:
+            return True
+    return False
 
 
 class CompoundSpellingHandler:
@@ -146,12 +176,26 @@ class CompoundSpellingHandler:
 
     def __init__(self):
         self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+        self._enabled_subtypes: set[str] | None = None
 
     def set_subtype_weights(self, weights: dict[str, float]) -> None:
         self._weights = self.DEFAULT_WEIGHTS.copy()
         for subtype, weight in weights.items():
             if subtype in self._weights:
                 self._weights[subtype] = weight
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
+
+        When set, apply() returns None if the weighted choice falls outside
+        the enabled set — letting the pipeline try another position instead
+        of emitting a mislabeled error.
+        """
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         text = tokens[idx].text
@@ -211,6 +255,9 @@ class CompoundSpellingHandler:
                 if text_lower.startswith(compound[: compound.index("-") + 1]):
                     candidates.append(("compound_adj", self._weights["compound_adj"]))
                     break
+
+        if self._enabled_subtypes is not None:
+            candidates = [c for c in candidates if c[0] in self._enabled_subtypes]
 
         if not candidates:
             return None

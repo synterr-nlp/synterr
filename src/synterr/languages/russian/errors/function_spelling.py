@@ -110,12 +110,26 @@ class FunctionSpellingHandler:
 
     def __init__(self):
         self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+        self._enabled_subtypes: set[str] | None = None
 
     def set_subtype_weights(self, weights: dict[str, float]) -> None:
         self._weights = self.DEFAULT_WEIGHTS.copy()
         for subtype, weight in weights.items():
             if subtype in self._weights:
                 self._weights[subtype] = weight
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
+
+        When set, apply() returns None if the weighted choice falls outside
+        the enabled set — letting the pipeline try another position instead
+        of emitting a mislabeled error.
+        """
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
@@ -189,6 +203,9 @@ class FunctionSpellingHandler:
 
         if "-таки" in text_lower or (text_lower == "таки" and idx > 0):
             candidates.append(("taki_hyphen", self._weights["taki_hyphen"]))
+
+        if self._enabled_subtypes is not None:
+            candidates = [c for c in candidates if c[0] in self._enabled_subtypes]
 
         if not candidates:
             return None

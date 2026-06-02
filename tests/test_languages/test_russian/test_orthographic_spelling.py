@@ -2,6 +2,8 @@
 
 from random import Random
 
+import pytest
+
 from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.orthographic_spelling import (
     OrthographicSpellingHandler,
@@ -328,3 +330,55 @@ class TestCanApplyEdgeCases:
     def test_short_word_rejected(self):
         tokens = [_tok("да", pos="PART")]
         assert not self.handler.can_apply(tokens, 0)
+
+
+class TestEnabledSubtypes:
+    """set_enabled_subtypes restricts which subtype apply() may emit."""
+
+    def test_filter_emits_only_requested_subtype(self):
+        """Ялтинский matches both suffix_insk_ensk and nn_suffix candidates.
+        With only suffix_insk_ensk enabled, that is what must be emitted."""
+        h = OrthographicSpellingHandler()
+        h.set_enabled_subtypes({"suffix_insk_ensk"})
+        for seed in range(10):
+            sentence = ["Ялтинский"]
+            result = h.apply(
+                [_tok("Ялтинский", pos="ADJ")], sentence, 0, set(), rng=Random(seed)
+            )
+            assert result is not None
+            assert result.error_type == "orthographic_spelling_suffix_insk_ensk"
+            assert sentence[0] == "Ялтенский"
+
+    def test_filter_other_subtype(self):
+        h = OrthographicSpellingHandler()
+        h.set_enabled_subtypes({"nn_suffix"})
+        for seed in range(10):
+            sentence = ["Ялтинский"]
+            result = h.apply(
+                [_tok("Ялтинский", pos="ADJ")], sentence, 0, set(), rng=Random(seed)
+            )
+            assert result is not None
+            assert result.error_type == "orthographic_spelling_nn_suffix"
+
+    def test_filter_returns_none_when_no_candidate_enabled(self):
+        """керченский only offers suffix_insk_ensk; enabling an unrelated
+        subtype must yield None rather than a mislabeled error."""
+        h = OrthographicSpellingHandler()
+        h.set_enabled_subtypes({"pre_pri"})
+        sentence = ["керченский"]
+        result = h.apply(
+            [_tok("керченский", pos="ADJ")], sentence, 0, set(), rng=Random(0)
+        )
+        assert result is None
+        assert sentence[0] == "керченский"
+
+    def test_none_means_all(self):
+        h = OrthographicSpellingHandler()
+        h.set_enabled_subtypes({"pre_pri"})
+        h.set_enabled_subtypes(None)
+        assert h._enabled_subtypes is None
+
+    def test_invalid_subtype_raises(self):
+        h = OrthographicSpellingHandler()
+        with pytest.raises(ValueError, match="Unknown subtypes"):
+            h.set_enabled_subtypes({"not_a_subtype"})

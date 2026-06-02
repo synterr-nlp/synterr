@@ -199,6 +199,7 @@ class OrthographicSpellingHandler:
     def __init__(self):
         self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
         self._analyzer = None
+        self._enabled_subtypes: set[str] | None = None
 
     @property
     def analyzer(self):
@@ -211,6 +212,19 @@ class OrthographicSpellingHandler:
         for subtype, weight in weights.items():
             if subtype in self._weights:
                 self._weights[subtype] = weight
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
+
+        When set, apply() returns None if the weighted choice falls outside
+        the enabled set — letting the pipeline try another position instead
+        of emitting a mislabeled error.
+        """
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
@@ -293,6 +307,9 @@ class OrthographicSpellingHandler:
 
         if token.pos == "ADJ" and _can_nn_swap(text_lower):
             candidates.append(("nn_suffix", self._weights["nn_suffix"]))
+
+        if self._enabled_subtypes is not None:
+            candidates = [c for c in candidates if c[0] in self._enabled_subtypes]
 
         if not candidates:
             return None

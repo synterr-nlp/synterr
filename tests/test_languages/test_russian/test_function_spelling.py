@@ -2,6 +2,8 @@
 
 from random import Random
 
+import pytest
+
 from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.function_spelling import (
     FunctionSpellingHandler,
@@ -436,3 +438,58 @@ class TestWeightedSubtypeSelection:
         assert result is not None
         assert result.error_type == "function_spelling_conjunction_split"
         assert sentence == ["так", "же"]
+
+
+class TestEnabledSubtypes:
+    """set_enabled_subtypes restricts which subtype apply() may emit."""
+
+    def test_filter_forces_split_on_solid_conjunction(self):
+        """Solid 'чтобы' only offers conjunction_split; the filter must emit
+        exactly that subtype regardless of seed."""
+        h = FunctionSpellingHandler()
+        h.set_enabled_subtypes({"conjunction_split"})
+        for seed in range(10):
+            sentence = ["чтобы"]
+            result = h.apply(
+                [_tok("чтобы", pos="SCONJ", idx=0)],
+                sentence,
+                0,
+                set(),
+                rng=Random(seed),
+            )
+            assert result is not None
+            assert result.error_type == "function_spelling_conjunction_split"
+            assert sentence == ["что", "бы"]
+
+    def test_filter_returns_none_for_unavailable_subtype(self):
+        """conjunction_merge cannot apply to a solid 'чтобы' (no two-word
+        sequence) — the handler must decline rather than fall back to split."""
+        h = FunctionSpellingHandler()
+        h.set_enabled_subtypes({"conjunction_merge"})
+        sentence = ["чтобы"]
+        result = h.apply(
+            [_tok("чтобы", pos="SCONJ", idx=0)], sentence, 0, set(), rng=Random(0)
+        )
+        assert result is None
+        assert sentence == ["чтобы"]
+
+    def test_filter_allows_merge_on_two_word_sequence(self):
+        h = FunctionSpellingHandler()
+        h.set_enabled_subtypes({"conjunction_merge"})
+        tokens = [_tok("что", pos="SCONJ", idx=0), _tok("бы", pos="PART", idx=1)]
+        sentence = ["что", "бы"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "function_spelling_conjunction_merge"
+        assert sentence == ["чтобы"]
+
+    def test_none_means_all(self):
+        h = FunctionSpellingHandler()
+        h.set_enabled_subtypes({"conjunction_split"})
+        h.set_enabled_subtypes(None)
+        assert h._enabled_subtypes is None
+
+    def test_invalid_subtype_raises(self):
+        h = FunctionSpellingHandler()
+        with pytest.raises(ValueError, match="Unknown subtypes"):
+            h.set_enabled_subtypes({"not_a_subtype"})
