@@ -748,8 +748,8 @@ fine_grained_tags:
     l2_applicability: full
   pu_dash_apposition:
     parent: pu_dash
-    description: "Dash in incomplete sentences"
-    paras: "§80"
+    description: "Dash with isolated appositions"
+    paras: "§93"
     l2_applicability: full
   pu_dash_other:
     parent: pu_dash

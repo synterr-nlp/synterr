@@ -385,24 +385,120 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
     return "comma_subordinate"
 
 
-def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str:
-    """Classify a dash by context. Returns subtype name."""
+def _is_connective_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§82 соединительное тире: routes/matches (PROPN—PROPN) and ranges
+    (NUM—NUM), e.g. "поезд Москва — Иркутск". Deleting it is still an error,
+    but it is NOT a §93 apposition and a comma there turns a route into a
+    list — so it must be excluded from dash_apposition / dash_to_comma.
+    """
+    left = tokens[idx - 1] if idx > 0 else None
+    right = tokens[idx + 1] if idx + 1 < len(tokens) else None
+    if left is None or right is None:
+        return False
+    return left.pos == right.pos and left.pos in ("PROPN", "NUM")
+
+
+def _has_parallel_pron_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Contrast pattern per §79: parallel pronoun-subject clauses, as in
+    "Я — фабрикант, ты — судовладелец" — there the dash IS required."""
+    for t in tokens:
+        if t.idx == idx or t.pos != "PUNCT" or t.text not in DASH_CHARS:
+            continue
+        if t.idx == 0:
+            continue
+        prev = tokens[t.idx - 1]
+        if prev.pos == "PRON" and prev.get_feature("PronType") == "Prs":
+            return True
+    return False
+
+
+def _is_optional_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§79 exceptions where the dash is authorial/intonational, so deleting
+    it yields normatively CORRECT text (a non-error — must not be generated).
+    """
     n = len(tokens)
     left = tokens[idx - 1] if idx > 0 else None
     right = tokens[idx + 1] if idx + 1 < n else None
+    if left is None or right is None:
+        return False
+
+    nominal_left = left.pos in ("NOUN", "PROPN", "PRON")
+
+    # §79: predicate expressed by an adjective/participle (full or short) —
+    # the dash is, as a rule, NOT put; its presence marks intonational
+    # расчленение only ("Зрачки — кошачьи, длинные"). An amod ADJ is an
+    # attributive opening a noun-phrase predicate, not the predicate itself.
+    adjectival_right = (right.pos == "ADJ" and right.dep_rel != "amod") or (
+        right.pos == "VERB" and right.get_feature("VerbForm") == "Part"
+    )
+    if nominal_left and adjectival_right:
+        return True
+    # Same with an adverbial intensifier: "Ночь — очень тёплая."
+    if (
+        nominal_left
+        and right.pos == "ADV"
+        and idx + 2 < n
+        and tokens[idx + 2].pos == "ADJ"
+    ):
+        return True
+
+    # §79: personal-pronoun subject — dash is put only при противопоставлении
+    # или логическом подчёркивании; otherwise deletion is the norm.
+    if (
+        left.pos == "PRON"
+        and left.get_feature("PronType") == "Prs"
+        and right.pos in ("NOUN", "PROPN", "PRON", "ADJ", "DET", "NUM")
+        and not _has_parallel_pron_dash(tokens, idx)
+    ):
+        return True
+
+    return False
+
+
+def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
+    """Classify a dash by context. Returns subtype name, or None when the
+    dash is optional/authorial (§79 exceptions) so deletion is a non-error."""
+    n = len(tokens)
+    left = tokens[idx - 1] if idx > 0 else None
+    right = tokens[idx + 1] if idx + 1 < n else None
+
+    # §82 connective dash — must run before the apposition check because
+    # stanza tags "Казань" as appos of "Москва" in "поезд Москва — Казань".
+    # dash_other maps to pu_dash_other (§81–82), the correct attribution.
+    if _is_connective_dash(tokens, idx):
+        return "dash_other"
 
     # Apposition dash (Rozental §93): appos or parataxis arc with both
     # nominal endpoints spans the dash. Must check BEFORE subj_pred because
     # "Соляник — государственный памятник" matches the surface NOUN—ADJ
     # pattern of subj_pred but is structurally an apposition.
-    if _is_appositional_dash(tokens, idx):
+    if _appositional_dash_arcs(tokens, idx):
         return "dash_apposition"
 
-    # Subject–predicate dash: NOUN/PRON — NOUN/ADJ/NUM
+    # §79 exceptions: dash deletion yields normative text — skip entirely.
+    if _is_optional_subj_pred_dash(tokens, idx):
+        return None
+
+    # Subject–predicate dash, restricted to the §79 obligatory
+    # configurations: nominal — nominal/NUM (an amod/det right neighbor is
+    # resolved to its NP head), and Inf — Inf.
     if left and right:
         left_ok = left.pos in ("NOUN", "PRON", "PROPN")
-        right_ok = right.pos in ("NOUN", "ADJ", "NUM", "PROPN")
+        right_eff = right
+        if right.pos in ("ADJ", "DET") and right.dep_rel in ("amod", "det"):
+            head = _get_head(tokens, right)
+            if head is not None and head.idx > idx:
+                right_eff = head
+        right_ok = right_eff.pos in ("NOUN", "NUM", "PROPN")
         if left_ok and right_ok:
+            return "dash_subj_pred"
+        # Inf — Inf ("О решённом говорить — только путать")
+        if (
+            left.pos in ("VERB", "AUX")
+            and left.get_feature("VerbForm") == "Inf"
+            and right.pos in ("VERB", "AUX")
+            and right.get_feature("VerbForm") == "Inf"
+        ):
             return "dash_subj_pred"
 
     # Asyndetic dash: immediate neighbors are finite verbs or clause-final/initial
@@ -518,7 +614,10 @@ class DashDeleteHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
             return False
-        return tokens[idx].pos == "PUNCT" and tokens[idx].text in DASH_CHARS
+        if tokens[idx].pos != "PUNCT" or tokens[idx].text not in DASH_CHARS:
+            return False
+        # None = §79 optional/authorial dash; deletion would be a non-error.
+        return _classify_dash(tokens, idx) is not None
 
     def apply(
         self,
@@ -532,6 +631,8 @@ class DashDeleteHandler:
             return None
 
         subtype = _classify_dash(tokens, idx)
+        if subtype is None:
+            return None
 
         if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
             return None
@@ -553,16 +654,23 @@ class DashDeleteHandler:
 _APPOS_DEPRELS = frozenset({"appos", "parataxis"})
 
 
-def _is_appositional_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-    """Whether a dash at `idx` bridges an appositional construction.
+def _appositional_dash_arcs(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> list[AnalyzedToken]:
+    """Appos/parataxis dependents whose arc bridges the dash at `idx`.
 
     Stanza's Russian model uses either `appos` (inline apposition) or
     `parataxis` (loose paratactic apposition, especially after dash) for
     Rozental §93 constructions. We accept both, but require both endpoints
     to be nominal (NOUN/PROPN/PRON) to avoid catching parataxis on
-    interjections or sentence-level discourse markers.
+    interjections or sentence-level discourse markers. §82 connective arcs
+    (PROPN—PROPN routes/matches, NUM—NUM ranges) are excluded — they are
+    not appositions.
     """
     nominal_pos = ("NOUN", "PROPN", "PRON")
+    arcs: list[AnalyzedToken] = []
+    if _is_connective_dash(tokens, idx):
+        return arcs
     for t in tokens:
         if t.dep_rel not in _APPOS_DEPRELS or t.head_idx is None:
             continue
@@ -572,9 +680,13 @@ def _is_appositional_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         head = tokens[head_idx]
         if t.pos not in nominal_pos or head.pos not in nominal_pos:
             continue
+        # §82: соединительное тире between two proper names is a route/match
+        # designation, not an apposition.
+        if t.pos == "PROPN" and head.pos == "PROPN":
+            continue
         if (head_idx < idx < t.idx) or (t.idx < idx < head_idx):
-            return True
-    return False
+            arcs.append(t)
+    return arcs
 
 
 class DashToCommaHandler:
@@ -608,7 +720,18 @@ class DashToCommaHandler:
         tok = tokens[idx]
         if tok.pos != "PUNCT" or tok.text not in DASH_CHARS:
             return False
-        return _is_appositional_dash(tokens, idx)
+        # §93 п.1–2: comma is the sanctioned BASE marking for обособленные
+        # приложения, so dash→comma mid-sentence is a non-error. Only the
+        # sentence-final apposition (§93 п.8 б — "Я не слишком люблю это
+        # дерево — осину") has тире as the standard marking; restrict to it.
+        n = len(tokens)
+        for arc in _appositional_dash_arcs(tokens, idx):
+            head = tokens[arc.head_idx] if arc.head_idx is not None else arc
+            right_node = arc if arc.idx > idx else head
+            _, span_right = _get_subtree_span(tokens, right_node.idx)
+            if all(tokens[j].pos == "PUNCT" for j in range(span_right + 1, n)):
+                return True
+        return False
 
     def apply(
         self,

@@ -584,13 +584,15 @@ class TestClassifyDash:
         ]
         assert _classify_dash(tokens, 1) == "dash_subj_pred"
 
-    def test_subj_pred_pron_adj(self):
+    def test_pron_adj_dash_is_optional(self):
+        # §79: pronoun subject AND adjectival predicate — the dash is
+        # authorial on both counts; deletion is a non-error → None.
         tokens = [
-            _tok("Он", "PRON", idx=0),
+            _tok("Он", "PRON", idx=0, features={"PronType": "Prs"}),
             _tok("—", "PUNCT", idx=1),
-            _tok("хороший", "ADJ", idx=2),
+            _tok("хороший", "ADJ", idx=2, dep_rel="root"),
         ]
-        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+        assert _classify_dash(tokens, 1) is None
 
     def test_asyndetic_verb_verb(self):
         tokens = [
@@ -606,6 +608,141 @@ class TestClassifyDash:
             _tok("—", "PUNCT", idx=1),
         ]
         assert _classify_dash(tokens, 1) == "dash_other"
+
+    def test_inf_inf_dash_subj_pred(self):
+        # §79: both main members are infinitives → dash is obligatory.
+        tokens = [
+            _tok("Курить", "VERB", idx=0, features={"VerbForm": "Inf"}),
+            _tok("—", "PUNCT", idx=1),
+            _tok("вредить", "VERB", idx=2, features={"VerbForm": "Inf"}),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+
+    def test_amod_right_neighbor_resolves_to_np_head(self):
+        # "Москва — большой город": right neighbor is an attributive ADJ
+        # (amod); the predicate is its NP head NOUN → still dash_subj_pred.
+        tokens = [
+            _tok("Москва", "PROPN", idx=0, dep_rel="nsubj", head_idx=3),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("большой", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("город", "NOUN", idx=3, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+
+
+# ── §79 exceptions: optional/authorial dashes must NOT be deleted ───────────
+
+
+class TestDashSubjPredExceptions:
+    handler = DashDeleteHandler()
+
+    def _adjectival_predicate_tokens(self):
+        # "Ночь — тёплая и тихая." — predicate is a full adjective; §79:
+        # the dash is intonational, deleting it yields correct text.
+        return [
+            _tok("Ночь", "NOUN", idx=0, dep_rel="nsubj", head_idx=2),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("тёплая", "ADJ", idx=2, dep_rel="root", head_idx=None),
+            _tok("и", "CCONJ", idx=3, dep_rel="cc", head_idx=4),
+            _tok("тихая", "ADJ", idx=4, dep_rel="conj", head_idx=2),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=2),
+        ]
+
+    def test_adjectival_predicate_dash_classifies_none(self):
+        assert _classify_dash(self._adjectival_predicate_tokens(), 1) is None
+
+    def test_adjectival_predicate_dash_not_applicable(self):
+        tokens = self._adjectival_predicate_tokens()
+        assert self.handler.can_apply(tokens, 1) is False
+        sentence = ["Ночь", "—", "тёплая", "и", "тихая", "."]
+        assert self.handler.apply(tokens, sentence, 1, set()) is None
+        assert sentence == ["Ночь", "—", "тёплая", "и", "тихая", "."]
+
+    def test_adverb_plus_adjective_predicate_skipped(self):
+        # "Ночь — очень тёплая." — adverbial intensifier before the ADJ.
+        tokens = [
+            _tok("Ночь", "NOUN", idx=0, dep_rel="nsubj", head_idx=3),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("очень", "ADV", idx=2, dep_rel="advmod", head_idx=3),
+            _tok("тёплая", "ADJ", idx=3, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_dash(tokens, 1) is None
+
+    def _pronoun_subject_tokens(self):
+        # "Он — мой лучший друг." — §79: personal-pronoun subject,
+        # dash is normally absent; deletion is the norm, not an error.
+        return [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=4,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=4),
+            _tok("мой", "DET", idx=2, dep_rel="det", head_idx=4),
+            _tok("лучший", "ADJ", idx=3, dep_rel="amod", head_idx=4),
+            _tok("друг", "NOUN", idx=4, dep_rel="root", head_idx=None),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=4),
+        ]
+
+    def test_pronoun_subject_dash_classifies_none(self):
+        assert _classify_dash(self._pronoun_subject_tokens(), 1) is None
+
+    def test_pronoun_subject_dash_not_applicable(self):
+        assert self.handler.can_apply(self._pronoun_subject_tokens(), 1) is False
+
+    def test_pronoun_contrast_dash_still_fires(self):
+        # "Я — фабрикант, ты — судовладелец" (Rozental's own §79 example):
+        # parallel pronoun-subject clauses → contrast → dash IS required.
+        tokens = [
+            _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=2,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("фабрикант", "NOUN", idx=2, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
+            _tok("ты", "PRON", idx=4, dep_rel="nsubj", head_idx=6,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=5, dep_rel="punct", head_idx=6),
+            _tok("судовладелец", "NOUN", idx=6, dep_rel="parataxis", head_idx=2),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+        # Second dash sits under a parataxis arc (pre-existing apposition
+        # branch); the §79 guard must not SKIP it either.
+        assert _classify_dash(tokens, 5) is not None
+        assert self.handler.can_apply(tokens, 1) is True
+
+
+# ── §82 connective dash: routes/ranges must not be apposition ───────────────
+
+
+class TestConnectiveDash:
+    def _route_tokens(self):
+        # "Поезд Москва — Казань уже ушёл." — stanza tags "Казань" appos
+        # of "Москва"; the dash is §82 соединительное, not §93 apposition.
+        return [
+            _tok("Поезд", "NOUN", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok("Москва", "PROPN", idx=1, dep_rel="appos", head_idx=0),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("Казань", "PROPN", idx=3, dep_rel="appos", head_idx=1),
+            _tok("уже", "ADV", idx=4, dep_rel="advmod", head_idx=5),
+            _tok("ушёл", "VERB", idx=5, dep_rel="root", head_idx=None),
+            _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=5),
+        ]
+
+    def test_propn_route_classifies_dash_other(self):
+        # dash_other maps to pu_dash_other (§81–82) — correct attribution.
+        assert _classify_dash(self._route_tokens(), 2) == "dash_other"
+
+    def test_propn_route_excluded_from_dash_to_comma(self):
+        handler = DashToCommaHandler()
+        assert handler.can_apply(self._route_tokens(), 2) is False
+
+    def test_num_range_classifies_dash_other(self):
+        # "страницы 5 — 10" — §82 range, not subj_pred/apposition.
+        tokens = [
+            _tok("страницы", "NOUN", idx=0, dep_rel="root", head_idx=None),
+            _tok("5", "NUM", idx=1, dep_rel="nummod", head_idx=0),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("10", "NUM", idx=3, dep_rel="appos", head_idx=1),
+        ]
+        assert _classify_dash(tokens, 2) == "dash_other"
+        assert DashToCommaHandler().can_apply(tokens, 2) is False
 
 
 # ── CommaPairDeleteHandler ──────────────────────────────────────────────────
@@ -916,6 +1053,35 @@ class TestDashToCommaHandler:
         assert result.original == "—"
         assert result.corrupted == ","
         assert sentence == ["Соляник", ",", "памятник", "природы"]
+
+    def test_fires_on_sentence_final_apposition(self):
+        # "Я не слишком люблю это дерево — осину." — §93 п.8 б: тире is the
+        # standard marking for a sentence-final apposition → genuine error.
+        tokens = [
+            _tok("люблю", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("это", "DET", idx=1, dep_rel="det", head_idx=2),
+            _tok("дерево", "NOUN", idx=2, dep_rel="obj", head_idx=0),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=4),
+            _tok("осину", "NOUN", idx=4, dep_rel="appos", head_idx=2),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=0),
+        ]
+        assert self.handler.can_apply(tokens, 3) is True
+
+    def test_skips_mid_sentence_apposition(self):
+        # "Он увидал корреспондента — дьякона и ушёл." — §93 п.1–2: the
+        # comma is the sanctioned base marking for a mid-sentence apposition,
+        # so dash→comma there is a non-error → must not fire.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("увидал", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok("корреспондента", "NOUN", idx=2, dep_rel="obj", head_idx=1),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=4),
+            _tok("дьякона", "NOUN", idx=4, dep_rel="appos", head_idx=2),
+            _tok("и", "CCONJ", idx=5, dep_rel="cc", head_idx=6),
+            _tok("ушёл", "VERB", idx=6, dep_rel="conj", head_idx=1),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 3) is False
 
     def test_skips_subj_pred_dash(self):
         # "Москва — столица" is subj_pred, not apposition. Don't fire.
