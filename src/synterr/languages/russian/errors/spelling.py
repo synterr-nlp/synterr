@@ -316,7 +316,7 @@ class SpellingErrorHandler:
         rng = rng if rng is not None else random_module
         word = sentence[idx]
 
-        result = self._corrupt(word, rng)
+        result = self._corrupt(word, rng, lemma=tokens[idx].lemma)
         if result is None or result.corrupted == word:
             return None
 
@@ -332,7 +332,9 @@ class SpellingErrorHandler:
             fix_tag=f"$REPLACE_{word}",
         )
 
-    def _corrupt(self, word: str, rng: Random | None = None) -> PhoneticError | None:
+    def _corrupt(
+        self, word: str, rng: Random | None = None, lemma: str | None = None
+    ) -> PhoneticError | None:
         """Corrupt a word with a spelling error."""
         rng = rng if rng is not None else random_module
 
@@ -352,14 +354,18 @@ class SpellingErrorHandler:
         methods.sort(key=lambda m: rng.random() * self.weights[m], reverse=True)
 
         for method_name in methods:
-            result = self._apply_method(word, method_name, rng)
+            result = self._apply_method(word, method_name, rng, lemma=lemma)
             if result and result.corrupted != word:
                 return result
 
         return None
 
     def _apply_method(
-        self, word: str, method: str, rng: Random | None = None
+        self,
+        word: str,
+        method: str,
+        rng: Random | None = None,
+        lemma: str | None = None,
     ) -> PhoneticError | None:
         """Apply specific error method."""
         rng = rng if rng is not None else random_module
@@ -368,7 +374,7 @@ class SpellingErrorHandler:
         elif method == "devoicing":
             return self._devoicing(word)
         elif method == "prefix_voicing":
-            return self._prefix_voicing(word)
+            return self._prefix_voicing(word, lemma=lemma)
         elif method == "tsa_confusion":
             return self._tsa_confusion(word)
         elif method == "cluster":
@@ -461,7 +467,25 @@ class SpellingErrorHandler:
 
         return None
 
-    def _prefix_voicing(self, word: str) -> PhoneticError | None:
+    @staticmethod
+    def _is_real_prefix(word_lower: str, prefix: str, lemma: str | None) -> bool:
+        """Check via morpheme dict that the matched string is a PREF morpheme.
+
+        Tries the surface form first, then the lemma (prefix structure is
+        stable across inflection). Unknown words are skipped — corrupting
+        a root-initial из/ис/раз/... produces non-words.
+        """
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        has_pfx = analyzer.has_prefix(word_lower, prefix)
+        if has_pfx is None and lemma:
+            has_pfx = analyzer.has_prefix(lemma.lower(), prefix)
+        return has_pfx is True
+
+    def _prefix_voicing(
+        self, word: str, lemma: str | None = None
+    ) -> PhoneticError | None:
         """Apply prefix voicing/devoicing error.
 
         Russian prefixes из-/ис-, раз-/рас-, без-/бес-, etc. follow spelling rules:
@@ -471,6 +495,12 @@ class SpellingErrorHandler:
         This simulates the common error of using the wrong prefix form:
         - *изправить (should be исправить)
         - *расбить (should be разбить)
+
+        Rozental §31 прим. 1: the з/с alternation is a prefix-only rule. Words
+        whose ROOT merely starts with из/ис/раз/... (история, искра, расти,
+        возле, низина) must not be touched — the swap would produce non-words
+        (*изтория, *разти). The morpheme dict confirms a real PREF; unknown
+        words are skipped.
         """
         word_lower = word.lower()
 
@@ -479,6 +509,10 @@ class SpellingErrorHandler:
             if word_lower.startswith(voiced_prefix.lower()):
                 prefix_len = len(voiced_prefix)
                 if prefix_len >= len(word):
+                    continue
+                if not self._is_real_prefix(
+                    word_lower, voiced_prefix.lower(), lemma
+                ):
                     continue
 
                 # Get the consonant after the prefix
@@ -510,6 +544,10 @@ class SpellingErrorHandler:
             if word_lower.startswith(voiceless_prefix.lower()):
                 prefix_len = len(voiceless_prefix)
                 if prefix_len >= len(word):
+                    continue
+                if not self._is_real_prefix(
+                    word_lower, voiceless_prefix.lower(), lemma
+                ):
                     continue
 
                 next_char = word[prefix_len]

@@ -74,3 +74,54 @@ class TestSpellingErrorHandler:
         assert result.corrupted != "книга"
         assert len(result.corrupted) == len("книга")
         assert result.error_subtype == "keyboard"
+
+    def test_prefix_voicing_skips_root_initial(self):
+        """Root-initial из/ис/раз/... is not a prefix — no swap (§31 прим. 1).
+
+        Regression: prefix_voicing used to produce non-words like *изтории,
+        *разти, *восле by matching any word starting with a prefix string.
+        """
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        root_initial = [
+            ("искра", "искра"),
+            ("история", "история"),
+            ("истории", "история"),  # inflected → lemma fallback
+            ("испанский", "испанский"),
+            ("расти", "расти"),
+            ("растения", "растение"),
+            ("возле", "возле"),
+            ("изюм", "изюм"),
+            ("низина", "низина"),
+            ("воск", "воск"),
+        ]
+        for word, lemma in root_initial:
+            assert handler._prefix_voicing(word, lemma=lemma) is None, word
+
+    def test_prefix_voicing_skips_unknown_words(self):
+        """OOV words (not in morpheme dict) are skipped — can't verify prefix."""
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+        assert handler._prefix_voicing("изквронт") is None
+
+    def test_prefix_voicing_real_prefixes(self):
+        """Genuine з-/с- prefixes still get the wrong-form swap."""
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        cases = [
+            ("исправить", "исправить", "изправить"),
+            ("разбить", "разбить", "расбить"),
+            ("бесполезный", "бесполезный", "безполезный"),
+            ("расписание", "расписание", "разписание"),
+            ("разбили", "разбить", "расбили"),  # inflected → lemma fallback
+        ]
+        for word, lemma, expected in cases:
+            result = handler._prefix_voicing(word, lemma=lemma)
+            assert result is not None, word
+            assert result.corrupted == expected
+            assert result.error_subtype == "prefix_voicing"
