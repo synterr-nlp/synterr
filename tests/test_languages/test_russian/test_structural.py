@@ -39,7 +39,9 @@ class TestWordOmissionHandler:
         assert (
             self.handler.can_apply(tokens, 2) is False
         )  # PUNCT handled by punct handlers
-        assert self.handler.can_apply(tokens, 3) is True
+        assert (
+            self.handler.can_apply(tokens, 3) is False
+        )  # PART deletion yields a grammatical sentence (non-error)
         assert self.handler.can_apply(tokens, 4) is True
         assert self.handler.can_apply(tokens, 5) is True
         assert self.handler.can_apply(tokens, 6) is False
@@ -68,6 +70,71 @@ class TestWordOmissionHandler:
             "$APPEND"
         )
         assert self.handler.apply(tokens, sentence, 4, modified) is None
+
+    def test_particle_deletion_is_refused(self):
+        """Particles are never omitted: 'Мальчик читает книги' is correct
+        Russian, so deleting 'не' would label a grammatical sentence as
+        erroneous (and teach the model to insert negation as a 'fix')."""
+        tokens = [
+            AnalyzedToken(
+                text="Мальчик", lemma="мальчик", pos="NOUN", features={}, idx=0
+            ),
+            AnalyzedToken(text="не", lemma="не", pos="PART", features={}, idx=1),
+            AnalyzedToken(
+                text="читает", lemma="читать", pos="VERB", features={}, idx=2
+            ),
+            AnalyzedToken(text="книги", lemma="книга", pos="NOUN", features={}, idx=3),
+            AnalyzedToken(text="дома", lemma="дома", pos="ADV", features={}, idx=4),
+            AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=5),
+        ]
+        sentence = ["Мальчик", "не", "читает", "книги", "дома", "."]
+
+        assert self.handler.can_apply(tokens, 1) is False
+        assert self.handler.apply(tokens, sentence, 1, set()) is None
+        assert sentence == ["Мальчик", "не", "читает", "книги", "дома", "."]
+
+    def test_conjunction_after_comma_is_refused(self):
+        """Deleting a conjunction after a comma yields valid asyndeton
+        ('Он устал, мы продолжили работу' — Rozental §116), a non-error."""
+        tokens = [
+            AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
+            AnalyzedToken(
+                text="устал", lemma="устать", pos="VERB", features={}, idx=1
+            ),
+            AnalyzedToken(text=",", lemma=",", pos="PUNCT", features={}, idx=2),
+            AnalyzedToken(text="но", lemma="но", pos="CCONJ", features={}, idx=3),
+            AnalyzedToken(text="мы", lemma="мы", pos="PRON", features={}, idx=4),
+            AnalyzedToken(
+                text="продолжили", lemma="продолжить", pos="VERB", features={}, idx=5
+            ),
+            AnalyzedToken(
+                text="работу", lemma="работа", pos="NOUN", features={}, idx=6
+            ),
+            AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=7),
+        ]
+        sentence = ["Он", "устал", ",", "но", "мы", "продолжили", "работу", "."]
+
+        assert self.handler.can_apply(tokens, 3) is False
+        assert self.handler.apply(tokens, sentence, 3, set()) is None
+        assert sentence == ["Он", "устал", ",", "но", "мы", "продолжили", "работу", "."]
+
+    def test_phrase_level_conjunction_stays_deletable(self):
+        """Coordination without punctuation ('кошки и собаки' -> 'кошки собаки')
+        remains a genuine missing-word error."""
+        tokens = [
+            AnalyzedToken(text="кошки", lemma="кошка", pos="NOUN", features={}, idx=0),
+            AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=1),
+            AnalyzedToken(
+                text="собаки", lemma="собака", pos="NOUN", features={}, idx=2
+            ),
+        ]
+        sentence = ["кошки", "и", "собаки"]
+
+        assert self.handler.can_apply(tokens, 1) is True
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.fix_tag == "$APPEND_и"
+        assert sentence == ["кошки", "собаки"]
 
 
 class TestWordInsertionError:
@@ -149,6 +216,31 @@ class TestWordInsertionError:
             assert filler.split() == [filler], (
                 f"multi-word filler {filler!r} would break token/tag alignment"
             )
+
+    def test_lexicon_has_no_ambiguous_content_words(self):
+        """Fillers must be unambiguous discourse parasites. Words that double
+        as ordinary adverbs/particles/verbs (так, там, просто, буквально,
+        ведь, однако, это, значит, получается) read as normal content words at
+        random insertion sites ('Он так хотел помочь маме' is perfect Russian),
+        producing $DELETE targets on correct text."""
+        ambiguous = {
+            "так",
+            "там",
+            "просто",
+            "буквально",
+            "ведь",
+            "однако",
+            "это",
+            "значит",
+            "получается",
+        }
+        loaded = set(self.handler.fillers)
+
+        assert not loaded & ambiguous, (
+            f"ambiguous fillers in lexicon: {sorted(loaded & ambiguous)}"
+        )
+        assert loaded <= {"вот", "ну", "типа", "короче", "понимаешь"}
+        assert loaded  # pruning must not empty the lexicon
 
     def test_guard_filters_multiword_fillers_from_raw_lexicon(self, monkeypatch):
         """A multi-word entry in fillers.json is dropped before reaching apply()."""

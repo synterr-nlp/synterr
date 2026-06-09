@@ -13,11 +13,15 @@ if TYPE_CHECKING:
 
     from synterr.core.protocol import AnalyzedToken
 
-OMITTABLE_POS = {"ADP", "PART", "CCONJ", "SCONJ"}
+# PART excluded: particles are syntactically optional, so deleting one yields
+# a grammatical sentence (worst case a silent negation flip: "не читает" →
+# "читает") — a non-error that poisons training data.
+OMITTABLE_POS = {"ADP", "CCONJ", "SCONJ"}
+CONJ_POS = {"CCONJ", "SCONJ"}
 
 
 class WordOmissionHandler:
-    """Delete a function word (preposition, particle, conjunction, punctuation)."""
+    """Delete a function word (preposition or conjunction)."""
 
     name = "word_omission"
     subtypes = ["word_omission"]
@@ -27,7 +31,15 @@ class WordOmissionHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int):
         if idx == 0:
             return False
-        return tokens[idx].pos in OMITTABLE_POS
+        if tokens[idx].pos not in OMITTABLE_POS:
+            return False
+        # Deleting a clause-linking conjunction right after punctuation leaves
+        # a valid asyndetic sentence ("Он устал, мы продолжили" — бессоюзное
+        # сложное предложение, Rozental §116), i.e. a non-error. Phrase-level
+        # coordination without punctuation ("кошки и собаки") stays deletable.
+        if tokens[idx].pos in CONJ_POS and tokens[idx - 1].pos == "PUNCT":
+            return False
+        return True
 
     def apply(
         self,
@@ -37,7 +49,7 @@ class WordOmissionHandler:
         modified: set[int],
         rng: Random | None = None,
     ):
-        if idx == 0 or tokens[idx].pos not in OMITTABLE_POS:
+        if not self.can_apply(tokens, idx):
             return None
 
         deleted_word = sentence[idx]
