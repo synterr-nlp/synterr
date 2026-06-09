@@ -88,6 +88,16 @@ class TestMorphologicalErrorHandlers:
                 idx=2,
                 extra={"pymorphy_parse": "mock"},
             ),
+            # Temporal anchor: verb_tense requires one attached to the verb.
+            AnalyzedToken(
+                text="завтра",
+                lemma="завтра",
+                pos="ADV",
+                features={},
+                idx=3,
+                dep_rel="advmod",
+                head_idx=2,
+            ),
         ]
 
         # Noun handler should only apply to nouns
@@ -100,10 +110,11 @@ class TestMorphologicalErrorHandlers:
         assert adj_handler.can_apply(tokens, 1) is True
         assert adj_handler.can_apply(tokens, 2) is False
 
-        # Verb handler should only apply to verbs
+        # Verb handler should only apply to verbs (with a temporal anchor)
         assert verb_handler.can_apply(tokens, 0) is False
         assert verb_handler.can_apply(tokens, 1) is False
         assert verb_handler.can_apply(tokens, 2) is True
+        assert verb_handler.can_apply(tokens, 3) is False
 
     def test_noun_case_requires_governed_deprel(self):
         """NounCaseErrorHandler only targets governed positions (obl/nmod/iobj/obj)."""
@@ -667,6 +678,19 @@ def _verb_tense_handler():
     return VerbTenseErrorHandler()
 
 
+def _anchor_token(text: str, idx: int, head_idx: int) -> AnalyzedToken:
+    """Deictic temporal adverb attached to the verb (verb_tense anchor)."""
+    return AnalyzedToken(
+        text=text,
+        lemma=text,
+        pos="ADV",
+        features={},
+        idx=idx,
+        dep_rel="advmod",
+        head_idx=head_idx,
+    )
+
+
 class TestVerbTensePreservesAgreement:
     """verb_tense must keep person/number/gender across the tense change.
 
@@ -699,8 +723,9 @@ class TestVerbTensePreservesAgreement:
                 head_idx=1,
                 extra={"pymorphy_parse": verb_parse},
             ),
+            _anchor_token("вчера", 2, 1),
         ]
-        sentence = ["Он", "прочитал"]
+        sentence = ["Он", "прочитал", "вчера"]
         result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
 
         assert result is not None
@@ -730,8 +755,9 @@ class TestVerbTensePreservesAgreement:
                 head_idx=1,
                 extra={"pymorphy_parse": verb_parse},
             ),
+            _anchor_token("вчера", 2, 1),
         ]
-        sentence = ["Они", "прочитали"]
+        sentence = ["Они", "прочитали", "вчера"]
         result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
 
         assert result is not None
@@ -763,9 +789,12 @@ class TestVerbTensePreservesAgreement:
                 head_idx=1,
                 extra={"pymorphy_parse": verb_parse},
             ),
+            # завтра licenses {futr, pres} ("Завтра она читает доклад" is a
+            # correct scheduled present) — past is the only error target.
+            _anchor_token("завтра", 2, 1),
         ]
         for seed in range(10):
-            sentence = ["Она", "читает"]
+            sentence = ["Она", "читает", "завтра"]
             result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(seed))
             assert result is not None
             assert sentence[1] == "читала"  # feminine, NOT masculine "читал"
@@ -785,12 +814,383 @@ class TestVerbTensePreservesAgreement:
                 head_idx=0,
                 extra={"pymorphy_parse": verb_parse},
             ),
+            _anchor_token("вчера", 1, 0),
         ]
         for seed in range(10):
-            sentence = ["написал"]
+            sentence = ["написал", "вчера"]
             result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(seed))
             assert result is not None  # never None despite unreachable present
             assert sentence[0] == "напишет"
+
+
+class TestNounNumberRequiresAgreementEvidence:
+    """noun_number must not flip number without an agreeing word as evidence.
+
+    Regression for the audit finding where "Я купил книгу ." → "Я купил
+    книги ." (fully correct Russian, unrecoverable non-error) fired every run.
+    """
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NounNumberErrorHandler,
+        )
+
+        return NounNumberErrorHandler()
+
+    def _kupil_tokens(self, det_text: str | None = None):
+        """Я купил [det] книгу — mirrors the real stanza dep tree."""
+        tokens = [
+            AnalyzedToken(
+                text="Я",
+                lemma="я",
+                pos="PRON",
+                features={"Case": "Nom", "Number": "Sing", "Person": "1"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="купил",
+                lemma="купить",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Masc"},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("купил")[0]},
+            ),
+        ]
+        noun_idx = 2
+        if det_text is not None:
+            noun_idx = 3
+            tokens.append(
+                AnalyzedToken(
+                    text=det_text,
+                    lemma=det_text,
+                    pos="DET",
+                    features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                    idx=2,
+                    dep_rel="det",
+                    head_idx=noun_idx,
+                )
+            )
+        tokens.append(
+            AnalyzedToken(
+                text="книгу",
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                idx=noun_idx,
+                dep_rel="obj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("книгу")[0]},
+            )
+        )
+        return tokens, noun_idx
+
+    def test_bare_object_does_not_fire(self):
+        """'Я купил книгу' → 'Я купил книги' is correct Russian — skip."""
+        handler = self._handler()
+        tokens, noun_idx = self._kupil_tokens()
+        assert handler.can_apply(tokens, noun_idx) is False
+
+    def test_det_evidence_fires_and_det_stays(self):
+        handler = self._handler()
+        tokens, noun_idx = self._kupil_tokens(det_text="эту")
+        assert handler.can_apply(tokens, noun_idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, noun_idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[noun_idx] == "книги"  # "эту книги" — recoverable error
+        assert sentence[2] == "эту"  # the agreeing det is the evidence
+
+    def test_invariant_possessive_is_not_evidence(self):
+        """'его книгу' → 'его книги' is correct (его reflects the possessor)."""
+        handler = self._handler()
+        tokens, noun_idx = self._kupil_tokens(det_text="его")
+        assert handler.can_apply(tokens, noun_idx) is False
+
+    def test_nummod_is_evidence(self):
+        handler = self._handler()
+        tokens = [
+            AnalyzedToken(
+                text="пять",
+                lemma="пять",
+                pos="NUM",
+                features={"Case": "Nom"},
+                idx=0,
+                dep_rel="nummod:gov",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="книг",
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": "Gen", "Gender": "Fem", "Number": "Plur"},
+                idx=1,
+                dep_rel="obj",
+                head_idx=2,
+                extra={"pymorphy_parse": morph.parse("книг")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 1) is True
+
+    def test_subject_with_verbal_predicate_fires(self):
+        handler = self._handler()
+        tokens = [
+            AnalyzedToken(
+                text="Книга",
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("книга")[0]},
+            ),
+            AnalyzedToken(
+                text="лежит",
+                lemma="лежать",
+                pos="VERB",
+                features={"Tense": "Pres", "Number": "Sing", "Person": "3"},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("лежит")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 0) is True
+
+        sentence = ["Книга", "лежит"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence == ["Книги", "лежит"]  # number-marked verb = evidence
+
+    def test_subject_with_nominal_predicate_does_not_fire(self):
+        """'Книги — лучший подарок' is correct: nominal predicates need not agree."""
+        handler = self._handler()
+        tokens = [
+            AnalyzedToken(
+                text="Книги",
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Plur"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("книги")[0]},
+            ),
+            AnalyzedToken(
+                text="подарок",
+                lemma="подарок",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("подарок")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 0) is False
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_without_depparse_does_not_fire(self):
+        """No dep info → no agreement evidence → never fire."""
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="книгу",
+            lemma="книга",
+            pos="NOUN",
+            features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("книгу")[0]},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_bare_object_skipped(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Я купил книгу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "книгу")
+        assert handler.can_apply(tokens, idx) is False
+
+    @pytest.mark.slow
+    def test_real_backend_det_evidence_fires(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Я купил эту книгу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "книгу")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "книги"
+        assert "эту" in sentence
+
+
+class TestVerbTenseRequiresTemporalAnchor:
+    """verb_tense must not flip tense without a deictic temporal anchor.
+
+    Regression for the audit finding where "Мама мыла раму ." → "Мама моет
+    раму ." and "Он был дома ." → "Он будет дома ." — grammatical sentences
+    with a different meaning (non-errors).
+    """
+
+    def _myla_tokens(self):
+        return [
+            AnalyzedToken(
+                text="Мама",
+                lemma="мама",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("мама")[0]},
+            ),
+            AnalyzedToken(
+                text="мыла",
+                lemma="мыть",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Fem"},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("мыла")[0]},
+            ),
+        ]
+
+    def test_no_anchor_does_not_fire(self):
+        handler = _verb_tense_handler()
+        tokens = self._myla_tokens()
+        assert handler.can_apply(tokens, 1) is False
+
+        sentence = ["Мама", "мыла"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["Мама", "мыла"]
+
+    def test_copula_without_anchor_does_not_fire(self):
+        """'Он был дома' → 'Он будет дома' is a meaning change, not an error."""
+        handler = _verb_tense_handler()
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={"Number": "Sing", "Person": "3", "Gender": "Masc"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="был",
+                lemma="быть",
+                pos="AUX",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Masc"},
+                idx=1,
+                dep_rel="cop",
+                head_idx=2,
+                extra={"pymorphy_parse": morph.parse("был")[0]},
+            ),
+            AnalyzedToken(
+                text="дома", lemma="дома", pos="ADV", features={}, idx=2,
+                dep_rel="root", head_idx=None,
+            ),
+        ]
+        assert handler.can_apply(tokens, 1) is False
+        result = handler.apply(tokens, ["Он", "был", "дома"], 1, set(),
+                               rng=random.Random(0))
+        assert result is None
+
+    def test_anchor_on_copula_head_fires(self):
+        """'Вчера он был дома': вчера attaches to дома (root), был is cop."""
+        handler = _verb_tense_handler()
+        tokens = [
+            _anchor_token("Вчера", 0, 3),
+            AnalyzedToken(
+                text="он",
+                lemma="он",
+                pos="PRON",
+                features={"Number": "Sing", "Person": "3", "Gender": "Masc"},
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=3,
+            ),
+            AnalyzedToken(
+                text="был",
+                lemma="быть",
+                pos="AUX",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Masc"},
+                idx=2,
+                dep_rel="cop",
+                head_idx=3,
+                extra={"pymorphy_parse": morph.parse("был")[0]},
+            ),
+            AnalyzedToken(
+                text="дома", lemma="дома", pos="ADV", features={}, idx=3,
+                dep_rel="root", head_idx=None,
+            ),
+        ]
+        assert handler.can_apply(tokens, 2) is True
+
+        sentence = ["Вчера", "он", "был", "дома"]
+        result = handler.apply(tokens, sentence, 2, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[2] == "будет"  # "Вчера он будет дома" — real error
+
+    def test_anchor_never_yields_licensed_tense(self):
+        """Past anchor licenses pres (praesens historicum): imperfective past
+        has no synthetic future, so with вчера the handler must emit nothing
+        rather than the licensed 'Вчера он читает'."""
+        handler = _verb_tense_handler()
+        tokens = [
+            _anchor_token("Вчера", 0, 2),
+            AnalyzedToken(
+                text="он",
+                lemma="он",
+                pos="PRON",
+                features={"Number": "Sing", "Person": "3", "Gender": "Masc"},
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="читал",
+                lemma="читать",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Masc"},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("читал")[0]},
+            ),
+        ]
+        for seed in range(10):
+            sentence = ["Вчера", "он", "читал"]
+            result = handler.apply(tokens, sentence, 2, set(), rng=random.Random(seed))
+            assert result is None
+            assert sentence == ["Вчера", "он", "читал"]
+
+    @pytest.mark.slow
+    def test_real_backend_no_anchor_skipped(self):
+        handler = _verb_tense_handler()
+        tokens = _stanza_backend().analyze("Мама мыла раму.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "мыла")
+        assert handler.can_apply(tokens, idx) is False
+
+    @pytest.mark.slow
+    def test_real_backend_anchor_fires(self):
+        handler = _verb_tense_handler()
+        tokens = _stanza_backend().analyze("Он написал письмо вчера.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "написал")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "напишет"  # "напишет письмо вчера" — real error
 
 
 class TestNumeralDeclensionGeneralCardinals:

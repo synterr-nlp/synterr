@@ -146,8 +146,28 @@ class NounCaseErrorHandler:
         return None
 
 
+# Dependents whose form visibly agrees with the noun in number — required
+# evidence for a recoverable number error. Without them the flip is a free
+# semantic choice ("купил книгу"/"купил книги" are both correct → non-error).
+_NUMBER_AGREEING_DEPRELS = {"det", "amod"}
+
+# Invariant possessives: their Number feature reflects the possessor, not the
+# head noun ("его книга" / "его книги"), so they constrain nothing.
+_INVARIANT_POSSESSIVES = {"его", "её", "ее", "их"}
+
+# nsubj dep_rels and predicate POS that agree with the subject in number.
+# Nominal predicates need not agree ("Книги — лучший подарок" is correct).
+_SUBJECT_DEPRELS = {"nsubj", "nsubj:pass"}
+_NUMBER_PREDICATE_POS = {"VERB", "AUX", "ADJ"}
+
+
 class NounNumberErrorHandler:
-    """Change noun number (singular ↔ plural)."""
+    """Change noun number (singular ↔ plural).
+
+    Only fires when some other word is number-agreed with the noun (det/amod,
+    participle modifier, numeral, or a number-marked predicate for subjects):
+    the agreeing word stays untouched and serves as recoverable evidence.
+    """
 
     name = "noun_number"
     subtypes = ["noun_number"]
@@ -160,7 +180,44 @@ class NounNumberErrorHandler:
         if token.pos != "NOUN":
             return False
         parse = _get_pymorphy_parse(token)
-        return parse is not None and token.has_feature("Number")
+        if parse is None or not token.has_feature("Number"):
+            return False
+        return self._has_number_evidence(tokens, idx)
+
+    @staticmethod
+    def _has_number_evidence(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        """True when the noun's number is constrained by an agreeing word."""
+        token = tokens[idx]
+        for i, t in enumerate(tokens):
+            if i == idx or t.head_idx != idx:
+                continue
+            dep_rel = t.dep_rel or ""
+            # Numerals constrain the noun's form ("пять книг" → "пять книги").
+            if dep_rel.startswith("nummod"):
+                return True
+            if (
+                dep_rel in _NUMBER_AGREEING_DEPRELS
+                and t.has_feature("Number")
+                and t.text.lower() not in _INVARIANT_POSSESSIVES
+            ):
+                return True
+            # Participle modifiers agree like adjectives (прочитанная книга);
+            # finite acl:relcl verbs agree with their own subject, not the noun.
+            if (
+                dep_rel.startswith("acl")
+                and t.get_feature("VerbForm") == "Part"
+                and t.has_feature("Number")
+            ):
+                return True
+        if token.dep_rel in _SUBJECT_DEPRELS and token.head_idx is not None:
+            head = _get_token_safe(tokens, token.head_idx)
+            if (
+                head is not None
+                and head.pos in _NUMBER_PREDICATE_POS
+                and head.has_feature("Number")
+            ):
+                return True
+        return False
 
     def apply(
         self,
@@ -537,8 +594,34 @@ class VerbPersonNumberErrorHandler:
         return None
 
 
+# Deictic temporal adverbs and the verb tenses they license. A tense flip is
+# a recoverable error only when the target tense falls outside the licensed
+# set of an anchor modifying the verb. pres stays licensed everywhere it can
+# read as correct: praesens historicum after past anchors ("Вчера иду я по
+# улице...") and scheduled present after future anchors ("Завтра она читает
+# доклад"). Anchors compatible with all tenses (сегодня, сейчас, теперь,
+# скоро, вскоре) are deliberately absent — flips against them are non-errors.
+_TEMPORAL_ANCHORS: dict[str, frozenset[str]] = {
+    "вчера": frozenset({"past", "pres"}),
+    "позавчера": frozenset({"past", "pres"}),
+    "недавно": frozenset({"past", "pres"}),
+    "завтра": frozenset({"futr", "pres"}),
+    "послезавтра": frozenset({"futr", "pres"}),
+}
+
+# When the verb is a copula/auxiliary the anchor hangs off the predicate head
+# instead ("Вчера он был дома": вчера → дома, был = cop).
+_COPULA_DEPRELS = {"cop", "aux", "aux:pass"}
+
+
 class VerbTenseErrorHandler:
-    """Change verb tense."""
+    """Change verb tense.
+
+    Tense is contextually licensed: an isolated flip yields a grammatical
+    sentence with a different meaning (non-error). Only fires when a deictic
+    temporal anchor (вчера, завтра, ...) modifies the verb, and only flips to
+    tenses the anchor does not license, so the anchor stays as evidence.
+    """
 
     name = "verb_tense"
     subtypes = ["verb_tense"]
@@ -553,7 +636,33 @@ class VerbTenseErrorHandler:
         if token.pos not in {"VERB", "AUX"}:
             return False
         parse = _get_pymorphy_parse(token)
-        return parse is not None and token.has_feature("Tense")
+        if parse is None or not token.has_feature("Tense"):
+            return False
+        return self._licensed_tenses(tokens, idx) is not None
+
+    @staticmethod
+    def _licensed_tenses(
+        tokens: Sequence[AnalyzedToken], idx: int
+    ) -> frozenset[str] | None:
+        """Union of tenses licensed by temporal anchors on this verb.
+
+        Returns None when the verb has no anchor — in that context any tense
+        is correct and a flip would poison training data.
+        """
+        token = tokens[idx]
+        anchor_heads = {idx}
+        if token.dep_rel in _COPULA_DEPRELS and token.head_idx is not None:
+            anchor_heads.add(token.head_idx)
+        licensed: set[str] = set()
+        found = False
+        for i, t in enumerate(tokens):
+            if i == idx or t.head_idx not in anchor_heads:
+                continue
+            allowed = _TEMPORAL_ANCHORS.get(t.text.lower())
+            if allowed:
+                licensed |= allowed
+                found = True
+        return frozenset(licensed) if found else None
 
     def apply(
         self,
@@ -576,11 +685,21 @@ class VerbTenseErrorHandler:
         if current_tense is None:
             return None
 
+        licensed = self._licensed_tenses(tokens, idx)
+        if licensed is None:
+            return None
+
         # Subject (nsubj) supplies the agreement features the verb itself lacks:
         # past forms carry no Person, pres/futr forms carry no Gender.
         subject = _find_dependent(tokens, idx, "nsubj")
 
-        other_tenses = [t for t in self.TENSES if t != current_tense]
+        # Only flip to tenses the anchor rules out — the anchor is the evidence
+        # that makes the corruption an error rather than a meaning change.
+        other_tenses = [
+            t for t in self.TENSES if t != current_tense and t not in licensed
+        ]
+        if not other_tenses:
+            return None
         rng.shuffle(other_tenses)
 
         # Try each candidate tense, carrying the original agreement features, and
