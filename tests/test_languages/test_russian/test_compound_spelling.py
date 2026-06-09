@@ -66,6 +66,16 @@ class TestPolCompoundDetection:
     def test_false_positives_rejected(self, word):
         assert _is_pol_compound(word) is False
 
+    @pytest.mark.parametrize(
+        "word",
+        ["польша", "полтава", "полесье", "полтавы", "полесья"],
+    )
+    def test_toponyms_rejected(self, word):
+        """Regression: pymorphy tags toponyms NOUN,Sgtm,Geox, so they passed the
+        Sgtm whole-word test and got mangled (Польша → Пол-ьша). §46 пол-
+        compounds take a genitive common noun; bare toponyms are not compounds."""
+        assert _is_pol_compound(word) is False
+
 
 class TestPolSpelling:
     """pol_spelling corruption direction: merged → dashed and dashed → merged."""
@@ -110,6 +120,17 @@ class TestPolSpelling:
         h = CompoundSpellingHandler()
         tokens = [_tok("полный", pos="ADJ")]
         assert not h.can_apply(tokens, 0)
+
+    @pytest.mark.parametrize("word", ["Польша", "Полтаву", "Полесье"])
+    def test_toponym_not_applied(self, word):
+        """Regression: Польша must never become Пол-ьша."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok(word, pos="PROPN")]
+        sentence = [word]
+        assert not h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence[0] == word
 
 
 class TestNumDash:

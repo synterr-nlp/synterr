@@ -113,6 +113,13 @@ _POL_DENYLIST: frozenset[str] = frozenset(
     }
 )
 
+# Proper nouns are also Sgtm in pymorphy (Польша, Полтава, Полесье parse as
+# NOUN,Sgtm,Geox) but are not пол- compounds — §46 requires пол- + genitive
+# common noun, and corrupting them yields non-words (Пол-ьша).
+_PROPER_NOUN_GRAMMEMES: frozenset[str] = frozenset(
+    {"Geox", "Name", "Surn", "Patr", "Orgn", "Trad", "Abbr"}
+)
+
 
 def _is_pol_compound(text_lower: str) -> bool:
     """Check if word is a real пол- compound (полвека, полдня), not полный/получить.
@@ -122,7 +129,8 @@ def _is_pol_compound(text_lower: str) -> bool:
       пол- compounds are singularia tantum (Sgtm) — "half of X" has no plural —
       so accept only when pymorphy tags it Sgtm with itself as the lemma. This
       rejects ordinary words that merely start with пол (полоса, политика,
-      полено, полюс, полночь, полдень).
+      полено, полюс, полночь, полдень). Proper-noun parses (Geox etc.) are
+      skipped: toponyms like Польша/Полтава are also Sgtm but not compounds.
     - X not lexicalized (полкниги, полшага): accept when the remainder after
       "пол" parses as a genitive noun (книги, шага).
 
@@ -139,6 +147,8 @@ def _is_pol_compound(text_lower: str) -> bool:
     if analyzer.word_is_known(text_lower):
         for parse in analyzer.pymorphy.parse(text_lower):
             tag = parse.tag
+            if any(g in tag for g in _PROPER_NOUN_GRAMMEMES):
+                continue
             if "NOUN" in tag and "Sgtm" in tag and parse.normal_form == text_lower:
                 return True
         return False
