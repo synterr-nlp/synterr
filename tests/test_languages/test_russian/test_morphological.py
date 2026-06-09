@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 
 import pymorphy3
+import pytest
 
 from synterr.core.protocol import AnalyzedToken, ErrorHandler
 
@@ -871,3 +872,258 @@ class TestNumeralDeclensionGeneralCardinals:
         assert result is not None
         assert sentence[0] in {"полтора", "полторы"}
         assert result.error_type == "numeral_declension_numeral_poltora"
+
+
+_STANZA_BACKEND = None
+
+
+def _stanza_backend():
+    """Cached real stanza backend with dep parsing (slow to build once)."""
+    global _STANZA_BACKEND
+    if _STANZA_BACKEND is None:
+        from synterr.languages.russian.backends.stanza_backend import StanzaBackend
+
+        _STANZA_BACKEND = StanzaBackend(use_depparse=True, use_gpu=False)
+    return _STANZA_BACKEND
+
+
+class TestNounCasePrepErrorHandler:
+    """noun_case_prep_e_u: second locative (-у) → standard locative (-е)."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NounCasePrepErrorHandler,
+        )
+
+        return NounCasePrepErrorHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "noun_case_prep"
+        assert handler.subtypes == ["noun_case_prep_e_u"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def test_rejects_non_locative(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="лесу",
+            lemma="лес",
+            pos="NOUN",
+            features={"Case": "Dat"},
+            idx=1,
+            extra={"pymorphy_parse": morph.parse("лесу")[0]},
+        )
+        prep = AnalyzedToken(text="к", lemma="к", pos="ADP", features={}, idx=0)
+        assert handler.can_apply([prep, tok], 1) is False
+
+    def test_rejects_without_preceding_prep(self):
+        handler = self._handler()
+        # loc2 noun but no preceding в/на
+        loc2 = next(p for p in morph.parse("лесу") if "loc2" in str(p.tag))
+        tok = AnalyzedToken(
+            text="лесу",
+            lemma="лес",
+            pos="NOUN",
+            features={"Case": "Loc"},
+            idx=0,
+            extra={"pymorphy_parse": loc2},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_rejects_stoplist_lemma(self):
+        handler = self._handler()
+        loc2 = next(p for p in morph.parse("цехе") if "loct" in str(p.tag))
+        # use a genuine loc2 word from stoplist
+        cex = next(p for p in morph.parse("цеху") if "loc2" in str(p.tag))
+        prep = AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0)
+        tok = AnalyzedToken(
+            text="цеху",
+            lemma="цех",
+            pos="NOUN",
+            features={"Case": "Loc"},
+            idx=1,
+            extra={"pymorphy_parse": cex},
+        )
+        assert handler.can_apply([prep, tok], 1) is False
+        assert loc2 is not None  # sanity
+
+    @pytest.mark.slow
+    def test_real_backend_v_lesu(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Мы заблудились в лесу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "лесу")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "лесе"
+        assert result.error_type == "noun_case_prep_e_u"
+        assert result.fix_tag == "$REPLACE_лесу"
+
+
+class TestAdjFormErrorHandler:
+    """adj_short_full: predicative short adjective → full nominative form."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import AdjFormErrorHandler
+
+        return AdjFormErrorHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "adj_form"
+        assert handler.subtypes == ["adj_short_full"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def test_government_lemma_fallback_applies(self):
+        handler = self._handler()
+        parse = next(p for p in morph.parse("способен") if "ADJS" in str(p.tag))
+        tok = AnalyzedToken(
+            text="способен",
+            lemma="способный",
+            pos="ADJ",
+            features={"Variant": "Short", "Gender": "Masc", "Number": "Sing"},
+            idx=0,
+            dep_rel="advcl",
+            extra={"pymorphy_parse": parse},
+        )
+        assert handler.can_apply([tok], 0) is True
+
+    def test_rejects_full_adjective(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="готовый",
+            lemma="готовый",
+            pos="ADJ",
+            features={"Case": "Nom", "Number": "Sing", "Gender": "Masc"},
+            idx=0,
+            dep_rel="amod",
+            extra={"pymorphy_parse": morph.parse("готовый")[0]},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_apply_short_to_full(self):
+        handler = self._handler()
+        parse = next(p for p in morph.parse("готовы") if "ADJS" in str(p.tag))
+        tok = AnalyzedToken(
+            text="готовы",
+            lemma="готовый",
+            pos="ADJ",
+            features={"Variant": "Short", "Number": "Plur"},
+            idx=0,
+            dep_rel="root",
+            extra={"pymorphy_parse": parse},
+        )
+        sentence = ["готовы"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "готовые"
+        assert result.error_type == "adj_short_full"
+        assert result.fix_tag == "$REPLACE_готовы"
+
+    @pytest.mark.slow
+    def test_real_backend_gotovy(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Мы готовы к отъезду.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "готовы")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "готовые"
+        assert " ".join(sentence) == "Мы готовые к отъезду ."
+
+
+class TestDoubleComparativeHandler:
+    """adj_double_comparative: insert pleonastic «более» before a comparative."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            DoubleComparativeHandler,
+        )
+
+        return DoubleComparativeHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "adj_double_comparative"
+        assert handler.subtypes == ["adj_double_comparative"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is True
+
+    def test_can_apply_comparative(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="интереснее",
+            lemma="интересный",
+            pos="ADJ",
+            features={"Degree": "Cmp"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("интереснее")[0]},
+        )
+        assert handler.can_apply([tok], 0) is True
+
+    def test_rejects_when_preceded_by_bolee(self):
+        handler = self._handler()
+        bolee = AnalyzedToken(
+            text="более", lemma="более", pos="ADV", features={}, idx=0
+        )
+        comp = AnalyzedToken(
+            text="интереснее",
+            lemma="интересный",
+            pos="ADJ",
+            features={"Degree": "Cmp"},
+            idx=1,
+            extra={"pymorphy_parse": morph.parse("интереснее")[0]},
+        )
+        assert handler.can_apply([bolee, comp], 1) is False
+
+    def test_rejects_non_comparative(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="интересный",
+            lemma="интересный",
+            pos="ADJ",
+            features={"Degree": "Pos"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("интересный")[0]},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_apply_inserts_bolee(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="интереснее",
+            lemma="интересный",
+            pos="ADJ",
+            features={"Degree": "Cmp"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("интереснее")[0]},
+        )
+        sentence = ["интереснее"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence == ["более", "интереснее"]
+        assert result.error_type == "adj_double_comparative"
+        assert result.fix_tag == "$DELETE"
+
+    @pytest.mark.slow
+    def test_real_backend_interesnee(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Эти опыты были интереснее.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "интереснее")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "более"
+        assert sentence[idx + 1] == "интереснее"
+        assert " ".join(sentence) == "Эти опыты были более интереснее ."

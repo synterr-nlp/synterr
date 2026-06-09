@@ -29,9 +29,12 @@ def get_all_handlers() -> list[ErrorHandler]:
     )
     from synterr.languages.russian.errors.morphological import (
         AdjCaseErrorHandler,
+        AdjFormErrorHandler,
         AdjGenderErrorHandler,
         AdjNumberErrorHandler,
+        DoubleComparativeHandler,
         NounCaseErrorHandler,
+        NounCasePrepErrorHandler,
         NounNumberErrorHandler,
         NumeralDeclensionHandler,
         VerbPersonNumberErrorHandler,
@@ -65,11 +68,14 @@ def get_all_handlers() -> list[ErrorHandler]:
         AdverbSpellingHandler(),
         # Morphological - Nouns
         NounCaseErrorHandler(),
+        NounCasePrepErrorHandler(),
         NounNumberErrorHandler(),
         # Morphological - Adjectives
         AdjCaseErrorHandler(),
         AdjNumberErrorHandler(),
         AdjGenderErrorHandler(),
+        AdjFormErrorHandler(),
+        DoubleComparativeHandler(),
         # Morphological - Verbs
         VerbPersonNumberErrorHandler(),
         VerbTenseErrorHandler(),

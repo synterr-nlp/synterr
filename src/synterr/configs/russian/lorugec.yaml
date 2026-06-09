@@ -55,9 +55,12 @@ weights:
 
   # These handlers have no direct LoRuGEC rules — zero weight
   noun_case: 0.0
+  noun_case_prep: 0.0
   noun_number: 0.0
   adj_number: 0.0
   adj_gender: 0.0
+  adj_form: 0.0
+  adj_double_comparative: 0.0
   verb_person_number: 0.0
   verb_tense: 0.0
   paronym: 0.0
@@ -73,6 +76,7 @@ subtype_weights:
     conjunction_merge: 25  # причем, оттого, зато, чтобы, также (5 rules)
     conjunction_split: 25
     taki_hyphen: 10        # 1 rule
+    neg_pronoun_ne_ni: 0   # §47 не/ни — not a LoRuGEC rule
 
   adverb_spelling:
     adverb_solid_to_separate: 25

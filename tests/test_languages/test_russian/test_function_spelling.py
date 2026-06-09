@@ -10,10 +10,21 @@ from synterr.languages.russian.errors.function_spelling import (
 )
 
 
-def _tok(text, pos="NOUN", lemma=None, idx=0, **kw):
+def _tok(text, pos="NOUN", lemma=None, idx=0, features=None, **kw):
     return AnalyzedToken(
-        text=text, lemma=lemma or text.lower(), pos=pos, features={}, idx=idx, **kw
+        text=text,
+        lemma=lemma or text.lower(),
+        pos=pos,
+        features=features or {},
+        idx=idx,
+        **kw,
     )
+
+
+def _neg_pronoun_handler():
+    h = FunctionSpellingHandler()
+    h.set_enabled_subtypes({"neg_pronoun_ne_ni"})
+    return h
 
 
 class TestFunctionSpellingProtocol:
@@ -23,7 +34,7 @@ class TestFunctionSpellingProtocol:
         assert self.handler.name == "function_spelling"
         assert self.handler.category == "SPELL"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 5
+        assert len(self.handler.subtypes) == 6
 
     def test_set_subtype_weights(self):
         h = FunctionSpellingHandler()
@@ -395,6 +406,135 @@ class TestTakiHyphen:
         sentence = ["опять-таки"]
         h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence == ["опять", "таки"]
+
+
+class TestNegPronounNeNi:
+    """§47: не↔ни confusion in negative pronouns (некого ↔ никого)."""
+
+    def test_can_apply_neg_pronoun(self):
+        h = FunctionSpellingHandler()
+        tokens = [_tok("некого", pos="PRON", idx=0)]
+        assert h.can_apply(tokens, 0)
+
+    def test_no_negated_verb_corrupts_ne_to_ni(self):
+        """Impersonal/infinitive 'Мне некого спросить' → correct is НЕ-,
+        so the error is НЕ→НИ: 'Мне никого спросить'."""
+        h = _neg_pronoun_handler()
+        tokens = [
+            _tok("Мне", pos="PRON", idx=0),
+            _tok("некого", pos="PRON", idx=1),
+            _tok("спросить", pos="VERB", idx=2, features={"VerbForm": "Inf"}),
+            _tok(".", pos="PUNCT", idx=3),
+        ]
+        sentence = ["Мне", "некого", "спросить", "."]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "function_spelling_neg_pronoun_ne_ni"
+        assert sentence == ["Мне", "никого", "спросить", "."]
+        assert result.original == "некого"
+        assert result.corrupted == "никого"
+
+    def test_negated_finite_verb_corrupts_ni_to_ne(self):
+        """'Я никого не видел' has a negated finite verb → correct is НИ-,
+        so the error is НИ→НЕ: 'Я некого не видел'."""
+        h = _neg_pronoun_handler()
+        tokens = [
+            _tok("Я", pos="PRON", idx=0),
+            _tok("никого", pos="PRON", idx=1),
+            _tok("не", pos="PART", idx=2),
+            _tok("видел", pos="VERB", idx=3, features={"VerbForm": "Fin"}),
+            _tok(".", pos="PUNCT", idx=4),
+        ]
+        sentence = ["Я", "никого", "не", "видел", "."]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "function_spelling_neg_pronoun_ne_ni"
+        assert sentence == ["Я", "некого", "не", "видел", "."]
+        assert result.original == "никого"
+        assert result.corrupted == "некого"
+
+    def test_length_preserving_single_token(self):
+        h = _neg_pronoun_handler()
+        tokens = [
+            _tok("нечего", pos="PRON", idx=0),
+            _tok("терять", pos="VERB", idx=1, features={"VerbForm": "Inf"}),
+        ]
+        sentence = ["нечего", "терять"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert len(sentence) == 2
+        assert sentence == ["ничего", "терять"]
+        assert result.end_idx == result.start_idx + 1
+
+    def test_preserves_capitalization(self):
+        h = _neg_pronoun_handler()
+        tokens = [
+            _tok("Некому", pos="PRON", idx=0),
+            _tok("работать", pos="VERB", idx=1, features={"VerbForm": "Inf"}),
+        ]
+        sentence = ["Некому", "работать"]
+        h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert sentence == ["Никому", "работать"]
+
+    def test_wrong_direction_declines(self):
+        """A ни- pronoun in a clause WITHOUT a negated finite verb cannot be
+        'corrupted' in the не→ни direction — the gate must decline rather than
+        emit a no-op or mislabeled error."""
+        h = _neg_pronoun_handler()
+        tokens = [
+            _tok("никого", pos="PRON", idx=0),
+            _tok("спросить", pos="VERB", idx=1, features={"VerbForm": "Inf"}),
+        ]
+        sentence = ["никого", "спросить"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence == ["никого", "спросить"]
+
+    def test_ni_with_negated_verb_only_at_idx(self):
+        """A не- pronoun sitting in a clause that DOES have a negated finite
+        verb is the correct spelling there, so it cannot be corrupted via the
+        ни→не direction and the не→ni direction is suppressed by the gate."""
+        h = _neg_pronoun_handler()
+        tokens = [
+            _tok("некого", pos="PRON", idx=0),
+            _tok("не", pos="PART", idx=1),
+            _tok("видел", pos="VERB", idx=2, features={"VerbForm": "Fin"}),
+        ]
+        sentence = ["некого", "не", "видел"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence == ["некого", "не", "видел"]
+
+
+@pytest.mark.slow
+class TestNegPronounNeNiRealBackend:
+    """End-to-end with the real stanza backend so VerbForm/POS are genuine."""
+
+    @pytest.fixture(scope="class")
+    def backend(self):
+        from synterr.languages.russian.backends.stanza_backend import StanzaBackend
+
+        return StanzaBackend(use_depparse=True, use_gpu=False)
+
+    def test_infinitive_clause_ne_to_ni(self, backend):
+        h = _neg_pronoun_handler()
+        tokens = backend.analyze("Мне некого спросить.")
+        idx = next(i for i, t in enumerate(tokens) if t.text.lower() == "некого")
+        sentence = [t.text for t in tokens]
+        result = h.apply(tokens, sentence, idx, set(), rng=Random(0))
+        assert result is not None
+        assert result.original.lower() == "некого"
+        assert result.corrupted.lower() == "никого"
+
+    def test_negated_finite_clause_ni_to_ne(self, backend):
+        h = _neg_pronoun_handler()
+        tokens = backend.analyze("Я никого не видел.")
+        idx = next(i for i, t in enumerate(tokens) if t.text.lower() == "никого")
+        sentence = [t.text for t in tokens]
+        result = h.apply(tokens, sentence, idx, set(), rng=Random(0))
+        assert result is not None
+        assert result.original.lower() == "никого"
+        assert result.corrupted.lower() == "некого"
 
 
 class TestCanApplyEdgeCases:

@@ -48,12 +48,15 @@ weights:
 
   # Morphological - Nouns: ~17%
   noun_case: 0.12
+  noun_case_prep: 0.01
   noun_number: 0.05
 
   # Morphological - Adjectives: ~16%
   adj_case: 0.07
   adj_number: 0.05
   adj_gender: 0.04
+  adj_form: 0.01
+  adj_double_comparative: 0.01
 
   # Morphological - Verbs: ~17%
   verb_person_number: 0.09

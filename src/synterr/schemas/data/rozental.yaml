@@ -736,8 +736,9 @@ mappings:
   double_consonant:
     primary: sp_root
     l2_tag: sp_root_double
-  keyboard:
-    primary: sp_root
+  # keyboard typos are deliberately UNMAPPED in rozental — they are not a
+  # prescriptive-grammar phenomenon. Do NOT re-add a tag to satisfy coverage
+  # tooling. (RLC maps it to Misspell, which is the correct home.)
   soft_sign:
     primary: sp_affix
     l2_tag: sp_affix_hard_soft_sign
@@ -749,6 +750,9 @@ mappings:
   noun_case:
     primary: mo_noun_case
     l2_tag: mo_noun_case_other
+  noun_case_prep_e_u:
+    primary: mo_noun_case
+    l2_tag: mo_noun_case_prep_e_u
   noun_number:
     primary: mo_noun_number
     l2_tag: mo_noun_num_nom_pl
@@ -764,6 +768,13 @@ mappings:
     primary: ag_modifier_noun
   adj_gender:
     primary: ag_modifier_noun
+  # Adjective form (short/full, comparative) — true morphological form errors
+  adj_short_full:
+    primary: mo_adj_form
+    l2_tag: mo_adj_short_full
+  adj_double_comparative:
+    primary: mo_adj_form
+    l2_tag: mo_adj_comparative
 
   # Morphological handler subtypes — verbs
   verb_person_number:
@@ -841,6 +852,10 @@ mappings:
   taki_hyphen:
     primary: sp_function
     l2_tag: sp_particle_spelling
+  # не/ни in negative pronouns (§47) — parent is sp_pos, not sp_function
+  neg_pronoun_ne_ni:
+    primary: sp_pos
+    l2_tag: sp_pronoun_spelling
 
   # Punctuation handler subtypes — commas
   comma_subordinate:

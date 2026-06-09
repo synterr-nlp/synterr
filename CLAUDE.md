@@ -38,18 +38,21 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
-25 handlers / 69 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+28 handlers / 73 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
 
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
 | spelling | vowel_reduction, devoicing, prefix_voicing, tsa_confusion, cluster, double_consonant, keyboard, soft_sign | Ortho, Misspell | SPELL |
-| function_spelling | ne_attachment, ne_detachment, conjunction_split, conjunction_merge, taki_hyphen | Ortho | SPELL |
+| function_spelling | ne_attachment, ne_detachment, conjunction_split, conjunction_merge, taki_hyphen, neg_pronoun_ne_ni | Ortho | SPELL |
 | orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant, nn_suffix | Ortho | SPELL |
 | compound_spelling | num_dash, pol_spelling, compound_adj | Ortho, Hyphen | SPELL |
 | adverb_spelling | solid_to_separate, separate_to_solid, hyphen_to_separate, separate_to_hyphen | Ortho | SPELL |
 | noun_case | noun_case | Gov | MORPH |
+| noun_case_prep | noun_case_prep_e_u (second locative в лесу→в лесе) | Gov | MORPH |
 | noun_number | noun_number | Num | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
+| adj_form | adj_short_full (готовы→готовые) | Infl | MORPH |
+| adj_double_comparative | adj_double_comparative (insert «более»; changes_length=True) | Infl | MORPH |
 | verb_person_number, verb_tense | (2) | AgrPers, Tense | MORPH |
 | numeral_declension | numeral_declension, numeral_poltora | Num | MORPH |
 | paronym | paronym | Lex | OTHER |

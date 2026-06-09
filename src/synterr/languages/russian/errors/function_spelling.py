@@ -77,6 +77,41 @@ NE_DETACHABLE_POS = {"ADJ", "NOUN", "ADV", "VERB"}
 # Error: remove hyphen or detach
 TAKI_TRIGGER_POS = {"VERB", "ADV", "PART"}
 
+# =============================================================================
+# NEGATIVE PRONOUN не/ни (§47)
+# Closed class of negative-pronoun wordforms (некого/нечего paradigm).
+# Match on SURFACE form, not lemma (pymorphy mis-lemmatizes некого → некий).
+# Stressed не- when there is no second negation (impersonal/infinitive:
+# "некого спросить"); unstressed ни- when the finite verb is itself negated
+# ("никого не видел"). The swap is a length-preserving first-syllable substitution
+# that yields a real-but-wrong word.
+# =============================================================================
+NEG_PRONOUN_NE: frozenset[str] = frozenset(
+    {
+        "некого",
+        "нечего",
+        "некому",
+        "нечему",
+        "некем",
+        "нечем",
+        "нечём",
+        "неком",
+    }
+)
+NEG_PRONOUN_NI: frozenset[str] = frozenset(
+    {
+        "никого",
+        "ничего",
+        "никому",
+        "ничему",
+        "никем",
+        "ничем",
+        "ничём",
+        "ником",
+    }
+)
+NEG_PRONOUN_FORMS: frozenset[str] = NEG_PRONOUN_NE | NEG_PRONOUN_NI
+
 
 class FunctionSpellingHandler:
     """Corrupt function word spelling: не/ни, conjunctions, particles.
@@ -87,6 +122,8 @@ class FunctionSpellingHandler:
     - conjunction_split: Split solid conjunction: "чтобы" → "что бы"
     - conjunction_merge: Merge separate words: "что бы" → "чтобы"
     - taki_hyphen: Remove or misplace -таки hyphen
+    - neg_pronoun_ne_ni: не↔ни confusion in negative pronouns (§47):
+      "некого" ↔ "никого" depending on whether the clause has a negated verb
     """
 
     name = "function_spelling"
@@ -96,6 +133,7 @@ class FunctionSpellingHandler:
         "conjunction_split",
         "conjunction_merge",
         "taki_hyphen",
+        "neg_pronoun_ne_ni",
     ]
     category = "SPELL"
     changes_length = True
@@ -106,6 +144,7 @@ class FunctionSpellingHandler:
         "conjunction_split": 25,
         "conjunction_merge": 20,
         "taki_hyphen": 5,
+        "neg_pronoun_ne_ni": 10,
     }
 
     def __init__(self):
@@ -134,6 +173,10 @@ class FunctionSpellingHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
         text_lower = token.text.lower()
+
+        # Negative pronoun не/ни swap (§47)
+        if text_lower in NEG_PRONOUN_FORMS:
+            return True
 
         # Solid conjunction that can be split
         if text_lower in SOLID_TO_SPLIT:
@@ -179,6 +222,9 @@ class FunctionSpellingHandler:
         # Collect applicable subtypes with weights
         candidates: list[tuple[str, float]] = []
 
+        if text_lower in NEG_PRONOUN_FORMS:
+            candidates.append(("neg_pronoun_ne_ni", self._weights["neg_pronoun_ne_ni"]))
+
         if text_lower in SOLID_TO_SPLIT:
             candidates.append(("conjunction_split", self._weights["conjunction_split"]))
 
@@ -214,7 +260,9 @@ class FunctionSpellingHandler:
         subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 
-        if chosen == "conjunction_split":
+        if chosen == "neg_pronoun_ne_ni":
+            return self._apply_neg_pronoun(tokens, sentence, idx)
+        elif chosen == "conjunction_split":
             return self._apply_conjunction_split(token, sentence, idx)
         elif chosen == "conjunction_merge":
             return self._apply_conjunction_merge(tokens, sentence, idx)
@@ -226,6 +274,81 @@ class FunctionSpellingHandler:
             return self._apply_taki(tokens, sentence, idx)
 
         return None
+
+    @staticmethod
+    def _is_finite_verb(token: AnalyzedToken) -> bool:
+        """Finite verb: a VERB that is not an infinitive (§47 needs a real
+        negated predicate, not 'некого спросить')."""
+        if token.pos != "VERB":
+            return False
+        verb_form = token.features.get("VerbForm")
+        return verb_form != "Inf"
+
+    def _clause_has_negated_finite_verb(
+        self, tokens: Sequence[AnalyzedToken], idx: int
+    ) -> bool:
+        """Conservative §47 gate: is there a «не» particle within ~3 tokens of a
+        finite verb anywhere in the clause?
+
+        "никого не видел" → True  (correct pronoun is ни-)
+        "некого спросить" → False (no negated finite verb; correct pronoun is не-)
+        """
+        verb_positions = [
+            i for i, t in enumerate(tokens) if self._is_finite_verb(t)
+        ]
+        if not verb_positions:
+            return False
+        for vp in verb_positions:
+            lo = max(0, vp - 3)
+            hi = min(len(tokens), vp + 4)
+            for j in range(lo, hi):
+                if j == vp:
+                    continue
+                if tokens[j].text.lower() == "не" and tokens[j].pos == "PART":
+                    return True
+        return False
+
+    def _apply_neg_pronoun(
+        self, tokens: Sequence[AnalyzedToken], sentence: list[str], idx: int
+    ) -> ErrorResult | None:
+        """не↔ни confusion in negative pronouns (§47).
+
+        Direction is chosen so the result is the *wrong* spelling:
+        - negated finite verb in clause → correct is ни- → corrupt ни→не
+        - otherwise (impersonal/infinitive) → correct is не- → corrupt не→ни
+        """
+        original = sentence[idx]
+        original_lower = original.lower()
+
+        negated = self._clause_has_negated_finite_verb(tokens, idx)
+
+        if negated:
+            # Correct form is ни-; only corrupt a ни- pronoun to не-.
+            if original_lower not in NEG_PRONOUN_NI:
+                return None
+            new_first = "не"
+        else:
+            # Correct form is не-; only corrupt a не- pronoun to ни-.
+            if original_lower not in NEG_PRONOUN_NE:
+                return None
+            new_first = "ни"
+
+        # In-place first-syllable swap, length-preserving, preserve capitalization.
+        if original[0].isupper():
+            new_first = new_first[0].upper() + new_first[1:]
+        corrupted = new_first + original[2:]
+
+        sentence[idx] = corrupted
+
+        return ErrorResult(
+            error_type="function_spelling_neg_pronoun_ne_ni",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=original,
+            corrupted=corrupted,
+            fix_tag=f"$REPLACE_{original}",
+        )
 
     def _apply_conjunction_split(
         self, token: AnalyzedToken, sentence: list[str], idx: int

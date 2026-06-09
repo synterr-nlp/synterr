@@ -226,6 +226,8 @@ mappings:
   # ---------------------------------------------------------------------------
   noun_case:
     primary: Gov
+  noun_case_prep_e_u:
+    primary: Gov
   noun_number:
     primary: Num
   adj_case:
@@ -234,6 +236,10 @@ mappings:
     primary: AgrNum
   adj_gender:
     primary: AgrGender
+  adj_short_full:
+    primary: Infl
+  adj_double_comparative:
+    primary: Infl
   verb_person_number:
     primary: AgrPers
   verb_tense:
@@ -311,6 +317,8 @@ mappings:
   conjunction_merge:
     primary: Ortho
   taki_hyphen:
+    primary: Ortho
+  neg_pronoun_ne_ni:
     primary: Ortho
 
   # Comma insert subtypes → RLC Syntax+Extra

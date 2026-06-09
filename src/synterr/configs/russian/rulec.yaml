@@ -18,12 +18,15 @@ weights:
 
   # Morphological - Nouns: 15.2% total
   noun_case: 0.280      # 12.8% in corpus
+  noun_case_prep: 0.005 # second locative -е/-у (subsumed in Gov; estimated)
   noun_number: 0.053    # 2.4%
 
   # Morphological - Adjectives: 5.4% total
   adj_case: 0.071       # 3.3%
   adj_number: 0.019     # 0.9%
   adj_gender: 0.027     # 1.2%
+  adj_form: 0.005       # short/full form (RLC Brev: 0.5%)
+  adj_double_comparative: 0.002  # pleonastic comparative (RLC Com: 0.2%)
 
   # Morphological - Verbs: 5.3% total
   verb_person_number: 0.052  # 2.4%

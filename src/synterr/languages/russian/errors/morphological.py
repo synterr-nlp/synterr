@@ -650,6 +650,245 @@ class VerbTenseErrorHandler:
 
 
 # =============================================================================
+# Second-locative → standard-locative error (в лесу → в лесе)
+# =============================================================================
+
+# Prepositions that govern the second locative (-у) form.
+_PREP_E_U_TRIGGERS = {"в", "во", "на"}
+
+# Nouns where the standard -е locative is an acceptable literary variant, so
+# corrupting -у → -е does not reliably produce an error. Skip these.
+_PREP_E_U_STOPLIST = {
+    "цех",
+    "чай",
+    "отпуск",
+    "ветер",
+    "дом",
+    "снег",
+    "пар",
+    "жир",
+    "холод",
+    "дым",
+    "круг",
+    "строй",
+    "клей",
+    "спирт",
+    "год",
+}
+
+
+class NounCasePrepErrorHandler:
+    """Replace the second locative (-у) with the standard locative (-е).
+
+    Nouns like лес/берег/снег take a special second-locative ("местный")
+    ending -у after в/на (в лесу, на берегу). Substituting the standard -е
+    locative (в лесе, на берегу→берегe) is a real error for these nouns.
+    """
+
+    name = "noun_case_prep"
+    subtypes = ["noun_case_prep_e_u"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "NOUN":
+            return False
+        # Homograph guard: require stanza-confirmed locative case (берегу is
+        # also a Dat noun form and a present-tense form of беречь).
+        if token.get_feature("Case") != "Loc":
+            return False
+        if token.lemma.lower() in _PREP_E_U_STOPLIST:
+            return False
+        parse = _get_pymorphy_parse(token)
+        if parse is None or "loc2" not in str(parse.tag):
+            return False
+        # Require an immediately preceding в/во/на.
+        prev = _get_token_safe(tokens, idx - 1)
+        return prev is not None and prev.text.lower() in _PREP_E_U_TRIGGERS
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+
+        new_word = inflect_word(parse, {"loct"}, word)
+        if not new_word or new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="noun_case_prep_e_u",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Short ↔ full adjective error (мы готовы → мы готовые)
+# =============================================================================
+
+# Government adjectives whose short form is predicative and takes an oblique /
+# PP complement. The full (nominative) form cannot govern that complement, so
+# short → full is reliably wrong. рад is excluded: it has no full form.
+_ADJ_GOVERNMENT_LEMMAS = {
+    "способный",
+    "готовый",
+    "склонный",
+    "согласный",
+    "намеренный",
+    "должный",
+    "виноватый",
+    "похожий",
+}
+
+# dep_rels marking a predicate (root or copular predicate complement).
+_PREDICATE_DEPRELS = {"root", "parataxis"}
+
+# dep_rels of a complement the short adjective governs.
+_ADJ_COMPLEMENT_DEPRELS = {"obl", "iobj", "nmod", "obj"}
+
+
+class AdjFormErrorHandler:
+    """Inflect a predicative short adjective to its full form.
+
+    Short adjectives (готов, способен) act as predicates and can govern an
+    oblique/PP complement; the full nominative form (готовый, способный)
+    cannot, so the substitution is a genuine error.
+    """
+
+    name = "adj_form"
+    subtypes = ["adj_short_full"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if not self._is_short_adj(token):
+            return False
+        parse = _get_pymorphy_parse(token)
+        if parse is None or "ADJS" not in str(parse.tag):
+            return False
+        # Predicate position with a governed complement → reliably wrong.
+        if token.dep_rel in _PREDICATE_DEPRELS and self._has_complement(tokens, idx):
+            return True
+        # Fallback: closed set of government adjectives.
+        return token.lemma.lower() in _ADJ_GOVERNMENT_LEMMAS
+
+    @staticmethod
+    def _is_short_adj(token: AnalyzedToken) -> bool:
+        if token.pos == "ADJ" and token.get_feature("Variant") == "Short":
+            return True
+        parse = _get_pymorphy_parse(token)
+        return parse is not None and "ADJS" in str(parse.tag)
+
+    @staticmethod
+    def _has_complement(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        for t in tokens:
+            if t.head_idx == idx and t.dep_rel in _ADJ_COMPLEMENT_DEPRELS:
+                return True
+        return False
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+
+        new_word = inflect_word(parse, {"ADJF", "nomn"}, word)
+        if not new_word or new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="adj_short_full",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Pleonastic double comparative (интереснее → более интереснее)
+# =============================================================================
+
+# Comparative markers that already precede a comparative — inserting another
+# «более» would just duplicate an existing (correct) construction.
+_DOUBLE_COMP_BLOCKERS = {"более", "менее", "самый", "наиболее", "наименее"}
+
+
+class DoubleComparativeHandler:
+    """Insert a pleonastic «более» before a synthetic comparative.
+
+    Russian forms the comparative either synthetically (интереснее) or
+    analytically (более интересный). Combining them (более интереснее) is a
+    classic pleonasm. Adds one token, so ``changes_length=True``.
+    """
+
+    name = "adj_double_comparative"
+    subtypes = ["adj_double_comparative"]
+    category = "MORPH"
+    changes_length = True
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        parse = _get_pymorphy_parse(token)
+        if parse is None or "COMP" not in str(parse.tag):
+            return False
+        prev = _get_token_safe(tokens, idx - 1)
+        if prev is not None and prev.text.lower() in _DOUBLE_COMP_BLOCKERS:
+            return False
+        return True
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        word = sentence[idx]
+        sentence.insert(idx, "более")
+        modified.add(idx)
+        return ErrorResult(
+            error_type="adj_double_comparative",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=f"более {word}",
+            fix_tag="$DELETE",
+        )
+
+
+# =============================================================================
 # Numeral declension errors
 # =============================================================================
 
