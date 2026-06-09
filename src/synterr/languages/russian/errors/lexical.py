@@ -16,6 +16,47 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from random import Random
 
+# Groups whose key starts with this prefix are directed confusions: only the
+# first member may be corrupted (e.g. чем→как is an attested error, but
+# как→чем is garbage no learner produces).
+_DIRECTED_PREFIX = "directed_"
+
+
+def _confusion_candidates(group_key: str, members: list[str], word: str) -> list[str]:
+    """Single-token replacement candidates for ``word`` within one group.
+
+    Returns [] when the word is not a valid corruption source in this group
+    (absent, or a non-head member of a directed group). Multi-word entries are
+    never offered: a length-preserving $REPLACE cannot emit an intra-token
+    space without misaligning the token/tag stream.
+    """
+    if group_key.startswith(_DIRECTED_PREFIX):
+        if word != members[0]:
+            return []
+        pool = members[1:]
+    else:
+        if word not in members:
+            return []
+        pool = members
+    return [x for x in pool if x != word and " " not in x]
+
+
+def _has_confusion(groups: dict[str, list[str]], word: str) -> bool:
+    return any(
+        _confusion_candidates(key, members, word)
+        for key, members in groups.items()
+    )
+
+
+def _pick_confusion(
+    groups: dict[str, list[str]], word: str, rng: Random
+) -> str | None:
+    for key, members in groups.items():
+        candidates = _confusion_candidates(key, members, word)
+        if candidates:
+            return rng.choice(candidates)
+    return None
+
 
 class ParonymErrorHandler:
     """Replace word from paronyms list to one from its paronyms"""
@@ -90,13 +131,21 @@ class ParonymErrorHandler:
 
 
 class PrepositionErrorHandler:
-    """Replace preposition to another preposition from the same semantic group.
+    """Replace preposition with an attested confusion from the same group.
+
+    Groups in ``prepositions.json`` are *confusion* sets, not synonym sets:
+    every swap must yield a genuine error (attested learner confusion like
+    в/на, из/с, or a different-government pair like благодаря/из-за where the
+    unreinflected complement exposes the error). Synonymous prepositions with
+    identical government (у ~ при ~ около ~ возле, через ~ сквозь — Rozental
+    §199) are excluded: swapping them produces correct Russian, which would
+    teach a GEC model to rewrite valid text.
 
     The handler is length-preserving (single ``$REPLACE``), so it only
     substitutes single-token replacements. Multi-word entries in the lexicon
-    (e.g. ``"в результате"``, ``"рядом с"``) are skipped: writing one into a
-    single token slot would smuggle an intra-token space into the GECToR unit
-    and misalign the token/tag stream.
+    (e.g. ``"по причине"``) are skipped: writing one into a single token slot
+    would smuggle an intra-token space into the GECToR unit and misalign the
+    token/tag stream.
     """
 
     name = "preposition"
@@ -118,11 +167,7 @@ class PrepositionErrorHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if tokens[idx].pos != "ADP":
             return False
-        lemma = tokens[idx].lemma
-        return any(
-            lemma in lst and any(x != lemma and " " not in x for x in lst)
-            for lst in self.prepositions.values()
-        )
+        return _has_confusion(self.prepositions, tokens[idx].lemma)
 
     def apply(
         self,
@@ -141,13 +186,8 @@ class PrepositionErrorHandler:
         if token.pos != "ADP":
             return None
 
-        for v in self.prepositions.values():
-            if word.lower() in v:
-                candidates = [x for x in v if x != word.lower() and " " not in x]
-                if candidates:
-                    new_word = rng.choice(candidates)
-                    break
-        else:
+        new_word = _pick_confusion(self.prepositions, word.lower(), rng)
+        if new_word is None:
             return None
 
         new_word = match_capitalization(word, new_word)
@@ -167,7 +207,14 @@ class PrepositionErrorHandler:
 
 
 class ConjunctionErrorHandler:
-    """Replace conjunction to another conjunction from the same semantic group"""
+    """Replace conjunction with an attested confusion from the same group.
+
+    Groups in ``conjunctions.json`` are *confusion* sets, not synonym sets:
+    pure synonyms (или ~ либо, и ~ да, хотя ~ хоть — equivalent variants in
+    Rozental's rules on homogeneous members) are excluded because swapping
+    them yields correct Russian. ``directed_*`` groups corrupt only their
+    first member (чем→как is an attested error; как→чем is impossible).
+    """
 
     name = "conjunction"
     subtypes = ["conjunction"]
@@ -188,11 +235,7 @@ class ConjunctionErrorHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if tokens[idx].pos not in ["CCONJ", "SCONJ"]:
             return False
-        lemma = tokens[idx].lemma
-        return any(
-            lemma in lst and any(x != lemma and " " not in x for x in lst)
-            for lst in self.conjunctions.values()
-        )
+        return _has_confusion(self.conjunctions, tokens[idx].lemma)
 
     def apply(
         self,
@@ -211,13 +254,8 @@ class ConjunctionErrorHandler:
         if token.pos not in ["CCONJ", "SCONJ"]:
             return None
 
-        for v in self.conjunctions.values():
-            if word.lower() in v:
-                candidates = [x for x in v if x != word.lower() and " " not in x]
-                if candidates:
-                    new_word = rng.choice(candidates)
-                    break
-        else:
+        new_word = _pick_confusion(self.conjunctions, word.lower(), rng)
+        if new_word is None:
             return None
 
         new_word = match_capitalization(word, new_word)
