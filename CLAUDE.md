@@ -38,7 +38,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
-28 handlers / 73 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+28 handlers / 75 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
 
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
@@ -62,7 +62,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | collocation | collocation | Lex | OTHER |
 | word_omission | word_omission | Syntax+Miss | OTHER |
 | word_insertion | word_insertion | Syntax+Extra | OTHER |
-| comma_delete | 8 subtypes (subordinate, compound, parenthetical, isolation, homogeneous, interjection, response, repeated) | Syntax+Miss | PUNCT |
+| comma_delete | 10 subtypes (subordinate, compound, parenthetical, isolation, homogeneous, interjection, response, repeated, asyndetic, vocative) | Syntax+Miss | PUNCT |
 | comma_pair_delete | 5 subtypes (participle, relative, gerund, parenthetical, apposition) | Syntax+Miss | PUNCT |
 | comma_insert | comma_before_kak, comma_in_set_phrase, comma_between_conjunctions, comma_in_indivisible, comma_clause_junction | Syntax+Extra | PUNCT |
 | dash_delete | dash_subj_pred, dash_asyndetic, dash_apposition, dash_other | Syntax+Miss | PUNCT |

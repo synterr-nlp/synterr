@@ -130,6 +130,8 @@ subtype_weights:
     comma_interjection: 5   # §102 междометия
     comma_response: 4       # §103 да/нет
     comma_repeated: 5       # §90 повторяющиеся слова
+    comma_asyndetic: 0      # §116 БСП — not one of the 48 LoRuGEC rules
+    comma_vocative: 0       # §101 обращения — not a LoRuGEC rule
 
   dash_delete:
     dash_subj_pred: 25

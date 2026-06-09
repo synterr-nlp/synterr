@@ -363,6 +363,12 @@ mappings:
   comma_repeated:
     primary: Syntax
     modifier: Miss
+  comma_asyndetic:
+    primary: Syntax
+    modifier: Miss
+  comma_vocative:
+    primary: Syntax
+    modifier: Miss
   pair_participle:
     primary: Syntax
     modifier: Miss

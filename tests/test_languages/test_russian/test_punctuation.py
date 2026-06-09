@@ -1,3 +1,5 @@
+import pytest
+
 from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.punctuation import (
     CommaDeleteHandler,
@@ -34,7 +36,9 @@ class TestCommaDeleteHandler:
         assert self.handler.name == "comma_delete"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 8
+        assert len(self.handler.subtypes) == 10
+        assert "comma_asyndetic" in self.handler.subtypes
+        assert "comma_vocative" in self.handler.subtypes
 
     def test_can_apply_comma_only(self):
         tokens = [
@@ -521,6 +525,282 @@ class TestClassifyCommaNewSubtypes:
         assert _classify_comma(tokens, 6) == "comma_parenthetical"  # closing
 
 
+# ── §116 asyndetic clauses / §101 vocatives (audit fixes) ───────────────────
+
+
+class TestClassifyCommaAsyndetic:
+    """§116 БСП: bare comma between two finite clauses, no conjunction.
+
+    Previously mislabeled comma_compound (§104) or comma_homogeneous (§83).
+    """
+
+    def test_asyndetic_via_conj_arc(self):
+        # "Шли дожди, дороги размыло." — stanza parses the second clause as
+        # conj of the first; no CCONJ anywhere → §116, not §104.
+        tokens = [
+            _tok("Шли", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("дожди", "NOUN", idx=1, dep_rel="nsubj", head_idx=0),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("дороги", "NOUN", idx=3, dep_rel="nsubj:pass", head_idx=4),
+            _tok("размыло", "VERB", idx=4, dep_rel="conj", head_idx=0),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_asyndetic"
+
+    def test_asyndetic_via_parataxis_arc(self):
+        # "Лес рубят, щепки летят." — second clause attached as parataxis;
+        # the trailing finite clause must be §116, not comma_parenthetical.
+        tokens = [
+            _tok("Лес", "NOUN", idx=0, dep_rel="obj", head_idx=1),
+            _tok("рубят", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("щепки", "NOUN", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok("летят", "VERB", idx=4, dep_rel="parataxis", head_idx=1),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_asyndetic"
+
+    def test_asyndetic_nominal_first_clause(self):
+        # "Скоро полночь, никто не спит." — nominal one-member first clause
+        # (root полночь); previously fell through to comma_homogeneous.
+        tokens = [
+            _tok("Скоро", "ADV", idx=0, dep_rel="advmod", head_idx=1),
+            _tok("полночь", "NOUN", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=5),
+            _tok("никто", "PRON", idx=3, dep_rel="nsubj", head_idx=5),
+            _tok("не", "PART", idx=4, dep_rel="advmod", head_idx=5),
+            _tok("спит", "VERB", idx=5, dep_rel="conj", head_idx=1),
+            _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_asyndetic"
+
+    def test_compound_with_conjunction_still_compound(self):
+        # "Солнце светило, и птицы пели" — real CCONJ at the junction → §104.
+        tokens = [
+            _tok("Солнце", "PROPN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("светило", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=5),
+            _tok("и", "CCONJ", idx=3, dep_rel="cc", head_idx=5),
+            _tok("птицы", "NOUN", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok("пели", "VERB", idx=5, dep_rel="conj", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_compound"
+
+    def test_homogeneous_predicates_not_asyndetic(self):
+        # "Он встал, оделся." — shared subject, homogeneous predicates (§83):
+        # the second verb has no own subject → NOT a clause junction.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("встал", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("оделся", "VERB", idx=3, dep_rel="conj", head_idx=1),
+            _tok(".", "PUNCT", idx=4, dep_rel="punct", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_homogeneous"
+
+    def test_inner_parenthetical_clause_not_asyndetic(self):
+        # "Он, я думаю, придёт." — parataxis clause with subject mid-sentence
+        # does NOT run to the sentence end → stays comma_parenthetical.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=5),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("я", "PRON", idx=2, dep_rel="nsubj", head_idx=3),
+            _tok("думаю", "VERB", idx=3, dep_rel="parataxis", head_idx=5),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
+            _tok("придёт", "VERB", idx=5, dep_rel="root", head_idx=None),
+            _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=5),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_parenthetical"
+        assert _classify_comma(tokens, 4) == "comma_parenthetical"
+
+    def test_weight_gate_skips_zeroed_asyndetic(self):
+        # lorugec zeroes comma_asyndetic — apply() must skip, not mislabel.
+        handler = CommaDeleteHandler()
+        handler.set_subtype_weights({"comma_asyndetic": 0})
+        tokens = [
+            _tok("Шли", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("дожди", "NOUN", idx=1, dep_rel="nsubj", head_idx=0),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("дороги", "NOUN", idx=3, dep_rel="nsubj:pass", head_idx=4),
+            _tok("размыло", "VERB", idx=4, dep_rel="conj", head_idx=0),
+        ]
+        sentence = [t.text for t in tokens]
+        assert handler.apply(tokens, sentence, 2, set()) is None
+        assert sentence == [t.text for t in tokens]  # untouched
+        # Explicit subtype targeting overrides the weight gate.
+        handler.set_enabled_subtypes({"comma_asyndetic"})
+        result = handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.error_type == "comma_asyndetic"
+
+
+class TestClassifyCommaVocative:
+    """§101 обращения: dep_rel=vocative bounds the comma."""
+
+    def _question_tokens(self):
+        # "Куда ты едешь, Маша?" — stanza tags Маша dep=vocative.
+        return [
+            _tok("Куда", "ADV", idx=0, dep_rel="advmod", head_idx=2),
+            _tok("ты", "PRON", idx=1, dep_rel="nsubj", head_idx=2),
+            _tok("едешь", "VERB", idx=2, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=4),
+            _tok("Маша", "PROPN", idx=4, dep_rel="vocative", head_idx=2),
+            _tok("?", "PUNCT", idx=5, dep_rel="punct", head_idx=2),
+        ]
+
+    def test_sentence_final_vocative(self):
+        assert _classify_comma(self._question_tokens(), 3) == "comma_vocative"
+
+    def test_mid_sentence_vocative_pair(self):
+        # "Привет, Маша, как дела?" — both commas bound the обращение.
+        tokens = [
+            _tok("Привет", "INTJ", lemma="привет", idx=0, dep_rel="root"),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Маша", "PROPN", idx=2, dep_rel="vocative", head_idx=5),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
+            _tok("как", "ADV", idx=4, dep_rel="advmod", head_idx=5),
+            _tok("дела", "NOUN", idx=5, dep_rel="parataxis", head_idx=0),
+            _tok("?", "PUNCT", idx=6, dep_rel="punct", head_idx=0),
+        ]
+        # Vocative wins over the INTJ neighbor on the opening comma.
+        assert _classify_comma(tokens, 1) == "comma_vocative"
+        assert _classify_comma(tokens, 3) == "comma_vocative"
+
+    def test_multiword_vocative_subtree_boundary(self):
+        # "Здравствуй, дорогая Маша, я скучаю." — opening comma is adjacent
+        # to the amod, not the vocative head; the subtree scan must catch it.
+        tokens = [
+            _tok("Здравствуй", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("дорогая", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("Маша", "PROPN", idx=3, dep_rel="vocative", head_idx=0),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
+            _tok("я", "PRON", idx=5, dep_rel="nsubj", head_idx=6),
+            _tok("скучаю", "VERB", idx=6, dep_rel="parataxis", head_idx=0),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_vocative"
+        assert _classify_comma(tokens, 4) == "comma_vocative"
+
+    def test_no_vocative_no_false_fire(self):
+        # No vocative relation anywhere → other branches decide.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("знал", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("что", "SCONJ", idx=3, dep_rel="mark", head_idx=4),
+            _tok("придёт", "VERB", idx=4, dep_rel="ccomp", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 2) != "comma_vocative"
+
+
+class TestCommaRepeatedTightened:
+    """§90 misfire fix: accidental same-form adjacency across a clause
+    boundary must not classify as comma_repeated."""
+
+    def test_topic_chain_not_repeated(self):
+        # "Дети любят сказки, сказки развивают воображение." — left сказки is
+        # obj of clause 1, right сказки is nsubj of clause 2 → §116 junction.
+        tokens = [
+            _tok("Дети", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("любят", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok("сказки", "NOUN", lemma="сказка", idx=2, dep_rel="obj", head_idx=1),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+            _tok("сказки", "NOUN", lemma="сказка", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok("развивают", "VERB", idx=5, dep_rel="conj", head_idx=1),
+            _tok("воображение", "NOUN", idx=6, dep_rel="obj", head_idx=5),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 3) != "comma_repeated"
+        # With the dep tree present, this is a §116 clause junction.
+        assert _classify_comma(tokens, 3) == "comma_asyndetic"
+
+    def test_genuine_repetition_conj_arc_still_fires(self):
+        # "он ехал, ехал" — same form, second token conj of the first.
+        tokens = [
+            _tok("он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("ехал", "VERB", lemma="ехать", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("ехал", "VERB", lemma="ехать", idx=3, dep_rel="conj", head_idx=1),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_repeated"
+
+    def test_same_lemma_different_form_not_repeated(self):
+        # "...читал сказку, сказки ему нравились" — same lemma, different
+        # surface form → §90 requires identical-form repetition.
+        tokens = [
+            _tok("читал", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("сказку", "NOUN", lemma="сказка", idx=1, dep_rel="obj", head_idx=0),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=5),
+            _tok("сказки", "NOUN", lemma="сказка", idx=3, dep_rel="nsubj", head_idx=5),
+            _tok("ему", "PRON", idx=4, dep_rel="iobj", head_idx=5),
+            _tok("нравились", "VERB", idx=5, dep_rel="conj", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 2) != "comma_repeated"
+
+    def test_no_dep_info_surface_fallback_kept(self):
+        # Without depparse the legacy surface behaviour must survive.
+        tokens = [
+            _tok("Дождь", "NOUN", lemma="дождь", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("дождь", "NOUN", lemma="дождь", idx=2),
+            _tok("идёт", "VERB", idx=3),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_repeated"
+
+
+class TestClosingCommaGapGuard:
+    """Fallback closing-comma scans: a 1–2 token gap must be PUNCT-only."""
+
+    def _tokens_with_content_gap(self, mid_deprel):
+        # Subtree of the acl/parataxis head ends 2 CONTENT tokens before the
+        # comma — the fallback must NOT claim this comma closes it.
+        return [
+            _tok("колонна", "NOUN", idx=0, dep_rel=None, head_idx=None),
+            _tok(
+                "отступавшая",
+                "VERB",
+                idx=1,
+                dep_rel=mid_deprel,
+                head_idx=0,
+                features={"VerbForm": "Part"} if mid_deprel == "acl" else {},
+            ),
+            _tok("быстро", "ADV", idx=2, dep_rel="advmod", head_idx=3),
+            _tok("шла", "VERB", idx=3, dep_rel=None, head_idx=None),
+            _tok(",", "PUNCT", idx=4),  # no head info → fallback path
+            _tok("вперёд", "ADV", idx=5, dep_rel=None, head_idx=None),
+        ]
+
+    def test_isolation_gap_with_content_tokens_rejected(self):
+        tokens = self._tokens_with_content_gap("acl")
+        assert _classify_comma(tokens, 4) != "comma_isolation"
+
+    def test_parenthetical_gap_with_content_tokens_rejected(self):
+        tokens = self._tokens_with_content_gap("parataxis")
+        assert _classify_comma(tokens, 4) != "comma_parenthetical"
+
+    def test_isolation_gap_with_punct_token_accepted(self):
+        # Genuine case: one PUNCT token (closing quote) inside the gap.
+        tokens = [
+            _tok("колонна", "NOUN", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok(
+                "отступавшая",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
+            _tok("по", "ADP", idx=3, dep_rel="case", head_idx=4),
+            _tok("шоссе", "NOUN", idx=4, dep_rel="obl", head_idx=2),
+            _tok("»", "PUNCT", idx=5),
+            _tok(",", "PUNCT", idx=6),
+            _tok("обстреливалась", "VERB", idx=7),
+        ]
+        assert _classify_comma(tokens, 6) == "comma_isolation"
+
+
 # ── DashDeleteHandler ───────────────────────────────────────────────────────
 
 
@@ -966,6 +1246,58 @@ class TestFindCommaPair:
         assert _find_comma_partner(tokens, 4) is None
         assert _find_comma_partner(tokens, 7) is None
 
+    # ── Unconfirmed closing comma (audit finding: stray-comma half-pair) ───
+
+    def _absorbed_trailing_material_tokens(self):
+        # "Он шёл, напевая песню, по улице." — stanza attaches "по улице" to
+        # the gerund, so the advcl subtree runs to the sentence end and the
+        # closing comma (idx=5) sits INSIDE the span: no right boundary
+        # comma is found.
+        return [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("шёл", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "напевая",
+                "VERB",
+                idx=3,
+                dep_rel="advcl",
+                head_idx=1,
+                features={"VerbForm": "Conv"},
+            ),
+            _tok("песню", "NOUN", idx=4, dep_rel="obj", head_idx=3),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
+            _tok("по", "ADP", idx=6, dep_rel="case", head_idx=7),
+            _tok("улице", "NOUN", idx=7, dep_rel="obl", head_idx=3),
+            _tok(".", "PUNCT", idx=8, dep_rel="punct", head_idx=1),
+        ]
+
+    def test_unconfirmed_closing_comma_skips(self):
+        # Deleting only the opening comma would orphan the one at idx=5 —
+        # the construction must be skipped entirely.
+        tokens = self._absorbed_trailing_material_tokens()
+        assert _find_comma_partner(tokens, 2) is None
+
+    def test_sentence_final_gerund_single_comma_still_fires(self):
+        # "Он шёл, напевая песню." — the phrase genuinely runs to the
+        # sentence end and no stray comma remains: single-comma deletion OK.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("шёл", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "напевая",
+                "VERB",
+                idx=3,
+                dep_rel="advcl",
+                head_idx=1,
+                features={"VerbForm": "Conv"},
+            ),
+            _tok("песню", "NOUN", idx=4, dep_rel="obj", head_idx=3),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=1),
+        ]
+        assert _find_comma_partner(tokens, 2) == (None, "pair_gerund")
+
     def test_no_pair_no_boundary_commas(self):
         # Isolation head exists but has no commas adjacent to its span.
         # Should not trigger.
@@ -1219,3 +1551,81 @@ class TestCommaPairDeleteHandler:
         ]
         assert self.handler.can_apply(tokens, 4) is False
         assert self.handler.can_apply(tokens, 7) is False
+
+    def test_apply_skips_when_closing_comma_unconfirmed(self):
+        # "Он шёл, напевая песню, по улице." — parser absorbed "по улице"
+        # into the gerund subtree; deleting only the opening comma would
+        # leave a stray comma. Handler must skip, not half-delete.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("шёл", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "напевая",
+                "VERB",
+                idx=3,
+                dep_rel="advcl",
+                head_idx=1,
+                features={"VerbForm": "Conv"},
+            ),
+            _tok("песню", "NOUN", idx=4, dep_rel="obj", head_idx=3),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
+            _tok("по", "ADP", idx=6, dep_rel="case", head_idx=7),
+            _tok("улице", "NOUN", idx=7, dep_rel="obl", head_idx=3),
+            _tok(".", "PUNCT", idx=8, dep_rel="punct", head_idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 2) is False
+        sentence = [t.text for t in tokens]
+        assert self.handler.apply(tokens, sentence, 2, set()) is None
+        assert sentence == [t.text for t in tokens]  # untouched, no orphan
+
+
+# ── Real-stanza regressions for the comma audit fixes ────────────────────────
+
+
+@pytest.mark.slow
+class TestRealStanzaCommaAuditFixes:
+    """Live-parse regressions for the §116/§101 audit findings.
+
+    Marked slow: loads the real stanza backend (deselect with -m "not slow").
+    """
+
+    @pytest.fixture(scope="class")
+    def pipeline(self):
+        from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+        from synterr.core.registry import get_language
+
+        language = get_language("ru")
+        config = GenerationConfig(seed=42, use_depparse=True)
+        return ErrorPipeline(language, config)
+
+    def test_asyndetic_parataxis_clause(self, pipeline):
+        # Was comma_compound (§104) before the fix; actual rule is §116 БСП.
+        result = pipeline.apply_error("Лес рубят, щепки летят.", "comma_delete")
+        assert result is not None
+        assert result.errors[0].error_type == "comma_asyndetic"
+
+    def test_asyndetic_impersonal_second_clause(self, pipeline):
+        result = pipeline.apply_error("Шли дожди, дороги размыло.", "comma_delete")
+        assert result is not None
+        assert result.errors[0].error_type == "comma_asyndetic"
+
+    def test_vocative_sentence_final(self, pipeline):
+        # Was comma_subordinate (§107 ff.) before the fix; actual rule §101.
+        result = pipeline.apply_error("Куда ты едешь, Иван?", "comma_delete")
+        assert result is not None
+        assert result.errors[0].error_type == "comma_vocative"
+
+    def test_vocative_mid_sentence_pair(self, pipeline):
+        result = pipeline.apply_error("Привет, Маша, как дела?", "comma_delete")
+        assert result is not None
+        assert result.errors[0].error_type == "comma_vocative"
+
+    def test_pair_delete_never_leaves_stray_comma(self, pipeline):
+        # Absorbed-trailing-material case: either the handler skips (None)
+        # or it deletes a confirmed pair — never a half-pair with an orphan.
+        result = pipeline.apply_error(
+            "Он шёл, напевая песню, по улице.", "comma_pair_delete"
+        )
+        if result is not None:
+            assert "," not in result.corrupted_tokens

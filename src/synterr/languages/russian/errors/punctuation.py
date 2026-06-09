@@ -136,6 +136,112 @@ def _has_own_subject(tokens: Sequence[AnalyzedToken], verb_idx: int) -> bool:
     )
 
 
+def _is_clausal(tokens: Sequence[AnalyzedToken], tok: AnalyzedToken) -> bool:
+    """A node heads a clause when it is a finite verb, has its own subject,
+    or is the sentence root (covers the nominal one-member clause of a БСП,
+    e.g. "Скоро полночь" in "Скоро полночь, никто не спит")."""
+    if tok.pos in FINITE_POS and tok.get_feature("VerbForm") not in (
+        "Part",
+        "Conv",
+        "Inf",
+    ):
+        return True
+    if _has_own_subject(tokens, tok.idx):
+        return True
+    return tok.dep_rel == "root"
+
+
+def _junction_has_conjunction(
+    tokens: Sequence[AnalyzedToken], idx: int, clause_head: AnalyzedToken
+) -> bool:
+    """A coordinating/subordinating conjunction sits at the clause junction:
+    either immediately right of the comma at `idx`, or attached to the
+    second clause's head as a `cc` dependent. Distinguishes §104 ССП
+    (comma + союз) from §116 БСП (bare comma)."""
+    right = tokens[idx + 1] if idx + 1 < len(tokens) else None
+    if right is not None and (
+        right.pos in ("CCONJ", "SCONJ") or right.dep_rel in ("cc", "mark")
+    ):
+        return True
+    return any(t.head_idx == clause_head.idx and t.dep_rel == "cc" for t in tokens)
+
+
+def _is_asyndetic_parataxis(
+    tokens: Sequence[AnalyzedToken], idx: int, comma_head: AnalyzedToken
+) -> bool:
+    """§116 БСП clause parsed as parataxis: the comma's head is a finite
+    verb whose subtree starts right after the comma and runs to the
+    sentence end ("Лес рубят, щепки летят"). Inner parentheticals like
+    "..., я думаю, ..." fail the to-sentence-end requirement and stay
+    comma_parenthetical."""
+    if comma_head.pos not in FINITE_POS or comma_head.get_feature("VerbForm") in (
+        "Part",
+        "Conv",
+        "Inf",
+    ):
+        return False
+    if _junction_has_conjunction(tokens, idx, comma_head):
+        return False
+    first_head = _get_head(tokens, comma_head)
+    if first_head is None or not _is_clausal(tokens, first_head):
+        return False
+    span_left, span_right = _get_subtree_span(tokens, comma_head.idx)
+    last_content = max((t.idx for t in tokens if t.pos != "PUNCT"), default=-1)
+    return span_left == idx + 1 and span_right == last_content
+
+
+def _vocative_boundary(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§101 обращение: the comma at `idx` bounds a token whose dep_rel is
+    `vocative` (stanza emits this relation). Covers single sentence-initial/
+    final обращения and both commas of the paired mid-sentence case; the
+    subtree scan handles multiword обращения ("дорогая Маша")."""
+    n = len(tokens)
+    for neighbor_idx in (idx - 1, idx + 1):
+        if 0 <= neighbor_idx < n and tokens[neighbor_idx].dep_rel == "vocative":
+            return True
+    for t in tokens:
+        if t.dep_rel != "vocative":
+            continue
+        span_left, span_right = _get_subtree_span(tokens, t.idx)
+        if idx == span_left - 1 or idx == span_right + 1:
+            return True
+    return False
+
+
+# §90 repetition arcs: the second occurrence repeats the first's slot.
+_REPETITION_DEPRELS = frozenset({"conj", "parataxis", "discourse", "appos", "fixed"})
+
+
+def _is_repetition_construction(
+    tokens: Sequence[AnalyzedToken],
+    left: AnalyzedToken,
+    right: AnalyzedToken,
+) -> bool:
+    """§90 repeated words fill ONE syntactic slot ("он ехал, ехал"): the
+    second occurrence is conj/parataxis-linked to the first, or both attach
+    to the same head with the same relation. Accidental same-form adjacency
+    across a clause boundary ("…любят сказки, сказки развивают…" — obj of
+    clause 1 vs nsubj of clause 2) must fall through to the dep tree."""
+    if right.head_idx == left.idx and right.dep_rel in _REPETITION_DEPRELS:
+        return True
+    if left.head_idx == right.idx and left.dep_rel in _REPETITION_DEPRELS:
+        return True
+    if (
+        left.head_idx is not None
+        and left.head_idx == right.head_idx
+        and left.dep_rel == right.dep_rel
+    ):
+        return True
+    # No dep info on either side (backend without depparse): keep the old
+    # surface-only behaviour rather than silently disabling §90.
+    return (
+        left.head_idx is None
+        and right.head_idx is None
+        and left.dep_rel is None
+        and right.dep_rel is None
+    )
+
+
 def _find_comma_partner(
     tokens: Sequence[AnalyzedToken], idx: int
 ) -> tuple[int | None, str] | None:
@@ -206,6 +312,22 @@ def _find_comma_partner(
         span_size = span_right - span_left
 
         if left_comma_idx is not None and idx == left_comma_idx:
+            if right_comma_idx is None:
+                # Closing comma unconfirmed. Legitimate only when the phrase
+                # truly runs to the sentence end with no comma left of the
+                # final punctuation ("Он шёл, напевая песню."). When the
+                # parser absorbed trailing material into the subtree ("Он
+                # шёл, напевая песню, по улице." — "по улице" attached to
+                # the gerund), a stray comma remains inside the span and a
+                # single-comma deletion would orphan it → skip.
+                last_content = max(
+                    (t.idx for t in tokens if t.pos != "PUNCT"), default=-1
+                )
+                stray_comma = any(
+                    t.text == "," and t.pos == "PUNCT" and t.idx > idx for t in tokens
+                )
+                if span_right < last_content or stray_comma:
+                    continue
             candidates.append((span_size, right_comma_idx, subtype, is_amod))
         elif (
             left_comma_idx is None
@@ -257,6 +379,12 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
     # These run before dep-tree classification because they're more specific
     # than the generic conj/punct dep relations that would otherwise win.
 
+    # §101 — Обращение: comma bounds a dep_rel=vocative token/subtree.
+    # Runs first: the comma between an INTJ/response word and an обращение
+    # ("Привет, Маша") is the §101 boundary.
+    if _vocative_boundary(tokens, idx):
+        return "comma_vocative"
+
     # §102 — Interjection: INTJ neighbor is a strong signal
     if (left and left.pos == "INTJ") or (right and right.pos == "INTJ"):
         return "comma_interjection"
@@ -265,21 +393,31 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
     if left and left.idx == 0 and left.lemma in RESPONSE_WORDS:
         return "comma_response"
 
-    # §90 — Repeated word: same lemma + same content-POS on both sides
+    # §90 — Repeated word: identical surface form + same content-POS on both
+    # sides, in a true repetition construction (same syntactic slot). Same-
+    # lemma adjacency across a clause boundary falls through to the dep tree.
     if (
         left
         and right
         and left.pos == right.pos
         and left.pos in REPEATED_CONTENT_POS
-        and left.lemma == right.lemma
+        and left.text.lower() == right.text.lower()
+        and _is_repetition_construction(tokens, left, right)
     ):
         return "comma_repeated"
 
     # ── 1. Dep-tree based classification (when head info available) ──────
 
     if comma_head is not None:
-        # Parenthetical: comma's head has dep_rel=parataxis or discourse
+        # Parenthetical: comma's head has dep_rel=parataxis or discourse.
+        # Exception: stanza also uses parataxis for the second clause of a
+        # БСП ("Лес рубят, щепки летят") — a trailing finite clause with no
+        # conjunction is §116 asyndetic, not a parenthetical.
         if comma_head.dep_rel in ("parataxis", "discourse"):
+            if comma_head.dep_rel == "parataxis" and _is_asyndetic_parataxis(
+                tokens, idx, comma_head
+            ):
+                return "comma_asyndetic"
             return "comma_parenthetical"
 
         # Isolation: comma's head is an acl/acl:relcl/advcl node.
@@ -294,17 +432,21 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
                 return "comma_subordinate"
             return "comma_isolation"
 
-        # Subordinate/compound: comma's head is a conj or clausal node
+        # Subordinate/compound/asyndetic: comma's head is a conj node.
+        # Stanza parses conjunction-less clause sequences (БСП) as conj too,
+        # so a clause junction is §104 compound only when an actual
+        # coordinating conjunction sits at the junction; a bare comma
+        # between two clauses is §116 asyndetic.
         if comma_head.dep_rel == "conj":
-            # conj linking two clauses (both have subjects) → compound
             conj_head = _get_head(tokens, comma_head)
-            if (
-                comma_head.pos in FINITE_POS
-                and conj_head is not None
-                and conj_head.pos in FINITE_POS
-                and _has_own_subject(tokens, comma_head.idx)
-            ):
-                return "comma_compound"
+            second_clausal = comma_head.pos in FINITE_POS and _has_own_subject(
+                tokens, comma_head.idx
+            )
+            first_clausal = conj_head is not None and _is_clausal(tokens, conj_head)
+            if second_clausal and first_clausal:
+                if _junction_has_conjunction(tokens, idx, comma_head):
+                    return "comma_compound"
+                return "comma_asyndetic"
             # conj linking non-clausal items → homogeneous
             return "comma_homogeneous"
 
@@ -342,14 +484,16 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
             return "comma_isolation"
 
     # Isolation: closing comma — scan left for a participle whose subtree
-    # ends just before this comma (allow gap of 1-2 for skipped PUNCT tokens)
+    # ends just before this comma (allow a gap of 1-2 PUNCT-only tokens)
     if right is not None:
         for i in range(max(0, idx - 15), idx):
             t = tokens[i]
             if t.dep_rel in ISOLATION_DEPRELS:
                 _, subtree_max = _get_subtree_span(tokens, t.idx)
                 gap = idx - 1 - subtree_max
-                if 0 <= gap <= 2:
+                if 0 <= gap <= 2 and all(
+                    tokens[j].pos == "PUNCT" for j in range(subtree_max + 1, idx)
+                ):
                     return "comma_isolation"
 
     # Parenthetical: closing comma — symmetric to opening-comma detection
@@ -363,7 +507,9 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
             if t.dep_rel in ("parataxis", "discourse"):
                 _, subtree_max = _get_subtree_span(tokens, t.idx)
                 gap = idx - 1 - subtree_max
-                if 0 <= gap <= 2:
+                if 0 <= gap <= 2 and all(
+                    tokens[j].pos == "PUNCT" for j in range(subtree_max + 1, idx)
+                ):
                     return "comma_parenthetical"
 
     # Homogeneous: left and right share the same head (conj siblings)
@@ -522,7 +668,15 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
 
 
 class CommaDeleteHandler:
-    """Delete a comma with L2 subtype classification."""
+    """Delete a comma with L2 subtype classification.
+
+    Classification is deterministic (the comma's context decides the
+    subtype), so subtype weights act as enable gates rather than sampling
+    weights: a preset that zeroes a subtype (e.g. lorugec zeroes
+    comma_asyndetic/comma_vocative — not LoRuGEC rules) makes apply()
+    return None for commas classifying into it, instead of leaking them
+    under the nearest listed label.
+    """
 
     name = "comma_delete"
     subtypes = [
@@ -534,12 +688,34 @@ class CommaDeleteHandler:
         "comma_interjection",
         "comma_response",
         "comma_repeated",
+        "comma_asyndetic",
+        "comma_vocative",
     ]
     category = "PUNCT"
     changes_length = True
 
+    DEFAULT_WEIGHTS = {
+        "comma_subordinate": 25,
+        "comma_compound": 15,
+        "comma_parenthetical": 15,
+        "comma_isolation": 12,
+        "comma_homogeneous": 15,
+        "comma_interjection": 5,
+        "comma_response": 4,
+        "comma_repeated": 5,
+        "comma_asyndetic": 8,  # §116 БСП
+        "comma_vocative": 5,  # §101 обращения
+    }
+
     def __init__(self) -> None:
+        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
         self._enabled_subtypes: set[str] | None = None
+
+    def set_subtype_weights(self, weights: dict[str, float]) -> None:
+        self._weights = self.DEFAULT_WEIGHTS.copy()
+        for subtype, weight in weights.items():
+            if subtype in self._weights:
+                self._weights[subtype] = weight
 
     def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
         """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
@@ -572,7 +748,12 @@ class CommaDeleteHandler:
 
         subtype = _classify_comma(tokens, idx)
 
-        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
+        if self._enabled_subtypes is not None:
+            # Explicit targeting (CLI :subtype / SFT) overrides weight gates.
+            if subtype not in self._enabled_subtypes:
+                return None
+        elif self._weights.get(subtype, 0) <= 0:
+            # Subtype zeroed by the preset → skip rather than mislabel.
             return None
 
         del sentence[idx]

@@ -1027,6 +1027,16 @@ mappings:
   comma_repeated:
     primary: pu_comma
     l2_tag: pu_comma_repeated
+  # §116 запятая в бессоюзном сложном предложении — same L2 tag as the
+  # asyndetic dash (pu_clause_asyndetic, §116–118)
+  comma_asyndetic:
+    primary: pu_clause
+    l2_tag: pu_clause_asyndetic
+  # §101 обращения — falls inside pu_comma_parenthetical's §99–103 range,
+  # same precedent as comma_interjection (§102) / comma_response (§103)
+  comma_vocative:
+    primary: pu_comma
+    l2_tag: pu_comma_parenthetical
 
   # Punctuation handler subtypes — comma pairs (both commas deleted)
   pair_participle:
