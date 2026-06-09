@@ -45,6 +45,35 @@ class TestSolidToSeparate:
         assert sentence == ["на", "верх"]
 
 
+class TestNoSuffixDerivedSplits:
+    """Regression: suffix-derived adverbs (довольный → довольно etc.) must
+    never be split — they are not §53–58 prep+noun formations, and the cut
+    lands inside the root ("до вольно", "на прасно")."""
+
+    NON_SPLITTABLE = ["довольно", "напрасно", "поочерёдно", "попарно", "вполне"]
+
+    @pytest.mark.parametrize("word", NON_SPLITTABLE)
+    def test_can_apply_false(self, word):
+        h = AdverbSpellingHandler()
+        assert h.can_apply([_tok(word)], 0) is False
+
+    @pytest.mark.parametrize("word", NON_SPLITTABLE)
+    def test_apply_returns_none(self, word):
+        h = AdverbSpellingHandler()
+        sentence = [word]
+        result = h.apply([_tok(word)], sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence == [word]
+
+    def test_reverse_pairs_also_removed(self):
+        """Auto-derived merge pairs ("до" + "вольно" → "довольно") must be
+        gone too — they would 'correct' text that was never a learner split."""
+        h = AdverbSpellingHandler()
+        tokens = [_tok("до", pos="ADP"), _tok("вольно", idx=1)]
+        assert h.can_apply(tokens, 0) is False
+        assert h.apply(tokens, ["до", "вольно"], 0, set(), rng=Random(0)) is None
+
+
 class TestHyphenToSeparate:
     def test_remove_hyphen(self):
         h = AdverbSpellingHandler()
