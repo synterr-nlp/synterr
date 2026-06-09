@@ -42,11 +42,39 @@ def _morph():
 # degrades gracefully if a combination is invalid.
 _INFLECT_ATTRS = ("tense", "number", "gender", "person", "case", "mood", "aspect")
 
+# Coarse POS classes for matching a replacement's parse to the original
+# token. Lexicon citation forms are infinitives (INFN) while tokens in text
+# are finite (VERB), so exact-POS comparison would wrongly reject every
+# verb pair.
+_POS_CLASSES = {
+    "VERB": "VERB",
+    "INFN": "VERB",
+    "PRTF": "VERB",
+    "PRTS": "VERB",
+    "GRND": "VERB",
+    "ADJF": "ADJ",
+    "ADJS": "ADJ",
+    "COMP": "ADJ",
+}
 
-def _inflect_to_match(wrong_lemma: str, original_parse) -> str | None:
+
+def _pos_class(pos: str | None) -> str | None:
+    # str() strips pymorphy's grammeme str-subclass, whose __eq__ raises on
+    # comparison with anything outside the OpenCorpora grammeme inventory
+    # (like our coarse class names).
+    return _POS_CLASSES.get(str(pos), str(pos)) if pos else None
+
+
+def _inflect_to_match(wrong_lemma: str, original_parse, *, same_pos: bool = False) -> str | None:
     """Inflect `wrong_lemma` (a citation form) to match original_parse's
     grammemes. Returns the inflected surface form, or None if inflection
-    failed at every fallback level."""
+    failed at every fallback level.
+
+    With `same_pos=True`, only parses of `wrong_lemma` in the same coarse POS
+    class as the original are considered. pymorphy ranks parses by corpus
+    frequency, so parse("дорогой")[0] is the NOUN дорога in instrumental, not
+    the adjective — inflecting that produced non-words like "по дороги цене".
+    """
     if original_parse is None:
         return None
 
@@ -60,7 +88,15 @@ def _inflect_to_match(wrong_lemma: str, original_parse) -> str | None:
     parses = _morph().parse(wrong_lemma)
     if not parses:
         return None
-    new_parse = parses[0]
+    if same_pos:
+        target_class = _pos_class(target_tag.POS)
+        new_parse = next(
+            (p for p in parses if _pos_class(p.tag.POS) == target_class), None
+        )
+        if new_parse is None:
+            return None
+    else:
+        new_parse = parses[0]
 
     # Try full grammeme set, then progressively shorter prefixes.
     for k in range(len(grammemes), 0, -1):
@@ -328,9 +364,10 @@ class CollocationHandler:
         # Inflect the replacement to match the original token's morphology so
         # "принял решение" → "сделал решение" (not the bare infinitive
         # "сделать решение"). Falls back to the citation form if pymorphy
-        # can't inflect.
+        # can't inflect. same_pos guards against frequency-ranked homograph
+        # parses (parse("дорогой")[0] is the noun дорога).
         original_parse = token.extra.get("pymorphy_parse") if token.extra else None
-        inflected = _inflect_to_match(wrong_word, original_parse)
+        inflected = _inflect_to_match(wrong_word, original_parse, same_pos=True)
         if inflected:
             wrong_word = inflected
 
