@@ -336,8 +336,14 @@ class SpellingErrorHandler:
         """Corrupt a word with a spelling error."""
         rng = rng if rng is not None else random_module
 
-        # Filter to enabled subtypes only
-        methods = [m for m in self.weights if m in self.enabled_subtypes]
+        # Filter to enabled subtypes; weight 0 means excluded, not just
+        # deprioritized — the loop below falls through to lower-priority
+        # methods, so a zero-weight method would still fire as a fallback
+        methods = [
+            m
+            for m in self.weights
+            if m in self.enabled_subtypes and self.weights[m] > 0
+        ]
         if not methods:
             return None
 

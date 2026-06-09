@@ -70,6 +70,19 @@ weights:
 
 # Subtype weights: uniform within each handler
 subtype_weights:
+  # spelling's only LoRuGEC rule is ъ/ь — zero everything else
+  # (unlisted subtypes keep handler DEFAULT weights, so they must be
+  # explicitly zeroed)
+  spelling:
+    soft_sign: 100
+    vowel_reduction: 0
+    tsa_confusion: 0
+    prefix_voicing: 0
+    devoicing: 0
+    cluster: 0
+    double_consonant: 0
+    keyboard: 0
+
   function_spelling:
     ne_attachment: 25     # не+сущ, не+прил, не+прич, не+глаг (4 rules)
     ne_detachment: 25
