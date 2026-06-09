@@ -84,6 +84,7 @@ class ErrorResult:
     fix_tag: str
     schema_tag: str | None = None
     schema_l2_tag: str | None = None
+    schema_l2_applicability: str | None = None
 
 
 @runtime_checkable

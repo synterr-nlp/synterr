@@ -253,454 +253,599 @@ fine_grained_tags:
     parent: sp_root
     description: "Checked unstressed vowels (проверяемые)"
     paras: "§1"
+    l2_applicability: full
   sp_root_unchecked:
     parent: sp_root
     description: "Unchecked unstressed vowels (непроверяемые)"
     paras: "§2"
+    l2_applicability: full
   sp_root_alternating:
     parent: sp_root
     description: "Alternating root vowels (чередующиеся)"
     paras: "§3"
+    l2_applicability: full
   sp_root_voiced_voiceless:
     parent: sp_root
     description: "Voiced/voiceless consonants"
     paras: "§8"
+    l2_applicability: full
   sp_root_double:
     parent: sp_root
     description: "Double consonants in roots"
     paras: "§9"
+    l2_applicability: full
   sp_root_silent:
     parent: sp_root
     description: "Unpronounced consonants"
     paras: "§10"
+    l2_applicability: full
   sp_root_vowel_after:
     parent: sp_root
     description: "Vowels after sibilants/ц, э-е, й in roots"
     paras: "§4–7"
+    l2_applicability: full
 
   # --- sp_capitalization children ---
   sp_cap_proper:
     parent: sp_capitalization
     description: "General capitalization, personal/fictional names, derived adjectives"
     paras: "§11–16"
+    l2_applicability: full
   sp_cap_geographic:
     parent: sp_capitalization
     description: "Geographic and astronomical names"
     paras: "§17–18"
+    l2_applicability: full
   sp_cap_organizations:
     parent: sp_capitalization
     description: "Historical events, holidays, organizations, institutions"
     paras: "§19–22"
+    l2_applicability: full
   sp_cap_titles:
     parent: sp_capitalization
     description: "Titles, awards, brands, abbreviations"
     paras: "§23–28"
+    l2_applicability: full
 
   # --- sp_affix children ---
   sp_affix_hard_soft_sign:
     parent: sp_affix
     description: "ъ and ь signs"
     paras: "§29–30"
+    l2_applicability: full
   sp_affix_prefix:
     parent: sp_affix
     description: "Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
     paras: "§31–34"
+    l2_applicability: full
 
   # --- sp_pos children ---
   sp_pos_sibilant:
     parent: sp_pos
     description: "Vowels after sibilants and ц in suffixes/endings"
     paras: "§35–36"
+    l2_applicability: full
   sp_noun_endings:
     parent: sp_pos
     description: "Noun endings and suffixes"
     paras: "§37–38"
+    l2_applicability: full
   sp_adj_endings:
     parent: sp_pos
     description: "Adjective endings (-ый/-ий, загородный/иногородний)"
     paras: "§39"
+    l2_applicability: full
   sp_adj_suffixes:
     parent: sp_pos
     description: "Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
     paras: "§40"
+    l2_applicability: full
+    l2_note: "synterr-assigned (not in rozental annotation); spelling rule, both populations"
   sp_numeral_spelling:
     parent: sp_pos
     description: "Numeral spelling (количественные, порядковые, дробные, пол-)"
     paras: "§45–46"
+    l2_applicability: full
   sp_pronoun_spelling:
     parent: sp_pos
     description: "Negative pronoun spelling (не-/ни- with pronouns)"
     paras: "§47"
+    l2_applicability: full
   sp_verb_endings:
     parent: sp_pos
     description: "Verb personal endings and suffixes"
     paras: "§48–50"
+    l2_applicability: full
   sp_participle_endings:
     parent: sp_pos
     description: "Participle suffixes and н/нн"
     paras: "§51–52"
+    l2_applicability: full
   sp_adverb_spelling:
     parent: sp_pos
     description: "Adverb spelling (solid/hyphen/separate)"
     paras: "§53–58"
+    l2_applicability: full
 
   # --- sp_compounds children ---
   sp_compound_solid:
     parent: sp_compounds
     description: "Solid writing of compounds"
     paras: "§41"
+    l2_applicability: full
   sp_compound_hyphen:
     parent: sp_compounds
     description: "Hyphenated compound words"
     paras: "§42–43"
+    l2_applicability: full
   sp_compound_adj:
     parent: sp_compounds
     description: "Compound adjective spelling (слитное/дефисное, 13 sub-rules)"
     paras: "§44"
+    l2_applicability: full
 
   # --- sp_function children ---
   sp_ne_ni:
     parent: sp_function
     description: "не/ни with all parts of speech"
     paras: "§65–72"
+    l2_applicability: full
   sp_preposition_spelling:
     parent: sp_function
     description: "Preposition spelling (вследствие, в течение)"
     paras: "§59–60"
+    l2_applicability: full
   sp_conjunction_spelling:
     parent: sp_function
     description: "Conjunction spelling (чтобы, также, зато)"
     paras: "§61–62"
+    l2_applicability: full
   sp_particle_spelling:
     parent: sp_function
     description: "Particle spelling (-таки, бы, ли, же)"
     paras: "§63–64"
+    l2_applicability: full
 
   # --- sp_foreign children ---
   sp_interjection:
     parent: sp_foreign
     description: "Interjection hyphenation"
     paras: "§73"
+    l2_applicability: full
   sp_foreign_words:
     parent: sp_foreign
     description: "Foreign word transcription/transliteration"
     paras: "§74"
+    l2_applicability: full
 
   # --- mo_noun_case children ---
   mo_noun_case_gen_a_u:
     parent: mo_noun_case
     description: "Genitive -а/-у alternation"
     paras: "§150"
+    l2_applicability: partial
+    l2_note: "Rozental: -a/-u variant; L2: wrong case entirely"
   mo_noun_case_prep_e_u:
     parent: mo_noun_case
     description: "Prepositional -е/-у alternation"
     paras: "§152"
+    l2_applicability: partial
+    l2_note: "Rozental: -e/-u variant; L2: wrong case entirely"
   mo_noun_case_instr:
     parent: mo_noun_case
     description: "Instrumental plural -ями/-(ь)ми variation"
     paras: "§155"
+    l2_applicability: partial
+    l2_note: "Rozental: -yami variant; L2: wrong case entirely"
   mo_noun_case_other:
     parent: mo_noun_case
     description: "Accusative animate/inanimate + nom/gen plural forms"
     paras: "§151, §153–154"
+    l2_applicability: partial
+    l2_note: "some L2 overlap with animate/inanimate"
 
   # --- mo_noun_number children ---
   mo_noun_num_nom_pl:
     parent: mo_noun_number
     description: "Nominative plural -ы/-а alternation"
     paras: "§153"
+    l2_applicability: partial
+    l2_note: "Rozental: -y/-a variant; some L2 overlap"
   mo_noun_num_gen_pl:
     parent: mo_noun_number
     description: "Genitive plural forms"
     paras: "§154"
+    l2_applicability: partial
+    l2_note: "Rozental: gen pl variants; some L2 overlap"
   mo_noun_num_tantum:
     parent: mo_noun_number
     description: "Singularia/pluralia tantum"
     paras: "§156–157"
+    l2_applicability: partial
+    l2_note: "Rozental covers tantum; L2 errors broader"
   mo_noun_suffix:
     parent: mo_noun_number
     description: "Noun suffix variants (diminutive, abstract: воробышек/воробушек, бессмысленность/бессмыслица)"
     paras: "§158"
+    l2_applicability: none
+    l2_note: "native suffix variants"
 
   # --- mo_noun_gender children ---
   mo_noun_gender_fluctuation:
     parent: mo_noun_gender
     description: "Gender fluctuation (e.g., рельс/рельса)"
     paras: "§144–145"
+    l2_applicability: none
+    l2_note: "native gender fluctuation"
   mo_noun_gender_profession:
     parent: mo_noun_gender
     description: "Profession nouns (врач → врачиха?)"
     paras: "§146–147"
+    l2_applicability: none
+    l2_note: "profession feminitives; sociolinguistic"
   mo_noun_gender_common:
     parent: mo_noun_gender
     description: "Declension peculiarities and name/surname declension"
     paras: "§148–149"
+    l2_applicability: none
+    l2_note: "name/surname declension edge cases"
 
   # --- mo_adj_form children ---
   mo_adj_short_full:
     parent: mo_adj_form
     description: "Short vs full adjective forms"
     paras: "§159"
+    l2_applicability: partial
+    l2_note: "some L2 overlap in predicate adjectives"
   mo_adj_comparative:
     parent: mo_adj_form
     description: "Comparative/superlative forms"
     paras: "§161"
+    l2_applicability: partial
+    l2_note: "L2 learners struggle with formation"
   mo_adj_possessive:
     parent: mo_adj_form
     description: "Possessive adjectives (отцов/отца)"
     paras: "§162"
+    l2_applicability: none
+    l2_note: "native stylistic choice"
   mo_adj_other:
     parent: mo_adj_form
     description: "Short form variants + adj/noun synonymy"
     paras: "§160, §163"
+    l2_applicability: none
+    l2_note: "native short form variants"
 
   # --- mo_numeral children ---
   mo_numeral_cardinal:
     parent: mo_numeral
     description: "Cardinal numeral declension"
     paras: "§164"
+    l2_applicability: partial
+    l2_note: "L2 errors broader than Rozental variants"
   mo_numeral_collective:
     parent: mo_numeral
     description: "Collective numerals (двое, трое)"
     paras: "§165"
+    l2_applicability: partial
+    l2_note: "some L2 overlap"
   mo_numeral_oba:
     parent: mo_numeral
     description: "Numerals in compound words (двух-, пол-, 2500-летие)"
     paras: "§166"
+    l2_applicability: partial
+    l2_note: "compound numeral forms; some L2 overlap"
 
   # --- mo_pronoun children ---
   mo_pronoun_svoy:
     parent: mo_pronoun
     description: "Personal pronouns (его/её/их, начальное н)"
     paras: "§167"
+    l2_applicability: partial
+    l2_note: "some L2 overlap"
   mo_pronoun_sebya:
     parent: mo_pronoun
     description: "Reflexive/possessive pronouns (себя, свой)"
     paras: "§168"
+    l2_applicability: partial
+    l2_note: "L2 learners confuse svoy/ego"
   mo_pronoun_forms:
     parent: mo_pronoun
     description: "Определительные and indefinite pronouns (всякий/каждый, кое-кто)"
     paras: "§169–170"
+    l2_applicability: none
+    l2_note: "native stylistic variants"
 
   # --- mo_verb_aspect children ---
   mo_verb_asp_pair:
     parent: mo_verb_aspect
     description: "Aspect pair choice (perfective/imperfective)"
     paras: "§172.1"
+    l2_applicability: none
+    l2_note: "Rozental: variant forms; L2: wrong aspect entirely"
   mo_verb_asp_iterative:
     parent: mo_verb_aspect
     description: "Iterative/semelfactive aspect"
     paras: "§172.2"
+    l2_applicability: none
+    l2_note: "Rozental: iterative variants; L2: fundamental confusion"
 
   # --- mo_verb_form children ---
   mo_verb_reflexive:
     parent: mo_verb_form
     description: "Reflexive forms (-ся/-сь)"
     paras: "§173"
+    l2_applicability: none
+    l2_note: "Rozental: style variants; L2: wrong reflexivity"
   mo_verb_participle:
     parent: mo_verb_form
     description: "Participle formation errors"
     paras: "§174"
+    l2_applicability: none
+    l2_note: "Rozental: suffix variants; L2: wrong form entirely"
   mo_verb_gerund:
     parent: mo_verb_form
     description: "Gerund formation errors"
     paras: "§175"
+    l2_applicability: none
+    l2_note: "Rozental: suffix choice; L2 learners avoid gerunds"
   mo_verb_personal:
     parent: mo_verb_form
     description: "Verb personal form variations"
     paras: "§171"
+    l2_applicability: partial
+    l2_note: "some L2 overlap with wrong conjugation"
 
   # --- ag_subject_verb children ---
   ag_sv_collective:
     parent: ag_subject_verb
     description: "Agreement with collective nouns (большинство)"
     paras: "§183"
+    l2_applicability: full
   ag_sv_counting:
     parent: ag_subject_verb
     description: "Agreement with counting phrases (пять студентов)"
     paras: "§184"
+    l2_applicability: full
   ag_sv_approximate:
     parent: ag_subject_verb
     description: "Agreement with subjects having appositions"
     paras: "§185"
+    l2_applicability: full
   ag_sv_compound:
     parent: ag_subject_verb
     description: "Agreement with special subjects (comitative, pronouns, indeclinables, copula)"
     paras: "§186–189"
+    l2_applicability: full
   ag_sv_coordinated:
     parent: ag_subject_verb
     description: "Agreement with coordinated subjects (A и B)"
     paras: "§190"
+    l2_applicability: full
 
   # --- ag_modifier_noun children ---
   ag_mn_special:
     parent: ag_modifier_noun
     description: "Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
     paras: "§191–194"
+    l2_applicability: full
   ag_mn_apposition:
     parent: ag_modifier_noun
     description: "Apposition agreement"
     paras: "§195–196"
+    l2_applicability: partial
+    l2_note: "Rozental: edge cases; L2 errors simpler"
   ag_mn_compound_term:
     parent: ag_modifier_noun
     description: "Compound term agreement"
     paras: "§197"
+    l2_applicability: partial
+    l2_note: "limited L2 overlap"
 
   # --- gv_government children ---
   gv_prep_vs_nprep:
     parent: gv_government
     description: "Prepositional vs non-prepositional government"
     paras: "§198"
+    l2_applicability: partial
+    l2_note: "L2: often wrong preposition/case entirely"
   gv_prep_choice:
     parent: gv_government
     description: "Preposition choice (в/на, с/из)"
     paras: "§199"
+    l2_applicability: partial
+    l2_note: "L2: systematic L1 transfer errors"
   gv_case_choice:
     parent: gv_government
     description: "Case selection by governing word"
     paras: "§200"
+    l2_applicability: partial
+    l2_note: "L2: fundamental case errors"
   gv_neg_genitive:
     parent: gv_government
     description: "Genitive vs accusative under negation"
     paras: "§201"
+    l2_applicability: full
   gv_double_gov:
     parent: gv_government
     description: "Double government / case stacking"
     paras: "§202–205"
+    l2_applicability: partial
+    l2_note: "stylistic issue"
 
   # --- sy_word_order children ---
   sy_wo_subject:
     parent: sy_word_order
     description: "Subject and predicate position"
     paras: "§178"
+    l2_applicability: partial
+    l2_note: "L2: L1-transfer word order"
   sy_wo_modifier:
     parent: sy_word_order
     description: "Modifier/attribute position"
     paras: "§179"
+    l2_applicability: partial
+    l2_note: "L2: L1-transfer word order"
   sy_wo_other:
     parent: sy_word_order
     description: "Complement, adverbial, and other word order"
     paras: "§180–182"
+    l2_applicability: partial
+    l2_note: "L2: L1-transfer word order"
 
   # --- sy_construction children ---
   sy_parallel:
     parent: sy_construction
     description: "Parallel constructions"
     paras: "§211–213"
+    l2_applicability: partial
+    l2_note: "L2: broader structural errors"
   sy_homogeneous:
     parent: sy_construction
     description: "Homogeneous members"
     paras: "§206–210"
+    l2_applicability: partial
+    l2_note: "L2: broader errors"
   sy_sentence_type:
     parent: sy_construction
     description: "Sentence type choice (nominative, infinitive)"
     paras: "§176–177"
+    l2_applicability: partial
+    l2_note: "L2: some overlap with English transfer"
 
   # --- pu_comma children ---
   pu_comma_homogeneous:
     parent: pu_comma
     description: "Commas with homogeneous members"
     paras: "§83–89"
+    l2_applicability: full
   pu_comma_repeated:
     parent: pu_comma
     description: "Commas with repeated words"
     paras: "§90–91"
+    l2_applicability: full
   pu_comma_isolation:
     parent: pu_comma
     description: "Commas for isolated members (обособление)"
     paras: "§92–95"
+    l2_applicability: full
   pu_comma_clarifying:
     parent: pu_comma
     description: "Commas for clarifying/appositive members"
     paras: "§96–98"
+    l2_applicability: full
   pu_comma_parenthetical:
     parent: pu_comma
     description: "Commas with parenthetical words/phrases"
     paras: "§99–103"
+    l2_applicability: full
 
   # --- pu_dash children ---
   pu_dash_subj_pred:
     parent: pu_dash
     description: "Dash between subject and predicate"
     paras: "§79"
+    l2_applicability: full
   pu_dash_apposition:
     parent: pu_dash
     description: "Dash in incomplete sentences"
     paras: "§80"
+    l2_applicability: full
   pu_dash_other:
     parent: pu_dash
     description: "Other dash usage"
     paras: "§81–82"
+    l2_applicability: full
 
   # --- pu_clause children ---
   pu_clause_compound:
     parent: pu_clause
     description: "Compound sentence (сложносочинённое)"
     paras: "§104–106"
+    l2_applicability: full
   pu_clause_subordinate:
     parent: pu_clause
     description: "Subordinate clause (сложноподчинённое)"
     paras: "§107–113"
+    l2_applicability: full
   pu_clause_comparative:
     parent: pu_clause
     description: "Idiomatic phrases and comparative constructions"
     paras: "§114–115"
+    l2_applicability: full
   pu_clause_indivisible:
     parent: pu_clause
     description: "Indivisible expressions (цельные по смыслу сочетания)"
     paras: "§87, §90, §114"
+    l2_applicability: full
+    l2_note: "synterr-assigned (not in rozental annotation); punct rule, both populations"
   pu_clause_asyndetic:
     parent: pu_clause
     description: "Asyndetic complex sentences (бессоюзное)"
     paras: "§116–118"
+    l2_applicability: full
 
   # --- pu_speech_quotes children ---
   pu_direct_speech:
     parent: pu_speech_quotes
     description: "Direct speech punctuation"
     paras: "§119–123"
+    l2_applicability: full
   pu_citation:
     parent: pu_speech_quotes
     description: "Citations and epigraphs"
     paras: "§124–127"
+    l2_applicability: full
   pu_quotation_marks:
     parent: pu_speech_quotes
     description: "Quotation mark usage"
     paras: "§128–132"
+    l2_applicability: full
 
   # --- pu_other children ---
   pu_sentence_final:
     parent: pu_other
     description: "Sentence-final punctuation (./!/?/...)"
     paras: "§75–78"
+    l2_applicability: full
   pu_combinations:
     parent: pu_other
     description: "Combinations of punctuation marks"
     paras: "§133–138"
+    l2_applicability: full
 
   # --- lx_word_choice children ---
   lx_paronym:
     parent: lx_word_choice
     description: "Paronym confusion"
     paras: "§139"
+    l2_applicability: full
   lx_pleonasm:
     parent: lx_word_choice
     description: "Pleonasm and tautology"
     paras: "§141"
+    l2_applicability: partial
+    l2_note: "L2: less common than native"
   lx_cliche:
     parent: lx_word_choice
     description: "Bureaucratese, clichés, euphony, phraseology"
     paras: "§140, §142–143"
+    l2_applicability: none
+    l2_note: "bureaucratese, euphony; native style"
 
   # --- lx_structural children ---
   lx_word_missing:
     parent: lx_structural
     description: "Missing word (needs insertion)"
     paras: ""
+    l2_applicability: none
+    l2_note: "structural L2 error; no Rozental para"
   lx_word_extra:
     parent: lx_structural
     description: "Extra word (needs deletion)"
     paras: ""
+    l2_applicability: none
+    l2_note: "structural L2 error; no Rozental para"
 
 # =============================================================================
 # MODIFIERS (compositional, same approach as RLC)

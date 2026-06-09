@@ -198,6 +198,8 @@ class GeneratedSentence:
                 err_dict["schema_tag"] = err.schema_tag
             if err.schema_l2_tag is not None:
                 err_dict["schema_l2_tag"] = err.schema_l2_tag
+            if err.schema_l2_applicability is not None:
+                err_dict["schema_l2_applicability"] = err.schema_l2_applicability
             errors_list.append(err_dict)
 
         record: dict = {
@@ -423,6 +425,7 @@ class ErrorPipeline:
                         fix_tag=err.fix_tag,
                         schema_tag=err.schema_tag,
                         schema_l2_tag=err.schema_l2_tag,
+                        schema_l2_applicability=err.schema_l2_applicability,
                     )
                 )
             else:
@@ -476,18 +479,22 @@ class ErrorPipeline:
         modified: set[int] = set()
         errors: list[ErrorResult] = []
 
-        # Separate length-changing handlers (applied last to avoid index corruption)
-        length_handlers = [h for h in self.handlers if h.changes_length]
-
-        # Apply regular errors first (don't change indices)
+        # All draws come from the weighted distribution. Length-changing
+        # draws are deferred (at most one) and applied last so they can't
+        # corrupt the indices of earlier errors.
         num_errors = self._rng.randint(1, self.config.max_errors_per_sentence)
+        pending_length_handler: ErrorHandler | None = None
 
         for _ in range(num_errors):
             if len(modified) >= len(tokens):
                 break
 
             handler = self._sample_error_type()
-            if handler is None or handler.changes_length:
+            if handler is None:
+                continue
+            if handler.changes_length:
+                if pending_length_handler is None:
+                    pending_length_handler = handler
                 continue
 
             applicable = self._find_applicable_indices(handler, tokens, modified)
@@ -502,10 +509,9 @@ class ErrorPipeline:
                 errors.append(result)
                 modified.add(idx)
 
-        # Apply length-changing errors last (if any)
-        # Note: For simplicity, we only apply one length-changing error per sentence
-        if length_handlers and self._rng.random() < 0.3:
-            handler = self._rng.choice(length_handlers)
+        # Apply the deferred length-changing error last (if one was drawn)
+        if pending_length_handler is not None:
+            handler = pending_length_handler
             applicable = self._find_applicable_indices(handler, tokens, modified)
             if applicable:
                 idx = self._rng.choice(applicable)
@@ -605,6 +611,9 @@ class ErrorPipeline:
         l2 = self.schema.get_l2_tag_for_subtype(subtype)
         if l2:
             error.schema_l2_tag = l2
+            applicability = self.schema.fine_grained_tags[l2].l2_applicability
+            if applicability:
+                error.schema_l2_applicability = applicability
 
     def _get_category_label(self, category: str, error_type: str | None = None) -> str:
         """Get detection category label.

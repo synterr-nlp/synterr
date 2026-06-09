@@ -41,6 +41,8 @@ class FineGrainedTag:
     parent: str
     description: str = ""
     paras: str = ""
+    l2_applicability: str = ""  # full | partial | none — does the native Rozental § describe the L2 error
+    l2_note: str = ""
 
 
 @dataclass
@@ -288,6 +290,8 @@ def _parse_fine_grained_tags(data: dict) -> dict[str, FineGrainedTag]:
                 parent=tag_info.get("parent", ""),
                 description=tag_info.get("description", ""),
                 paras=tag_info.get("paras", ""),
+                l2_applicability=tag_info.get("l2_applicability", ""),
+                l2_note=tag_info.get("l2_note", ""),
             )
 
     return tags
