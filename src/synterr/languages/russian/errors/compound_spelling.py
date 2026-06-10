@@ -62,6 +62,10 @@ _POL_MERGED_RE = re.compile(r"^пол([а-яё]{2,})$", re.IGNORECASE)
 
 # Common compound adjectives that should be HYPHENATED (coordinate structure)
 # Error direction: remove the dash (merge them incorrectly)
+# NOTE: only coordinate ("X и Y") compounds belong here. Subordinate compounds
+# whose normative spelling is SOLID (молочнокислый ← молочная кислота,
+# народнохозяйственный ← народное хозяйство, плодоовощной) live in
+# _MERGED_COMPOUNDS below — listing them here inverted the error direction.
 _HYPHENATED_COMPOUNDS: set[str] = {
     "военно-полевой",
     "военно-морской",
@@ -75,8 +79,8 @@ _HYPHENATED_COMPOUNDS: set[str] = {
     "учебно-методический",
     "учебно-воспитательный",
     "молочно-растительный",
-    "молочно-кислый",
-    "народно-хозяйственный",
+    "молочно-белый",
+    "журнально-газетный",
     "народно-демократический",
     "социально-экономический",
     "социально-политический",
@@ -87,7 +91,6 @@ _HYPHENATED_COMPOUNDS: set[str] = {
     "массово-политический",
     "мясо-молочный",
     "плодово-ягодный",
-    "плодово-овощной",
     "ремонтно-строительный",
     "ремонтно-механический",
     "сердечно-сосудистый",
@@ -102,6 +105,76 @@ _HYPHENATED_COMPOUNDS: set[str] = {
     "юго-западный",
     "юго-восточный",
 }
+
+# Stems for inflected-form matching: strip the 2-char nominative ending
+# (военно-полевой → военно-полев). A stem match alone is not enough — the
+# remainder must be a real adjectival ending (see _ADJ_ENDINGS), so the
+# nouns юго-восток/северо-запад (§43, стороны света) no longer match the
+# adjective stems юго-восточн-/северо-западн- and are not mislabeled as
+# compound_adj.
+_HYPHENATED_COMPOUND_STEMS: frozenset[str] = frozenset(
+    compound[:-2] for compound in _HYPHENATED_COMPOUNDS
+)
+
+# Compound adjectives whose normative spelling is SOLID (subordinate
+# structure: первая часть подчинена второй, §44). Error direction: insert
+# a dash at the component boundary (железнодорожный → железно-дорожный).
+# Stanza always keeps solid tokens whole, so this direction is robust to
+# the tokenizer splitting hyphenated compounds into fragments.
+# Stored as (first_component, second_component_stem) — ending stripped.
+_MERGED_COMPOUNDS_RAW: list[tuple[str, str]] = [
+    ("железно", "дорожн"),  # железная дорога
+    ("сельско", "хозяйственн"),  # сельское хозяйство
+    ("народно", "хозяйственн"),  # народное хозяйство
+    ("машино", "строительн"),  # машиностроение
+    ("естественно", "научн"),  # естественные науки
+    ("древне", "русск"),  # Древняя Русь
+    ("дальне", "восточн"),  # Дальний Восток
+    ("западно", "европейск"),  # Западная Европа
+    ("восточно", "европейск"),  # Восточная Европа
+    ("средне", "азиатск"),  # Средняя Азия
+    ("молочно", "кисл"),  # молочная кислота
+    ("обще", "образовательн"),  # общее образование
+    ("легко", "атлетическ"),  # лёгкая атлетика
+    ("хлопчато", "бумажн"),  # хлопчатая бумага
+    ("железо", "бетонн"),  # железобетон
+]
+
+# solid stem → dash insertion position
+_MERGED_COMPOUND_STEMS: dict[str, int] = {
+    first + second: len(first) for first, second in _MERGED_COMPOUNDS_RAW
+}
+
+# Closed set of Russian adjectival endings. Used to validate the remainder
+# after a stem match; rejects derived nouns (железнодорожник: remainder
+# "ик" is not an adjective ending).
+_ADJ_ENDINGS: frozenset[str] = frozenset(
+    {
+        "ый", "ий", "ой", "ая", "яя", "ое", "ее", "ые", "ие",
+        "ого", "его", "ому", "ему", "ым", "им", "ом", "ем",
+        "ей", "ую", "юю", "ых", "их", "ыми", "ими",
+    }
+)  # fmt: skip
+
+
+def _match_hyphenated_compound(text_lower: str) -> bool:
+    """Token is an (inflected) form of a known hyphenated compound adjective."""
+    if "-" not in text_lower:
+        return False
+    for stem in _HYPHENATED_COMPOUND_STEMS:
+        if text_lower.startswith(stem) and text_lower[len(stem) :] in _ADJ_ENDINGS:
+            return True
+    return False
+
+
+def _match_merged_compound(text_lower: str) -> int | None:
+    """Return dash-insertion boundary if token is a known solid compound adjective."""
+    if "-" in text_lower:
+        return None
+    for stem, boundary in _MERGED_COMPOUND_STEMS.items():
+        if text_lower.startswith(stem) and text_lower[len(stem) :] in _ADJ_ENDINGS:
+            return boundary
+    return None
 
 
 # Numerals matching ^пол... that pymorphy may tag as Sgtm nouns but which
@@ -118,6 +191,17 @@ _POL_DENYLIST: frozenset[str] = frozenset(
 # common noun, and corrupting them yields non-words (Пол-ьша).
 _PROPER_NOUN_GRAMMEMES: frozenset[str] = frozenset(
     {"Geox", "Name", "Surn", "Patr", "Orgn", "Trad", "Abbr"}
+)
+
+# High-frequency §46а compounds that fail the Sgtm test: pymorphy parses
+# полчаса/полсотни as plain nouns (no Sgtm) and полбеды as PRED. Nominative
+# forms only — oblique forms switch to полу- (получаса) and must not match.
+_POL_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "полчаса",
+        "полсотни",
+        "полбеды",
+    }
 )
 
 
@@ -141,6 +225,8 @@ def _is_pol_compound(text_lower: str) -> bool:
         return False
     if text_lower in _POL_DENYLIST:
         return False
+    if text_lower in _POL_ALLOWLIST:
+        return True
     remainder = m.group(1)
     analyzer = get_morpheme_analyzer()
 
@@ -210,6 +296,12 @@ class CompoundSpellingHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         text = tokens[idx].text
 
+        # Never corrupt dash fragments: stanza splits hyphenated compounds
+        # context-dependently into "военно-"+"полевой" or "военно"+"-"+"полевой".
+        # Corrupting a bare fragment poisons both sides of the training pair.
+        if text.startswith("-") or text.endswith("-"):
+            return False
+
         # Rule 17: number-adjective or letter-adjective with dash
         if _NUM_DASH_ADJ_RE.match(text) or _LETTER_DASH_CYRILLIC_RE.match(text):
             return True
@@ -221,17 +313,12 @@ class CompoundSpellingHandler:
         if _POL_DASH_RE.match(text_lower) or _is_pol_compound(text_lower):
             return True
 
-        # Rule 36: hyphenated compound adjective
-        if "-" in text and all(
-            c == "-" or "\u0430" <= c <= "\u044f" or c == "ё" for c in text_lower
-        ):
-            # Check if it's a known hyphenated compound
-            if text_lower in _HYPHENATED_COMPOUNDS:
-                return True
-            # Check inflected forms: strip common endings and check
-            for compound in _HYPHENATED_COMPOUNDS:
-                if text_lower.startswith(compound[: compound.index("-") + 1]):
-                    return True
+        # Rule 36: compound adjective — hyphenated (remove dash) or solid
+        # (insert dash at component boundary); both are §44 confusions
+        if _match_hyphenated_compound(text_lower):
+            return True
+        if _match_merged_compound(text_lower) is not None:
+            return True
 
         return False
 
@@ -247,6 +334,11 @@ class CompoundSpellingHandler:
         text = sentence[idx]
         text_lower = text.lower()
 
+        # Dash fragments from stanza tokenization ("военно-", "-полевой", "-")
+        # must never be corrupted (mirrors the can_apply guard).
+        if text.startswith("-") or text.endswith("-"):
+            return None
+
         candidates: list[tuple[str, float]] = []
 
         # Check each subtype
@@ -260,15 +352,21 @@ class CompoundSpellingHandler:
         if _POL_DASH_RE.match(text_lower) or _is_pol_compound(text_lower):
             candidates.append(("pol_spelling", self._weights["pol_spelling"]))
 
-        if "-" in text:
-            for compound in _HYPHENATED_COMPOUNDS:
-                if text_lower.startswith(compound[: compound.index("-") + 1]):
-                    candidates.append(("compound_adj", self._weights["compound_adj"]))
-                    break
+        if (
+            _match_hyphenated_compound(text_lower)
+            or _match_merged_compound(text_lower) is not None
+        ):
+            candidates.append(("compound_adj", self._weights["compound_adj"]))
 
         if self._enabled_subtypes is not None:
             candidates = [c for c in candidates if c[0] in self._enabled_subtypes]
 
+        if not candidates:
+            return None
+
+        # weight 0 means excluded — drop before the draw so an all-zero
+        # candidate set skips instead of crashing rng.choices
+        candidates = [c for c in candidates if c[1] > 0]
         if not candidates:
             return None
 
@@ -322,6 +420,11 @@ class CompoundSpellingHandler:
         if dash_match:
             # пол-лимона → поллимона (remove dash = merge incorrectly)
             rest = text[4:]  # after "пол-"
+            # Proper names after пол- (§46б: пол-Москвы) keep an internal
+            # capital; lowercase it on merge — "полмосквы" is a real learner
+            # error, "полМосквы" is a tokenizer artifact, not Russian.
+            if not text.isupper():
+                rest = rest[0].lower() + rest[1:]
             corrupted = text[:3] + rest  # "пол" + rest (no dash)
             # Preserve original case
             if text[0].isupper():
@@ -353,12 +456,33 @@ class CompoundSpellingHandler:
     def _corrupt_compound_adj(
         self, sentence: list[str], idx: int
     ) -> ErrorResult | None:
-        """Remove dash from compound adjective: военно-полевой → военнополевой."""
-        text = sentence[idx]
-        if "-" not in text:
-            return None
+        """Swap merge/hyphen in compound adjectives (§44, both directions).
 
-        corrupted = text.replace("-", "", 1)
+        Hyphenated (coordinate) → solid: военно-полевой → военнополевой.
+        Solid (subordinate) → hyphenated: железнодорожный → железно-дорожный.
+        """
+        text = sentence[idx]
+        text_lower = text.lower()
+
+        if "-" in text:
+            if not _match_hyphenated_compound(text_lower):
+                return None
+            head, _, tail = text.partition("-")
+            if not tail:
+                return None
+            # Capitalized geo compounds (Юго-Восточной) capitalize each
+            # segment; on merge the internal capital must drop — learners
+            # write "Юговосточной", never camelCase "ЮгоВосточной".
+            # Fully-uppercase tokens (ЮГО-ВОСТОЧНОЙ) stay uppercase.
+            if not text.isupper():
+                tail = tail[0].lower() + tail[1:]
+            corrupted = head + tail
+        else:
+            boundary = _match_merged_compound(text_lower)
+            if boundary is None:
+                return None
+            corrupted = text[:boundary] + "-" + text[boundary:]
+
         if corrupted == text:
             return None
 

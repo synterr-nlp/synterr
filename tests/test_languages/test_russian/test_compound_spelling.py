@@ -132,6 +132,43 @@ class TestPolSpelling:
         assert result is None
         assert sentence[0] == word
 
+    def test_pol_proper_name_merge_lowercases_internal_capital(self):
+        """Regression: пол-Москвы merged must give полмосквы, never the
+        camelCase tokenizer artifact полМосквы (§46б)."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok("пол-Москвы", pos="NOUN")]
+        sentence = ["пол-Москвы"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence[0] == "полмосквы"
+
+    @pytest.mark.parametrize(
+        ("word", "expected"),
+        [
+            ("полчаса", "пол-часа"),
+            ("полсотни", "пол-сотни"),
+            ("полбеды", "пол-беды"),
+        ],
+    )
+    def test_allowlist_high_frequency_pol_words_fire(self, word, expected):
+        """Regression: pymorphy parses полчаса/полсотни without Sgtm and
+        полбеды as PRED, so the Sgtm gate skipped the most frequent §46а
+        targets. The explicit allowlist must admit them."""
+        assert _is_pol_compound(word) is True
+        h = CompoundSpellingHandler()
+        tokens = [_tok(word)]
+        sentence = [word]
+        assert h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "compound_spelling_pol_spelling"
+        assert sentence[0] == expected
+
+    def test_oblique_polu_form_not_in_allowlist(self):
+        """получаса (oblique of полчаса, полу- variant) must stay rejected:
+        пол-учаса would be garbage."""
+        assert _is_pol_compound("получаса") is False
+
 
 class TestNumDash:
     def test_remove_dash_from_num_adj(self):
@@ -153,6 +190,92 @@ class TestCompoundAdj:
         assert result is not None
         assert result.error_type == "compound_spelling_compound_adj"
         assert sentence[0] == "военноморской"
+
+    def test_capitalized_compound_merge_lowercases_second_segment(self):
+        """Regression: Юго-Восточной merged must give Юговосточной, never
+        the camelCase non-word ЮгоВосточной."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok("Юго-Восточной", pos="ADJ")]
+        sentence = ["Юго-Восточной"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence[0] == "Юговосточной"
+
+    def test_fully_uppercase_compound_stays_uppercase(self):
+        h = CompoundSpellingHandler()
+        tokens = [_tok("ЮГО-ВОСТОЧНОЙ", pos="ADJ")]
+        sentence = ["ЮГО-ВОСТОЧНОЙ"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence[0] == "ЮГОВОСТОЧНОЙ"
+
+    @pytest.mark.parametrize(
+        ("word", "expected"),
+        [
+            ("железнодорожный", "железно-дорожный"),
+            ("сельскохозяйственных", "сельско-хозяйственных"),
+            ("молочнокислые", "молочно-кислые"),
+        ],
+    )
+    def test_solid_compound_gets_erroneous_hyphen(self, word, expected):
+        """Solid subordinate compounds (§44) are corrupted by inserting a
+        dash at the component boundary. Stanza keeps solid tokens whole, so
+        this direction gives Rule 36 coverage that survives the tokenizer
+        splitting hyphenated compounds into fragments."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok(word, pos="ADJ")]
+        sentence = [word]
+        assert h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "compound_spelling_compound_adj"
+        assert sentence[0] == expected
+
+    @pytest.mark.parametrize("word", ["железнодорожник", "железнодорожника"])
+    def test_derived_nouns_rejected(self, word):
+        """Stem match alone is not enough: железнодорожник is a noun, its
+        remainder 'ик' is not an adjectival ending."""
+        h = CompoundSpellingHandler()
+        assert not h.can_apply([_tok(word, pos="NOUN")], 0)
+
+    @pytest.mark.parametrize(
+        "word",
+        ["молочно-кислые", "народно-хозяйственный", "плодово-овощной"],
+    )
+    def test_solid_norm_words_removed_from_hyphenated_list(self, word):
+        """Regression: these spellings are themselves errors (norms are solid:
+        молочнокислый, народнохозяйственный, плодоовощной). Removing their
+        dash would emit the CORRECT form as 'corrupted' — direction inversion."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok(word, pos="ADJ")]
+        sentence = [word]
+        assert not h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence[0] == word
+
+    @pytest.mark.parametrize("word", ["юго-восток", "юго-востока", "северо-запад"])
+    def test_hyphenated_nouns_not_matched_as_compound_adj(self, word):
+        """Regression: юго-восток is a §43 compound noun (стороны света);
+        corrupting it under the compound_adj (§44) label misattributes the
+        rule. The adjective stems must not prefix-match the nouns."""
+        h = CompoundSpellingHandler()
+        assert not h.can_apply([_tok(word, pos="NOUN")], 0)
+
+    @pytest.mark.parametrize(
+        "fragment", ["военно-", "-полевой", "-", "70-", "-этажный"]
+    )
+    def test_dash_fragments_never_corrupted(self, fragment):
+        """Regression: stanza splits hyphenated compounds into fragments
+        ('военно-' + 'полевой' or 'военно' + '-' + 'полевой'); corrupting a
+        bare fragment poisons both sides of the training pair."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok(fragment, pos="ADJ")]
+        sentence = [fragment]
+        assert not h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence[0] == fragment
 
 
 class TestEnabledSubtypes:
