@@ -22,13 +22,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 ALL_HANDLERS = [
     "spelling", "orthographic_spelling", "function_spelling",
-    "noun_case", "noun_number",
-    "adj_case", "adj_number", "adj_gender",
+    "noun_case", "noun_case_prep", "noun_number",
+    "adj_case", "adj_number", "adj_gender", "adj_form",
+    "adj_double_comparative",
     "verb_person_number", "verb_tense",
+    "numeral_declension",
     "paronym", "preposition", "conjunction",
     "word_omission", "word_insertion",
-    "comma_delete", "comma_pair_delete", "comma_insert", "dash_delete",
-    "compound_spelling", "pleonasm", "collocation",
+    "comma_delete", "comma_pair_delete", "comma_insert",
+    "dash_delete", "dash_to_comma",
+    "compound_spelling", "adverb_spelling", "pleonasm", "collocation",
 ]
 
 
