@@ -8,13 +8,14 @@ from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.adverb_spelling import AdverbSpellingHandler
 
 
-def _tok(text, pos="ADV", lemma=None, idx=0):
+def _tok(text, pos="ADV", lemma=None, idx=0, head_idx=None):
     return AnalyzedToken(
         text=text,
         lemma=lemma or text.lower(),
         pos=pos,
         features={},
         idx=idx,
+        head_idx=head_idx,
     )
 
 
@@ -94,6 +95,283 @@ class TestSeparateToSolid:
         assert result is not None
         assert result.error_type == "adverb_spelling_adverb_separate_to_solid"
         assert sentence == ["наверх"]
+
+
+class TestNoMergeForAdverbialPrepositions:
+    """Regression (§56 п.7 прим.1–2): spatial/temporal words like посередине,
+    наверху, внизу keep SOLID spelling even with a governed noun, so merging
+    'по середине комнаты' → 'посередине комнаты' produces CORRECT Russian —
+    a non-error. The merge direction must be disabled for this family."""
+
+    SPATIAL_PAIRS = [
+        ("по", "середине"),
+        ("на", "верху"),
+        ("в", "низу"),
+        ("в", "верху"),
+        ("с", "боку"),
+        ("с", "верху"),
+        ("с", "низу"),
+        ("в", "глубь"),
+        ("в", "даль"),
+        ("в", "дали"),
+        ("по", "верх"),
+        ("по", "зади"),
+        ("в", "переди"),
+    ]
+
+    @pytest.mark.parametrize(("prep", "noun"), SPATIAL_PAIRS)
+    def test_merge_disabled(self, prep, noun):
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_separate_to_solid"})
+        tokens = [_tok(prep, pos="ADP"), _tok(noun, pos="NOUN", idx=1)]
+        sentence = [prep, noun]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+        assert sentence == [prep, noun]
+
+    @pytest.mark.parametrize(
+        "solid",
+        ["посередине", "наверху", "внизу", "сбоку", "вглубь", "впереди"],
+    )
+    def test_forward_split_still_works(self, solid):
+        """Splitting the bare solid adverb remains a real error."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        sentence = [solid]
+        result = h.apply([_tok(solid)], sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "adverb_spelling_adverb_solid_to_separate"
+
+
+class TestOtovsyuduNotSplit:
+    """Regression: отовсюду is a §56 п.1 prefix+adverb formation (ото-+всюду);
+    the old entry split inside the prefix ('от овсюду' — non-word)."""
+
+    def test_can_apply_false(self):
+        h = AdverbSpellingHandler()
+        assert h.can_apply([_tok("отовсюду")], 0) is False
+
+    def test_apply_returns_none(self):
+        h = AdverbSpellingHandler()
+        sentence = ["отовсюду"]
+        assert h.apply([_tok("отовсюду")], sentence, 0, set(), rng=Random(0)) is None
+        assert sentence == ["отовсюду"]
+
+
+class TestVekiHomographGuard:
+    """Regression: 'на веки' with lemma веко (eyelids) must NOT merge —
+    'Нанесите крем навеки' is fluent Russian, not a spelling error."""
+
+    def test_eyelids_not_merged(self):
+        h = AdverbSpellingHandler()
+        # stanza lemmatizes веки → веко in 'крем на веки'
+        tokens = [_tok("на", pos="ADP"), _tok("веки", pos="NOUN", lemma="веко", idx=1)]
+        sentence = ["на", "веки"]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+        assert sentence == ["на", "веки"]
+
+    def test_time_noun_still_merges(self):
+        """век 'age' reading (на веки вечные) is the §56 п.7 прим.1 word."""
+        h = AdverbSpellingHandler()
+        tokens = [_tok("на", pos="ADP"), _tok("веки", pos="NOUN", lemma="век", idx=1)]
+        sentence = ["на", "веки"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["навеки"]
+
+
+class TestPodryadNounGuard:
+    """Regression: подряд as the noun 'contract' (выиграть подряд на ремонт)
+    must not be split into the non-word 'по дряд' (§56 п.6 lists подряд as
+    adverb only)."""
+
+    def test_noun_pos_blocked(self):
+        h = AdverbSpellingHandler()
+        assert h.can_apply([_tok("подряд", pos="NOUN")], 0) is False
+
+    def test_contract_context_blocked_despite_adv_tag(self):
+        """stanza tags the contract reading ADV too — context guard needed."""
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("выиграла", pos="VERB", lemma="выиграть"),
+            _tok("подряд", pos="ADV", idx=1),
+            _tok("на", pos="ADP", idx=2),
+            _tok("ремонт", pos="NOUN", idx=3),
+        ]
+        assert h.can_apply(tokens, 1) is False
+        sentence = ["выиграла", "подряд", "на", "ремонт"]
+        assert h.apply(tokens, sentence, 1, set(), rng=Random(0)) is None
+        assert sentence == ["выиграла", "подряд", "на", "ремонт"]
+
+    def test_adverbial_reading_still_splits(self):
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("шли", pos="VERB", lemma="идти"),
+            _tok("подряд", pos="ADV", idx=1),
+            _tok("часами", pos="NOUN", idx=2),
+        ]
+        assert h.can_apply(tokens, 1) is True
+        sentence = ["шли", "подряд", "часами"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["шли", "по", "дряд", "часами"]
+
+
+class TestToParticleGuard:
+    """Regression (§57 п.3): the -то hyphen belongs to the indefinite
+    particle; pronominal/demonstrative то must not be merged."""
+
+    def test_to_i_delo_idiom_blocked(self):
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("когда", pos="SCONJ"),
+            _tok("то", pos="DET", lemma="тот", idx=1),
+            _tok("и", pos="PART", idx=2),
+            _tok("дело", pos="NOUN", idx=3),
+        ]
+        sentence = ["когда", "то", "и", "дело"]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+        assert sentence == ["когда", "то", "и", "дело"]
+
+    def test_pronoun_to_blocked(self):
+        h = AdverbSpellingHandler()
+        tokens = [_tok("где", pos="ADV"), _tok("то", pos="PRON", lemma="тот", idx=1)]
+        sentence = ["где", "то"]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+
+    def test_correlative_clause_blocked(self):
+        """'Сделай так, как то советовал отец' — merged form reads as valid
+        Russian with changed meaning."""
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok(",", pos="PUNCT"),
+            _tok("как", pos="SCONJ", idx=1),
+            _tok("то", pos="PART", idx=2),
+            _tok("советовал", pos="VERB", idx=3),
+            _tok("отец", pos="NOUN", idx=4),
+        ]
+        sentence = [",", "как", "то", "советовал", "отец"]
+        assert h.apply(tokens, sentence, 1, set(), rng=Random(0)) is None
+
+    def test_genuine_particle_error_still_fires(self):
+        """'Он куда то ушёл' — standard learner spelling, must still merge."""
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("Он", pos="PRON"),
+            _tok("куда", pos="ADV", idx=1),
+            _tok("то", pos="PART", idx=2),
+            _tok("ушёл", pos="VERB", idx=3),
+        ]
+        sentence = ["Он", "куда", "то", "ушёл"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "adverb_spelling_adverb_separate_to_hyphen"
+        assert sentence == ["Он", "куда-то", "ушёл"]
+
+    def test_nibud_pairs_unaffected(self):
+        h = AdverbSpellingHandler()
+        tokens = [_tok("где", pos="ADV"), _tok("нибудь", pos="PART", idx=1)]
+        sentence = ["где", "нибудь"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["где-нибудь"]
+
+
+class TestMultiHyphenAdverbs:
+    """Regression: точь-в-точь must split on ALL hyphens (the learner error
+    is 'точь в точь', not the half-form 'точь-в точь'); бок-о-бок is itself
+    a misspelling (§58 п.1: 'бок о бок') and is generated as the ERROR."""
+
+    def test_toch_v_toch_full_split(self):
+        h = AdverbSpellingHandler()
+        sentence = ["точь-в-точь"]
+        result = h.apply([_tok("точь-в-точь")], sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "adverb_spelling_adverb_hyphen_to_separate"
+        assert sentence == ["точь", "в", "точь"]
+        assert result.end_idx == 2
+
+    def test_bok_o_bok_headword_removed(self):
+        """'бок-о-бок' is not a correct form — never treated as splittable."""
+        h = AdverbSpellingHandler()
+        assert h.can_apply([_tok("бок-о-бок")], 0) is False
+
+    def test_bok_o_bok_generated_as_error(self):
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("бок", pos="NOUN"),
+            _tok("о", pos="ADP", idx=1),
+            _tok("бок", pos="NOUN", idx=2),
+        ]
+        sentence = ["бок", "о", "бок"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "adverb_spelling_adverb_separate_to_hyphen"
+        assert sentence == ["бок-о-бок"]
+        assert result.original == "бок о бок"
+        assert result.fix_tag == "$SPLIT_бок_о_бок"
+
+    def test_toch_v_toch_not_re_merged(self):
+        """No reverse merge for точь в точь: the separate form is the error,
+        merging it would CORRECT the text, not corrupt it."""
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("точь", pos="ADV"),
+            _tok("в", pos="ADP", idx=1),
+            _tok("точь", pos="ADV", idx=2),
+        ]
+        sentence = ["точь", "в", "точь"]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+
+
+class TestMergeBookkeeping:
+    """Regression: merges must not swallow a neighbor token already corrupted
+    by another handler, and must look up the LIVE sentence text."""
+
+    def test_modified_neighbor_blocks_merge(self):
+        h = AdverbSpellingHandler()
+        tokens = [_tok("на", pos="ADP"), _tok("верх", pos="NOUN", idx=1)]
+        sentence = ["на", "верх"]
+        result = h.apply(tokens, sentence, 0, {1}, rng=Random(0))
+        assert result is None
+        assert sentence == ["на", "верх"]
+
+    def test_live_sentence_text_used_for_pair(self):
+        """If the live sentence no longer matches the analyzed pair, the
+        merge must not fire off stale token text."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_separate_to_solid"})
+        tokens = [_tok("на", pos="ADP"), _tok("верх", pos="NOUN", idx=1)]
+        sentence = ["на", "верхе"]  # corrupted by another handler, not marked
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence == ["на", "верхе"]
+
+    def test_dep_guard_blocks_live_np(self):
+        """With depparse: a noun heading its own NP ('в начале осени') is a
+        live syntactic phrase — skip the merge."""
+        h = AdverbSpellingHandler()
+        tokens = [
+            _tok("в", pos="ADP", head_idx=1),
+            _tok("начале", pos="NOUN", idx=1, head_idx=None),
+            _tok("осени", pos="NOUN", idx=2, head_idx=1),  # depends on начале
+        ]
+        sentence = ["в", "начале", "осени"]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+
+
+class TestFixTagFormat:
+    """Regression: $SPLIT_ tags use underscore separators (matching
+    function_spelling) — a space inside a tag breaks whitespace-tokenized
+    tag parsing."""
+
+    def test_split_tag_uses_underscore(self):
+        h = AdverbSpellingHandler()
+        tokens = [_tok("на", pos="ADP"), _tok("верх", pos="NOUN", idx=1)]
+        sentence = ["на", "верх"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.fix_tag == "$SPLIT_на_верх"
+        assert " " not in result.fix_tag
 
 
 class TestEnabledSubtypes:
