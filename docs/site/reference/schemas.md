@@ -8,7 +8,7 @@ Synterr ships **4 schemas**. Default: `synterr`. Schemas live in `src/synterr/sc
 |---|---|---|
 | `errant` | 32 | ERRANT error taxonomy for Russian GEC evaluation |
 | `rlc` | 35 | Russian Learner Corpus error taxonomy (35 primary + 3 modifiers) |
-| `rozental` | 29 | Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 98 L2) |
+| `rozental` | 29 | Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2) |
 | `synterr` *(default)* | 14 | Synterr native error classification for GECToR training |
 
 
@@ -61,7 +61,7 @@ ERRANT error taxonomy for Russian GEC evaluation
 
 Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 
-**Coverage:** 14/35 tags mapped (40.0%).
+**Coverage:** 15/35 tags mapped (42.9%).
 
 ### Covered tags
 
@@ -72,6 +72,7 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 - `Conj`
 - `Gov`
 - `Hyphen`
+- `Infl`
 - `Lex`
 - `Misspell`
 - `Num`
@@ -94,7 +95,6 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 - `Graph`
 - `Idiom`
 - `Impers`
-- `Infl`
 - `Mode`
 - `Morph`
 - `Nominative`
@@ -107,9 +107,9 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 
 ## `rozental`
 
-Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 98 L2)
+Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2)
 
-**Coverage:** 19/29 tags mapped (65.5%).
+**Coverage:** 20/29 tags mapped (69.0%).
 
 ### Covered tags
 
@@ -117,6 +117,7 @@ Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 98 L2)
 - `gv_government`
 - `lx_structural`
 - `lx_word_choice`
+- `mo_adj_form`
 - `mo_noun_case`
 - `mo_noun_number`
 - `mo_numeral`
@@ -136,7 +137,6 @@ Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 98 L2)
 ### Uncovered tags
 
 - `ag_subject_verb`
-- `mo_adj_form`
 - `mo_noun_gender`
 - `mo_pronoun`
 - `mo_verb_aspect`

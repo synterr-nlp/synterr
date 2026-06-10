@@ -30,6 +30,8 @@ Commands:
   list-languages        List available languages.
   list-presets          List available presets for a language.
   list-schemas          List available linguistic schemas.
+  mine-pools            Mine per-error-class sentence pools from large...
+  survey                Survey per-subtype fire rates of all handlers...
 ```
 
 ## `synterr analyze`
@@ -314,5 +316,50 @@ Usage: synterr synterr list-schemas [OPTIONS]
 
 Options:
   --help  Show this message and exit.
+```
+
+## `synterr mine-pools`
+
+```
+Usage: synterr synterr mine-pools [OPTIONS]
+
+  Mine per-error-class sentence pools from large text sources.
+
+  Sweeps the sources with surface patterns (derived from the live
+  handler lexicons where possible) and reservoir-samples up to CAP
+  candidate sentences per class into OUTDIR/<class>.txt. Candidates
+  are recall-oriented: the handler's can_apply does the precise
+  filtering at generation time.
+
+Options:
+  -s, --source FILE       Text source (one sentence per line); repeatable
+                          [required]
+  -o, --outdir DIRECTORY  Pool output directory
+  --cap INTEGER           Max sentences per class
+  --seed INTEGER
+  --help                  Show this message and exit.
+```
+
+## `synterr survey`
+
+```
+Usage: synterr synterr survey [OPTIONS]
+
+  Survey per-subtype fire rates of all handlers over a corpus.
+
+  Reports emissions per 1k sentences for every error subtype, plus
+  two actionable lists: STARVING (below threshold) and NEVER FIRED.
+  Feed those to `synterr mine-pools` to build targeted source pools.
+
+Options:
+  -l, --lang TEXT         Language code
+  -i, --input FILE        Text file, one sentence per line  [required]
+  -n, --limit INTEGER     Max sentences
+  --tries INTEGER         apply() attempts per applicable token
+  --starving-below FLOAT  Flag subtypes below this many emissions per 1k
+                          sentences
+  -o, --output PATH       JSON report path
+  --seed INTEGER
+  --help                  Show this message and exit.
 ```
 

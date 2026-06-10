@@ -2,16 +2,19 @@
 
 # Handlers and subtypes
 
-**25 handlers, 69 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
+**28 handlers, 75 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
 
 Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 
 | Handler | Subtypes | Category | Length-changing |
 |---|---|---|---|
 | `adj_case` | `adj_case` | `MORPH` | no |
+| `adj_double_comparative` | `adj_double_comparative` | `MORPH` | yes |
+| `adj_form` | `adj_short_full` | `MORPH` | no |
 | `adj_gender` | `adj_gender` | `MORPH` | no |
 | `adj_number` | `adj_number` | `MORPH` | no |
 | `noun_case` | `noun_case` | `MORPH` | no |
+| `noun_case_prep` | `noun_case_prep_e_u` | `MORPH` | no |
 | `noun_number` | `noun_number` | `MORPH` | no |
 | `numeral_declension` | `numeral_poltora`, `numeral_declension` | `MORPH` | no |
 | `verb_person_number` | `verb_person_number` | `MORPH` | no |
@@ -23,14 +26,14 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 | `preposition` | `preposition` | `OTHER` | no |
 | `word_insertion` | `word_insertion` | `OTHER` | yes |
 | `word_omission` | `word_omission` | `OTHER` | yes |
-| `comma_delete` | `comma_subordinate`, `comma_compound`, `comma_parenthetical`, `comma_isolation`, `comma_homogeneous`, `comma_interjection`, `comma_response`, `comma_repeated` | `PUNCT` | yes |
+| `comma_delete` | `comma_subordinate`, `comma_compound`, `comma_parenthetical`, `comma_isolation`, `comma_homogeneous`, `comma_interjection`, `comma_response`, `comma_repeated`, `comma_asyndetic`, `comma_vocative` | `PUNCT` | yes |
 | `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible`, `comma_clause_junction` | `PUNCT` | yes |
 | `comma_pair_delete` | `pair_participle`, `pair_relative`, `pair_gerund`, `pair_parenthetical`, `pair_apposition` | `PUNCT` | yes |
 | `dash_delete` | `dash_subj_pred`, `dash_asyndetic`, `dash_apposition`, `dash_other` | `PUNCT` | yes |
 | `dash_to_comma` | `dash_to_comma_apposition` | `PUNCT` | no |
 | `adverb_spelling` | `adverb_solid_to_separate`, `adverb_separate_to_solid`, `adverb_hyphen_to_separate`, `adverb_separate_to_hyphen` | `SPELL` | yes |
 | `compound_spelling` | `num_dash`, `pol_spelling`, `compound_adj` | `SPELL` | no |
-| `function_spelling` | `ne_attachment`, `ne_detachment`, `conjunction_split`, `conjunction_merge`, `taki_hyphen` | `SPELL` | yes |
+| `function_spelling` | `ne_attachment`, `ne_detachment`, `conjunction_split`, `conjunction_merge`, `taki_hyphen`, `neg_pronoun_ne_ni` | `SPELL` | yes |
 | `orthographic_spelling` | `pre_pri`, `y_i_after_prefix`, `suffix_enk_onk`, `suffix_insk_ensk`, `suffix_its_ets`, `suffix_ek_ik`, `participle_suffix`, `vowel_after_ts`, `vowel_after_sibilant`, `nn_suffix` | `SPELL` | no |
 | `spelling` | `vowel_reduction`, `devoicing`, `prefix_voicing`, `tsa_confusion`, `cluster`, `double_consonant`, `keyboard`, `soft_sign` | `SPELL` | no |
 
@@ -42,6 +45,18 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 Change adjective/participle case.
 
 - `adj_case:adj_case`
+
+### `adj_double_comparative` (1 subtype)
+
+Insert a pleonastic «более» before a synthetic comparative.
+
+- `adj_double_comparative:adj_double_comparative`
+
+### `adj_form` (1 subtype)
+
+Inflect a predicative short adjective to its full form.
+
+- `adj_form:adj_short_full`
 
 ### `adj_gender` (1 subtype)
 
@@ -61,6 +76,12 @@ Change noun case to create morphological error.
 
 - `noun_case:noun_case`
 
+### `noun_case_prep` (1 subtype)
+
+Replace the second locative (-у) with the standard locative (-е).
+
+- `noun_case_prep:noun_case_prep_e_u`
+
 ### `noun_number` (1 subtype)
 
 Change noun number (singular ↔ plural).
@@ -69,7 +90,7 @@ Change noun number (singular ↔ plural).
 
 ### `numeral_declension` (2 subtypes)
 
-Corrupt numeral declension — currently полтора/полторы/полтораста.
+Corrupt numeral declension.
 
 - `numeral_declension:numeral_poltora`
 - `numeral_declension:numeral_declension`
@@ -97,7 +118,7 @@ Replace correct verb/adjective with wrong collocate.
 
 ### `conjunction` (1 subtype)
 
-Replace conjunction to another conjunction from the same semantic group
+Replace conjunction with an attested confusion from the same group.
 
 - `conjunction:conjunction`
 
@@ -115,7 +136,7 @@ Insert redundant words to create pleonasm errors.
 
 ### `preposition` (1 subtype)
 
-Replace preposition to another preposition from the same semantic group
+Replace preposition with an attested confusion from the same group.
 
 - `preposition:preposition`
 
@@ -127,14 +148,14 @@ Insert a filler word (discourse marker, particle) into the sentence.
 
 ### `word_omission` (1 subtype)
 
-Delete a function word (preposition, particle, conjunction, punctuation).
+Delete a function word (preposition or conjunction).
 
 - `word_omission:word_omission`
 
 
 ## PUNCT
 
-### `comma_delete` (8 subtypes)
+### `comma_delete` (10 subtypes)
 
 Delete a comma with L2 subtype classification.
 
@@ -146,6 +167,8 @@ Delete a comma with L2 subtype classification.
 - `comma_delete:comma_interjection`
 - `comma_delete:comma_response`
 - `comma_delete:comma_repeated`
+- `comma_delete:comma_asyndetic`
+- `comma_delete:comma_vocative`
 
 ### `comma_insert` (5 subtypes)
 
@@ -202,7 +225,7 @@ Corrupt compound word spelling: dashes, пол-, compound adjectives.
 - `compound_spelling:pol_spelling`
 - `compound_spelling:compound_adj`
 
-### `function_spelling` (5 subtypes)
+### `function_spelling` (6 subtypes)
 
 Corrupt function word spelling: не/ни, conjunctions, particles.
 
@@ -211,6 +234,7 @@ Corrupt function word spelling: не/ни, conjunctions, particles.
 - `function_spelling:conjunction_split`
 - `function_spelling:conjunction_merge`
 - `function_spelling:taki_hyphen`
+- `function_spelling:neg_pronoun_ne_ni`
 
 ### `orthographic_spelling` (10 subtypes)
 

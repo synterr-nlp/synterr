@@ -52,6 +52,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Pipeline: pipeline.md
   - Architecture: architecture.md
   - Error types: error-types.md
   - Extending synterr: extending.md

@@ -705,6 +705,104 @@ def cmd_generate_sft(
 main.add_command(cmd_generate_sft, name="generate-bea-paper")
 
 
+@main.command("survey")
+@click.option("--lang", "-l", default="ru", help="Language code")
+@click.option(
+    "--input", "-i", "input_file", required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Text file, one sentence per line",
+)
+@click.option("--limit", "-n", type=int, default=2000, help="Max sentences")
+@click.option("--tries", type=int, default=3,
+              help="apply() attempts per applicable token")
+@click.option("--starving-below", type=float, default=5.0,
+              help="Flag subtypes below this many emissions per 1k sentences")
+@click.option("--output", "-o", type=click.Path(), help="JSON report path")
+@click.option("--seed", type=int, default=42)
+def cmd_survey(
+    lang: str,
+    input_file: str,
+    limit: int,
+    tries: int,
+    starving_below: float,
+    output: str | None,
+    seed: int,
+) -> None:
+    """Survey per-subtype fire rates of all handlers over a corpus.
+
+    \b
+    Reports emissions per 1k sentences for every error subtype, plus
+    two actionable lists: STARVING (below threshold) and NEVER FIRED.
+    Feed those to `synterr mine-pools` to build targeted source pools.
+    """
+    import json as _json
+
+    from synterr.discovery import read_sentences, survey
+
+    sentences = read_sentences(Path(input_file), limit=limit)
+    click.echo(f"Read {len(sentences)} sentences from {input_file}")
+
+    report = survey(
+        sentences, lang=lang, tries=tries, seed=seed,
+        starving_below=starving_below,
+        progress=lambda m: click.echo(m, err=True),
+    )
+
+    click.echo(
+        f"\nEmissions per 1k sentences "
+        f"(n={report['n_sentences']}, tries={report['tries']}):"
+    )
+    for et, rate in sorted(report["per_1k"].items(), key=lambda kv: -kv[1]):
+        click.echo(f"  {rate:9.2f}  {et}  ({report['emissions'][et]})")
+    click.echo(f"\nStarving (< {starving_below}/1k):")
+    for et in report["starving"]:
+        click.echo(f"  {et}  ({report['per_1k'][et]}/1k)")
+    click.echo("\nDeclared but never fired:")
+    for d in report["never_fired"]:
+        click.echo(f"  {d}")
+
+    if output:
+        report["input"] = input_file
+        Path(output).write_text(
+            _json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
+        click.echo(f"\nWrote {output}")
+
+
+@main.command("mine-pools")
+@click.option(
+    "--source", "-s", "sources", multiple=True, required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Text source (one sentence per line); repeatable",
+)
+@click.option("--outdir", "-o", type=click.Path(file_okay=False),
+              default="data/pools", help="Pool output directory")
+@click.option("--cap", type=int, default=2000, help="Max sentences per class")
+@click.option("--seed", type=int, default=42)
+def cmd_mine_pools(sources: tuple[str, ...], outdir: str, cap: int, seed: int) -> None:
+    """Mine per-error-class sentence pools from large text sources.
+
+    \b
+    Sweeps the sources with surface patterns (derived from the live
+    handler lexicons where possible) and reservoir-samples up to CAP
+    candidate sentences per class into OUTDIR/<class>.txt. Candidates
+    are recall-oriented: the handler's can_apply does the precise
+    filtering at generation time.
+    """
+    from synterr.discovery import mine_pools
+
+    meta = mine_pools(
+        [Path(s) for s in sources], Path(outdir), cap=cap, seed=seed,
+        progress=lambda m: click.echo(m, err=True),
+    )
+    for name in sorted(meta["sampled"]):
+        click.echo(
+            f"  {name:32s} seen={meta['seen'][name]:>7}  "
+            f"pooled={meta['sampled'][name]}"
+        )
+    click.echo(f"Wrote {outdir}/pools.meta.json")
+
+
 @main.command("classify-jsonl")
 @click.argument("path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--top", type=int, default=20, help="Show top N entries")
