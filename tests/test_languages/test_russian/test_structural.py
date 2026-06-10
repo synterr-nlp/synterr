@@ -136,6 +136,32 @@ class TestWordOmissionHandler:
         assert result.fix_tag == "$APPEND_и"
         assert sentence == ["кошки", "собаки"]
 
+    def test_apply_refused_when_append_anchor_already_modified(self):
+        """$APPEND anchors at idx-1; if another handler already corrupted that
+        token, emitting the edit would overwrite its fix tag in the formatter
+        (one tag per index), leaving the other corruption labeled $KEEP."""
+        tokens = [
+            AnalyzedToken(text="Мама", lemma="мама", pos="NOUN", features={}, idx=0),
+            AnalyzedToken(
+                text="гуляла", lemma="гулять", pos="VERB", features={}, idx=1
+            ),
+            AnalyzedToken(text="с", lemma="с", pos="ADP", features={}, idx=2),
+            AnalyzedToken(text="детьми", lemma="дитя", pos="NOUN", features={}, idx=3),
+            AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=4),
+        ]
+        sentence = ["Мама", "гуляьа", "с", "детьми", "."]  # idx 1 already corrupted
+
+        # Another handler (e.g. spelling_keyboard) already owns index 1.
+        result = self.handler.apply(tokens, sentence, 2, modified={1})
+        assert result is None
+        assert sentence == ["Мама", "гуляьа", "с", "детьми", "."]
+
+        # With the anchor free, deletion proceeds normally.
+        result = self.handler.apply(tokens, sentence, 2, modified=set())
+        assert result is not None
+        assert result.fix_tag == "$APPEND_с"
+        assert result.start_idx == 1
+
 
 class TestWordInsertionError:
     handler = WordInsertionHandler()
@@ -152,7 +178,8 @@ class TestWordInsertionError:
         assert self.handler.changes_length is True
 
     def test_can_apply_detect_index_and_pos_correctly(self):
-        """Test wordInsertion check index correctly."""
+        """apply(idx) inserts *before* tokens[idx]; positions inside clitic
+        groups (after ADP/PART, before enclitics, before PUNCT) are refused."""
         tokens = [
             AnalyzedToken(text="при", lemma="при", pos="ADP", features={}, idx=0),
             AnalyzedToken(text="при", lemma="при", pos="ADP", features={}, idx=1),
@@ -166,14 +193,15 @@ class TestWordInsertionError:
             AnalyzedToken(text="пойдёт", lemma="пойти", pos="VERB", features={}, idx=7),
         ]
 
-        assert self.handler.can_apply(tokens, 0) is True
-        assert self.handler.can_apply(tokens, 1) is True
-        assert self.handler.can_apply(tokens, 2) is True
-        assert self.handler.can_apply(tokens, 3) is True
-        assert self.handler.can_apply(tokens, 4) is True
+        assert self.handler.can_apply(tokens, 0) is True  # sentence-initial
+        assert self.handler.can_apply(tokens, 1) is False  # after ADP
+        assert self.handler.can_apply(tokens, 2) is False  # before PUNCT
+        assert self.handler.can_apply(tokens, 3) is True  # before proclitic ok
+        assert self.handler.can_apply(tokens, 4) is False  # after PART (не)
         assert self.handler.can_apply(tokens, 5) is True
         assert self.handler.can_apply(tokens, 6) is True
-        assert self.handler.can_apply(tokens, 7) is False
+        assert self.handler.can_apply(tokens, 7) is True
+        assert self.handler.can_apply(tokens, 8) is False  # past last token
 
     def test_apply_delete_word_correctly(self):
         """Test WordInsertion insert word correctly."""
@@ -203,7 +231,97 @@ class TestWordInsertionError:
         assert self.handler.apply(tokens, sentence, 3, modified).fix_tag.startswith(
             "$DELETE"
         )
+        # idx 4 = inserting between ADP "на" and its complement — refused.
         assert self.handler.apply(tokens, sentence, 4, modified) is None
+
+    def test_never_inserted_between_preposition_and_complement(self):
+        """'пошёл в [вот] школу' is class-2 implausible garbage; worse,
+        'в это школу' mimics a demonstrative agreement error, contradicting
+        the $DELETE label. Insertion directly after ADP must be refused."""
+        tokens = [
+            AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
+            AnalyzedToken(text="пошёл", lemma="пойти", pos="VERB", features={}, idx=1),
+            AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=2),
+            AnalyzedToken(text="школу", lemma="школа", pos="NOUN", features={}, idx=3),
+            AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=4),
+        ]
+        sentence = ["Он", "пошёл", "в", "школу", "."]
+
+        assert self.handler.can_apply(tokens, 3) is False  # between "в" and "школу"
+        assert self.handler.apply(tokens, sentence, 3, set()) is None
+        assert sentence == ["Он", "пошёл", "в", "школу", "."]
+
+    def test_never_inserted_inside_pp_span_with_depparse(self):
+        """With dep info, 'в большую [вот] школу' (between the ADP and its
+        non-adjacent complement head) is refused even though the previous
+        token is an adjective."""
+        tokens = [
+            AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
+            AnalyzedToken(text="пошёл", lemma="пойти", pos="VERB", features={}, idx=1),
+            AnalyzedToken(
+                text="в", lemma="в", pos="ADP", features={}, idx=2, head_idx=4
+            ),
+            AnalyzedToken(
+                text="большую", lemma="большой", pos="ADJ", features={}, idx=3
+            ),
+            AnalyzedToken(text="школу", lemma="школа", pos="NOUN", features={}, idx=4),
+        ]
+
+        assert self.handler.can_apply(tokens, 4) is False  # inside the PP
+        assert self.handler.can_apply(tokens, 2) is True  # before the whole PP
+
+    def test_never_splits_particle_from_host(self):
+        """Proclitic 'не' must not be split from its verb ('не [ну] читает'),
+        and enclitic 'же' must not be split from its host ('он [вот] же')."""
+        tokens = [
+            AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
+            AnalyzedToken(text="же", lemma="же", pos="PART", features={}, idx=1),
+            AnalyzedToken(text="не", lemma="не", pos="PART", features={}, idx=2),
+            AnalyzedToken(
+                text="читает", lemma="читать", pos="VERB", features={}, idx=3
+            ),
+        ]
+
+        assert self.handler.can_apply(tokens, 1) is False  # before enclitic же
+        assert self.handler.can_apply(tokens, 2) is False  # after PART же
+        assert self.handler.can_apply(tokens, 3) is False  # after PART не
+
+    def test_sentence_initial_insertion_allowed_and_capitalized(self):
+        """Sentence-initial is the canonical filler slot ('Ну, я не знаю').
+        The filler is capitalized when the sentence is, and the original
+        first word keeps its case so $DELETE restores the source exactly."""
+        tokens = [
+            AnalyzedToken(text="Мама", lemma="мама", pos="NOUN", features={}, idx=0),
+            AnalyzedToken(text="мыла", lemma="мыть", pos="VERB", features={}, idx=1),
+            AnalyzedToken(text="раму", lemma="рама", pos="NOUN", features={}, idx=2),
+        ]
+        sentence = ["Мама", "мыла", "раму"]
+        handler = WordInsertionHandler()
+
+        assert handler.can_apply(tokens, 0) is True
+        result = handler.apply(tokens, sentence, 0, set(), rng=_FixedChoice("ну"))
+
+        assert result is not None
+        assert result.start_idx == 0
+        assert result.fix_tag == "$DELETE"
+        assert result.corrupted == "Ну"
+        assert sentence == ["Ну", "Мама", "мыла", "раму"]
+        # Applying $DELETE at position 0 restores the original exactly.
+        assert sentence[1:] == ["Мама", "мыла", "раму"]
+
+    def test_sentence_initial_insertion_keeps_lowercase_fragment(self):
+        """A lowercase-initial fragment gets a lowercase filler."""
+        tokens = [
+            AnalyzedToken(text="мама", lemma="мама", pos="NOUN", features={}, idx=0),
+            AnalyzedToken(text="мыла", lemma="мыть", pos="VERB", features={}, idx=1),
+        ]
+        sentence = ["мама", "мыла"]
+        handler = WordInsertionHandler()
+
+        result = handler.apply(tokens, sentence, 0, set(), rng=_FixedChoice("ну"))
+        assert result is not None
+        assert result.corrupted == "ну"
+        assert sentence == ["ну", "мама", "мыла"]
 
     def test_lexicon_has_no_whitespace_fillers(self):
         """All fillers must be single GECToR tokens (no embedded whitespace).
@@ -270,7 +388,7 @@ class TestWordInsertionError:
         for filler in handler.fillers:
             sentence = ["Мама", "мыла", "раму"]
             before = len(sentence)
-            result = handler.apply(tokens, sentence, 0, set(), rng=_FixedChoice(filler))
+            result = handler.apply(tokens, sentence, 1, set(), rng=_FixedChoice(filler))
 
             assert result is not None
             # Inserted exactly one corrupted-token slot...
