@@ -62,6 +62,43 @@ VOWEL_REDUCTION_UPPER = {
 
 VOWELS = set("аеёиоуыэюяАЕЁИОУЫЭЮЯ")
 
+# Stress homographs: the stress dict stores ONE reading per form (замок → 1,
+# i.e. за́мок), so for the other reading (замо́к) the stressed vowel would be
+# treated as unstressed and corrupted — but reduction only happens in
+# unstressed syllables (§1). These frequent ambiguous forms are skipped.
+STRESS_HOMOGRAPHS = frozenset(
+    {
+        "замок",  # за́мок / замо́к
+        "мука",  # му́ка / мука́
+        "орган",  # о́рган / орга́н
+        "атлас",  # а́тлас / атла́с
+        "ирис",  # и́рис / ири́с
+        "хлопок",  # хло́пок / хлопо́к
+        "дорогой",  # дорого́й / доро́гой
+        "духи",  # ду́хи / духи́
+        "виски",  # ви́ски / виски́
+        "дома",  # до́ма / дома́
+        "уже",  # уже́ / у́же
+        "потом",  # пото́м / по́том
+        "сорок",  # со́рок / соро́к
+        "пора",  # по́ра / пора́
+        "жаркое",  # жа́ркое / жарко́е
+        "пропасть",  # про́пасть / пропа́сть
+        "парить",  # па́рить / пари́ть
+        "стрелки",  # стре́лки / стрелки́
+        "белки",  # бе́лки / белки́
+        "кружки",  # кру́жки / кружки́
+        "полки",  # по́лки / полки́
+        "леса",  # ле́са / леса́
+        "села",  # се́ла / села́
+        "стоит",  # сто́ит / стои́т
+        "гвоздики",  # гво́здики / гвозди́ки
+        "вина",  # ви́на / вина́
+        "мою",  # мо́ю / мою́
+        "плачу",  # пла́чу / плачу́
+    }
+)
+
 # =============================================================================
 # CONSONANT DEVOICING
 # Voiced consonants written as voiceless at word-final position.
@@ -99,7 +136,7 @@ TSA_PATTERNS = {
 CLUSTER_CONFUSIONS = {
     "сч": "щ",  # счастье → щастье
     "зч": "щ",  # возчик → вощик
-    "сш": "ш",  # сшить → шить (hypercorrection)
+    "сш": "ш",  # высший → выший (word-internal only, see _cluster)
     "зж": "ж",  # изжога → ижога
     "стн": "сн",  # честный → чесный (silent consonant)
     "стл": "сл",  # счастливый → счасливый
@@ -122,22 +159,31 @@ PREFIX_VOICED_TO_VOICELESS = {
     "раз": "рас",
     "без": "бес",
     "воз": "вос",
+    "вз": "вс",
     "низ": "нис",
     "чрез": "черес",
-    # Uppercase variants
-    "Из": "Ис",
-    "Раз": "Рас",
-    "Без": "Бес",
-    "Воз": "Вос",
-    "Низ": "Нис",
-    "Чрез": "Черес",
 }
 
-# Voiceless prefix → voiced prefix (used before voiced consonants/vowels)
-PREFIX_VOICELESS_TO_VOICED = {v: k for k, v in PREFIX_VOICED_TO_VOICELESS.items()}
+# Voiceless prefix → voiced prefix (used before voiceless consonants).
+# Not a mechanical inversion: черес- maps to modern через- (черезчур is the
+# attested learner error), not archaic чрез- (§31).
+PREFIX_VOICELESS_TO_VOICED = {
+    "ис": "из",
+    "рас": "раз",
+    "бес": "без",
+    "вос": "воз",
+    "вс": "вз",
+    "нис": "низ",
+    "черес": "через",
+}
 
 # Consonants that trigger voiceless prefix form
 VOICELESS_CONSONANTS = set("пфктшсхцчщПФКТШСХЦЧЩ")
+
+# Voiced consonants: only before these is the з→с prefix swap a plausible
+# learner error. Before vowels and ь/ъ the voiced form is categorical
+# (§31: разузнать, разъезд never devoice), so no swap there.
+VOICED_CONSONANTS = set("бвгджзлмнрБВГДЖЗЛМНР")
 
 # Double consonant errors (common in borrowed words)
 DOUBLE_CONSONANTS = {
@@ -349,11 +395,15 @@ class SpellingErrorHandler:
         if not methods:
             return None
 
-        # Weighted shuffle - sort by random * weight for probabilistic ordering
-        rng.shuffle(methods)
-        methods.sort(key=lambda m: rng.random() * self.weights[m], reverse=True)
+        # First attempt is a TRUE weighted draw so configured subtype weights
+        # approximate actual emission; only on failure do we cascade through
+        # the remaining methods (weighted-shuffle order) as fallbacks.
+        first = rng.choices(methods, weights=[self.weights[m] for m in methods])[0]
+        rest = [m for m in methods if m != first]
+        rng.shuffle(rest)
+        rest.sort(key=lambda m: rng.random() * self.weights[m], reverse=True)
 
-        for method_name in methods:
+        for method_name in [first, *rest]:
             result = self._apply_method(word, method_name, rng, lemma=lemma)
             if result and result.corrupted != word:
                 return result
@@ -380,7 +430,7 @@ class SpellingErrorHandler:
         elif method == "cluster":
             return self._cluster(word)
         elif method == "double_consonant":
-            return self._double_consonant(word, rng)
+            return self._double_consonant(word, rng, lemma=lemma)
         elif method == "keyboard":
             return self._keyboard_typo(word, rng)
         elif method == "soft_sign":
@@ -399,6 +449,12 @@ class SpellingErrorHandler:
 
         # Get stress position
         word_lower = word.lower()
+
+        # Stress homographs have two readings but one dict entry — the other
+        # reading's stressed vowel would be corrupted (§1 violation). Skip.
+        if word_lower in STRESS_HOMOGRAPHS:
+            return None
+
         stress_pos = self.stress_dict.get(word_lower, -1)
 
         # Without stress info, skip vowel reduction
@@ -518,15 +574,15 @@ class SpellingErrorHandler:
                 # Get the consonant after the prefix
                 next_char = word[prefix_len]
 
-                # If next char is voiceless, this is actually correct usage
-                # Error: using voiced prefix before voiceless consonant (which is wrong)
-                # But we want to CREATE errors, so we swap to wrong form
-                if next_char in VOICELESS_CONSONANTS:
-                    # Word correctly uses voiced prefix before voiceless - no error possible
-                    # (this would be a correct word that we shouldn't corrupt this way)
+                # The swap is only plausible before a voiced consonant, where
+                # the з/с rule actually operates. Before vowels and ь/ъ the
+                # voiced form is categorical (§31: разузнать, разъезд) — no
+                # speaker devoices there, so creating *расузнать would model
+                # a confusion that doesn't occur.
+                if next_char not in VOICED_CONSONANTS:
                     continue
                 else:
-                    # Word has voiced prefix before voiced/vowel (correct)
+                    # Word has voiced prefix before voiced consonant (correct)
                     # Create error: swap to voiceless prefix (wrong)
                     # Match case of original prefix
                     if word.startswith(voiced_prefix):
@@ -581,11 +637,21 @@ class SpellingErrorHandler:
         return None
 
     def _cluster(self, word: str) -> PhoneticError | None:
-        """Apply consonant cluster simplification."""
+        """Apply consonant cluster simplification.
+
+        Word-initial сш is always prefix с- + root (§32: prefix с- never
+        changes; сшить, сшибить) — "simplifying" it deletes a morpheme and
+        yields a real verb of different aspect (сшить → шить), not a
+        misspelling. Results that are themselves known words (костный →
+        ко́сный 'inert') are rejected for the same reason: a corruption that
+        stays correct Russian is not an error.
+        """
         word_lower = word.lower()
         for pattern, replacement in CLUSTER_CONFUSIONS.items():
             if pattern in word_lower:
                 pos = word_lower.find(pattern)
+                if pattern == "сш" and pos == 0:
+                    continue
                 orig_segment = word[pos : pos + len(pattern)]
                 # Preserve case pattern
                 if orig_segment.isupper():
@@ -599,29 +665,69 @@ class SpellingErrorHandler:
                 else:
                     repl = replacement
                 corrupted = word[:pos] + repl + word[pos + len(pattern) :]
+                if self._is_known_word(corrupted):
+                    continue
                 return PhoneticError(word, corrupted, "cluster", pos)
         return None
 
+    @staticmethod
+    def _is_known_word(word: str) -> bool:
+        """Check the corruption against the OpenCorpora dictionary.
+
+        Used to reject "corruptions" that are real Russian words — those
+        produce grammatical sentences labeled as errors (non-errors).
+        """
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        return get_morpheme_analyzer().word_is_known(word)
+
     def _double_consonant(
-        self, word: str, rng: Random | None = None
+        self,
+        word: str,
+        rng: Random | None = None,
+        lemma: str | None = None,
     ) -> PhoneticError | None:
         """Remove one consonant from a double pair.
 
         Only reduces existing doubles (аппарат→апарат, коллега→колега).
         Adding doubles to words that don't have them produces gibberish
         (парки→паррки) and is not a real error pattern.
+
+        нн is reduced only when root-internal (ванна→вана, §9). Suffix нн
+        (сделанная, длинный) is the §52 participle/adjective rule, owned by
+        orthographic_spelling:nn_suffix — reducing it here would mislabel the
+        error (this subtype maps to root doubles).
         """
         word_lower = word.lower()
 
         for double, single in DOUBLE_CONSONANTS.items():
             if double in word_lower:
                 pos = word_lower.find(double)
+                if double == "нн" and not self._nn_in_root(word_lower, pos, lemma):
+                    continue
                 # Preserve case of retained character
                 retained_char = single.upper() if word[pos].isupper() else single
                 corrupted = word[:pos] + retained_char + word[pos + 2 :]
                 return PhoneticError(word, corrupted, "double_consonant", pos)
 
         return None
+
+    @staticmethod
+    def _nn_in_root(word_lower: str, pos: int, lemma: str | None) -> bool:
+        """Check via morpheme dict that both н of нн sit inside one ROOT.
+
+        Unknown words return False (conservative): running-text нн is
+        overwhelmingly the §52 suffix, which belongs to nn_suffix.
+        """
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        lemma_lower = lemma.lower() if lemma else None
+        first = analyzer.morpheme_at_char(word_lower, pos, lemma_lower)
+        second = analyzer.morpheme_at_char(word_lower, pos + 1, lemma_lower)
+        if first is None or second is None:
+            return False
+        return first == second and first[1] == "ROOT"
 
     def _keyboard_typo(
         self, word: str, rng: Random | None = None
@@ -662,18 +768,29 @@ class SpellingErrorHandler:
         return PhoneticError(word, corrupted, "keyboard", pos)
 
     def _soft_sign(self, word: str) -> PhoneticError | None:
-        """Soft sign deletion or ъ→ь confusion."""
+        """Soft sign deletion or ъ→ь confusion.
+
+        Deletion is rejected when the result is itself a known word: Russian
+        is full of ь minimal pairs (мать/мат, быть/быт, весь/вес, есть/ест,
+        уголь/угол) where dropping ь yields a grammatical sentence — a
+        non-error. This also prevents учиться→учится, which would duplicate
+        tsa_confusion under the wrong subtype label.
+        """
         if "ь" in word:
             # Don't delete if it would create empty string
             if len(word) < 2:
                 return None
             pos = word.find("ь")
             corrupted = word[:pos] + word[pos + 1 :]
+            if self._is_known_word(corrupted):
+                return None
             return PhoneticError(word, corrupted, "soft_sign", pos)
 
         if "ъ" in word:
             pos = word.find("ъ")
             corrupted = word[:pos] + "ь" + word[pos + 1 :]
+            if self._is_known_word(corrupted):
+                return None
             return PhoneticError(word, corrupted, "soft_sign", pos)
 
         return None
