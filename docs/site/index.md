@@ -23,12 +23,13 @@ models, with two properties most synthetic-corruption tools don't have:
 
 ## Quick taste
 
-![Tagged corruptions: second locative, double comparative, asyndetic comma — each labeled with its Rozental §](assets/fig_corrupt.svg)
+![Tagged corruptions: second locative, double comparative, asyndetic comma](assets/fig_corrupt.svg)
 
-Every corruption names the rule it violates, and JSONL output carries the
-full label set per error:
+Every corruption carries its handler-level error type; select a schema at
+generation time (`--schema rozental`) and each error is additionally
+labeled with §-grounded taxonomy tags:
 
-![A JSONL record with schema_tag, schema_l2_tag and schema_l2_applicability](assets/fig_record.svg)
+![A JSONL record produced with --schema rozental: handler-owned fields plus schema_tag, schema_l2_tag and schema_l2_applicability](assets/fig_record.svg)
 
 ## Citation
 

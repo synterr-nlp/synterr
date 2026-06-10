@@ -121,6 +121,32 @@ Field by field:
 | `schema_l2_tag` | fine-grained L2 tag, mapped to specific Rozental §§ |
 | `schema_l2_applicability` | `full` / `partial` / `none` — does the native Rozental rule describe this error as L2 learners make it (see below) |
 
+### Who owns which tag (and what happens without `--schema`)
+
+Two layers produce the labels, and they have different lifetimes:
+
+- **Handler-owned** — `type`, `category`, `fix_tag`, the span. Always
+  present, schema-independent. `type` is the ground truth of what the
+  corruption *did* (e.g. `noun_case_prep_e_u`).
+- **Schema-owned** — `schema_tag`, `schema_l2_tag`,
+  `schema_l2_applicability`. These exist **only when you pass
+  `--schema`**; there is no default schema in `generate`. Run without it
+  and the JSONL simply has no `schema_*` fields. The same corpus can be
+  re-labeled under a different taxonomy without regenerating — the
+  mapping lives in the schema YAML, not in the corruption.
+
+Available schemas: `rozental` (hierarchical, §-grounded), `rlc`
+(Russian Learner Corpus tags), `errant`. `synterr list-schemas` is
+authoritative.
+
+Related flags elsewhere in the pipeline:
+
+- `synterr corrupt --schema rlc -e Gov` uses the schema in the *other
+  direction* — to resolve a schema tag to the handlers that produce it.
+  `corrupt` output itself always shows handler-owned labels only.
+- `synterr survey` and `synterr mine-pools` are schema-free by design:
+  they report handler subtypes, the stable layer every schema maps onto.
+
 ### Reading `schema_l2_applicability`
 
 The Rozental schema is a *native* taxonomy; this field is the bridge to

@@ -13,19 +13,19 @@
 <text x="32.00px" y="62.60px" xml:space="preserve">$ synterr corrupt -l ru -e noun_case_prep <tspan fill="#a6e3a1">&quot;Мы гуляли в лесу весь день.&quot;</tspan>
 </text><text x="32.00px" y="78.20px" xml:space="preserve">Original:  Мы гуляли в лесу весь день .
 </text><text x="32.00px" y="93.80px" xml:space="preserve">Corrupted: Мы гуляли в лесе весь день .
-</text><text x="32.00px" y="109.40px" xml:space="preserve">Error:     noun_case_prep_e_u @ position 3      # Rozental §152
+</text><text x="32.00px" y="109.40px" xml:space="preserve">Error:     noun_case_prep_e_u @ position 3
 </text><text x="32.00px" y="125.00px" xml:space="preserve">Fix tag:   $REPLACE_лесу
 </text><text x="32.00px" y="140.60px" xml:space="preserve"><tspan fill="#f38ba8">
 </tspan></text><text x="32.00px" y="156.20px" xml:space="preserve"><tspan fill="#f38ba8"/>$ synterr corrupt -l ru -e adj_double_comparative <tspan fill="#a6e3a1">&quot;Эта книга интереснее той.&quot;</tspan>
 </text><text x="32.00px" y="171.80px" xml:space="preserve">Original:  Эта книга интереснее той .
 </text><text x="32.00px" y="187.40px" xml:space="preserve">Corrupted: Эта книга более интереснее той .
-</text><text x="32.00px" y="203.00px" xml:space="preserve">Error:     adj_double_comparative @ position 2  # Rozental §161
+</text><text x="32.00px" y="203.00px" xml:space="preserve">Error:     adj_double_comparative @ position 2
 </text><text x="32.00px" y="218.60px" xml:space="preserve">Fix tag:   $DELETE
 </text><text x="32.00px" y="234.20px" xml:space="preserve"><tspan fill="#f38ba8">
 </tspan></text><text x="32.00px" y="249.80px" xml:space="preserve"><tspan fill="#f38ba8"/>$ synterr corrupt -l ru -e comma_delete --depparse <tspan fill="#a6e3a1">&quot;Лес рубят, щепки летят.&quot;</tspan>
 </text><text x="32.00px" y="265.40px" xml:space="preserve">Original:  Лес рубят , щепки летят .
 </text><text x="32.00px" y="281.00px" xml:space="preserve">Corrupted: Лес рубят щепки летят .
-</text><text x="32.00px" y="296.60px" xml:space="preserve">Error:     comma_asyndetic @ position 1         # Rozental §116
+</text><text x="32.00px" y="296.60px" xml:space="preserve">Error:     comma_asyndetic @ position 1
 </text><text x="32.00px" y="312.20px" xml:space="preserve">Fix tag:   $APPEND_,
 </text>
 </g>

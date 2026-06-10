@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
-<svg width="427.69" height="337.93" xmlns="http://www.w3.org/2000/svg">
+<svg width="675.31" height="385.29" xmlns="http://www.w3.org/2000/svg">
 <style>
 @font-face {
 	font-family: &apos;JetBrains Mono&apos;;
@@ -8,24 +8,27 @@
 	font-weight: normal;
 	font-style: normal;
 }
-</style><rect width="403.69" height="313.93" fill="#1e1e2e" rx="10.00" ry="10.00" x="12.00px" y="12.00px"/>
+</style><rect width="651.31" height="361.29" fill="#1e1e2e" rx="10.00" ry="10.00" x="12.00px" y="12.00px"/>
 <g font-family="JetBrains Mono" font-size="13.00px" fill="#cdd6f4" clip-path="url(#terminalMask)">
-<text x="32.00px" y="62.60px" xml:space="preserve">{
-</text><text x="32.00px" y="78.20px" xml:space="preserve">  <tspan fill="#cba6f7">&quot;original&quot;</tspan>:  <tspan fill="#a6e3a1">&quot;Мы гуляли в лесу весь день .&quot;</tspan>,
-</text><text x="32.00px" y="93.80px" xml:space="preserve">  <tspan fill="#cba6f7">&quot;corrupted&quot;</tspan>: <tspan fill="#a6e3a1">&quot;Мы гуляли в лесе весь день .&quot;</tspan>,
-</text><text x="32.00px" y="109.40px" xml:space="preserve">  <tspan fill="#cba6f7">&quot;errors&quot;</tspan>: [{
-</text><text x="32.00px" y="125.00px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;type&quot;</tspan>: <tspan fill="#a6e3a1">&quot;noun_case_prep_e_u&quot;</tspan>,
-</text><text x="32.00px" y="140.60px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;category&quot;</tspan>: <tspan fill="#a6e3a1">&quot;MORPH&quot;</tspan>,
-</text><text x="32.00px" y="156.20px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;original&quot;</tspan>: <tspan fill="#a6e3a1">&quot;лесу&quot;</tspan>,
-</text><text x="32.00px" y="171.80px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;corrupted&quot;</tspan>: <tspan fill="#a6e3a1">&quot;лесе&quot;</tspan>,
-</text><text x="32.00px" y="187.40px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;fix_tag&quot;</tspan>: <tspan fill="#a6e3a1">&quot;$REPLACE_лесу&quot;</tspan>,
-</text><text x="32.00px" y="203.00px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;schema_tag&quot;</tspan>: <tspan fill="#a6e3a1">&quot;mo_noun_case&quot;</tspan>,
-</text><text x="32.00px" y="218.60px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;schema_l2_tag&quot;</tspan>: <tspan fill="#a6e3a1">&quot;mo_noun_case_prep_e_u&quot;</tspan>,
-</text><text x="32.00px" y="234.20px" xml:space="preserve">    <tspan fill="#cba6f7">&quot;schema_l2_applicability&quot;</tspan>: <tspan fill="#a6e3a1">&quot;partial&quot;</tspan>
-</text><text x="32.00px" y="249.80px" xml:space="preserve">  }],
-</text><text x="32.00px" y="265.40px" xml:space="preserve">  <tspan fill="#cba6f7">&quot;seed&quot;</tspan>: <tspan fill="#fab387">42</tspan>,
-</text><text x="32.00px" y="281.00px" xml:space="preserve">  <tspan fill="#cba6f7">&quot;schema&quot;</tspan>: <tspan fill="#a6e3a1">&quot;rozental&quot;</tspan>
-</text><text x="32.00px" y="296.60px" xml:space="preserve">}
+<text x="32.00px" y="62.60px" xml:space="preserve">$ synterr generate -l ru --preset rulec --schema rozental <tspan fill="#89b4fa">\
+</tspan></text><text x="32.00px" y="78.20px" xml:space="preserve"><tspan fill="#89b4fa"/>      -i clean.txt -o train.jsonl --output-format jsonl --seed 42
+</text><text x="32.00px" y="93.80px" xml:space="preserve"><tspan fill="#f38ba8">
+</tspan></text><text x="32.00px" y="109.40px" xml:space="preserve"><tspan fill="#f38ba8"/>{
+</text><text x="32.00px" y="125.00px" xml:space="preserve">  &quot;original&quot;:  &quot;Мы гуляли в лесу весь день .&quot;,
+</text><text x="32.00px" y="140.60px" xml:space="preserve">  &quot;corrupted&quot;: &quot;Мы гуляли в лесе весь день .&quot;,
+</text><text x="32.00px" y="156.20px" xml:space="preserve">  &quot;errors&quot;: [{
+</text><text x="32.00px" y="171.80px" xml:space="preserve">    &quot;type&quot;: &quot;noun_case_prep_e_u&quot;,          // handler-owned: always present
+</text><text x="32.00px" y="187.40px" xml:space="preserve">    &quot;category&quot;: &quot;MORPH&quot;,
+</text><text x="32.00px" y="203.00px" xml:space="preserve">    &quot;original&quot;: &quot;лесу&quot;,
+</text><text x="32.00px" y="218.60px" xml:space="preserve">    &quot;corrupted&quot;: &quot;лесе&quot;,
+</text><text x="32.00px" y="234.20px" xml:space="preserve">    &quot;fix_tag&quot;: &quot;$REPLACE_лесу&quot;,
+</text><text x="32.00px" y="249.80px" xml:space="preserve">    &quot;schema_tag&quot;: &quot;mo_noun_case&quot;,          // schema-owned: only with --schema
+</text><text x="32.00px" y="265.40px" xml:space="preserve">    &quot;schema_l2_tag&quot;: &quot;mo_noun_case_prep_e_u&quot;,       // → Rozental §152
+</text><text x="32.00px" y="281.00px" xml:space="preserve">    &quot;schema_l2_applicability&quot;: &quot;partial&quot;
+</text><text x="32.00px" y="296.60px" xml:space="preserve">  }],
+</text><text x="32.00px" y="312.20px" xml:space="preserve">  &quot;seed&quot;: 42,
+</text><text x="32.00px" y="327.80px" xml:space="preserve">  &quot;schema&quot;: &quot;rozental&quot;
+</text><text x="32.00px" y="343.40px" xml:space="preserve">}
 </text>
 </g>
 <svg x="12.00px" y="12.00px"><circle cx="13.50" cy="12.00" r="5.50" fill="#FF5A54"/><circle cx="32.50" cy="12.00" r="5.50" fill="#E6BF29"/><circle cx="51.50" cy="12.00" r="5.50" fill="#52C12B"/></svg></svg>
