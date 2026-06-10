@@ -16,23 +16,19 @@ models, with two properties most synthetic-corruption tools don't have:
 ## Where to start
 
 - New to synterr? → [Getting started](getting-started.md)
+- Text in, tagged errors out? → [Pipeline](pipeline.md)
 - Want to understand the design? → [Architecture](architecture.md)
 - Looking for a specific error type? → [Error types](error-types.md)
 - Trying to reproduce paper results? → [Reproducibility](reproducibility.md)
 
 ## Quick taste
 
-```bash
-uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
-# Original:  Мама мыла раму
-# Corrupted: Мама мяла раму
-# Error:     spelling_keyboard
+![Tagged corruptions: second locative, double comparative, asyndetic comma — each labeled with its Rozental §](assets/fig_corrupt.svg)
 
-uv run synterr corrupt -l ru -e noun_case --depparse "Книга лежит на столе."
-# Original:  Книга лежит на столе
-# Corrupted: Книга лежит на стол    (wrong: "лежит на" requires Prep, not Acc)
-# Error:     noun_case
-```
+Every corruption names the rule it violates, and JSONL output carries the
+full label set per error:
+
+![A JSONL record with schema_tag, schema_l2_tag and schema_l2_applicability](assets/fig_record.svg)
 
 ## Citation
 

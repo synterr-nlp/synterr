@@ -27,6 +27,8 @@ corrupts it; it does not correct.
 uv run synterr survey -l ru -i clean.txt -n 2000 -o report.json
 ```
 
+![synterr survey output: emission rates, starving classes, never-fired classes](assets/fig_survey.svg)
+
 Runs every handler over a sample and reports **emissions per 1k
 sentences** for each error subtype, plus two actionable lists:
 
@@ -50,6 +52,8 @@ uv run synterr mine-pools \
     -s big_corpus_1.txt -s big_corpus_2.txt \
     -o data/pools --cap 2000
 ```
+
+![synterr mine-pools output and the resulting fire-rate gain](assets/fig_pools.svg)
 
 Sweeps large sources with per-class surface patterns and
 reservoir-samples up to `--cap` candidate sentences per class into

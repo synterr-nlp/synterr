@@ -98,6 +98,8 @@ uv run synterr list-presets -l ru
 
 ## What's next
 
+- The full contract — text in, tagged errors out, including corpus
+  surveying and pool mining for rare error classes: [Pipeline](pipeline.md)
 - Learn the design: [Architecture](architecture.md)
 - See every error type with examples: [Error types](error-types.md)
 - Reproduce paper data exactly: [Reproducibility](reproducibility.md)
