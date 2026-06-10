@@ -168,16 +168,30 @@ class PleonasmHandler:
             self._pleonasms = _load_pleonasms()
         return self._pleonasms
 
-    @staticmethod
+    # Clause-level boundaries that end the scan for an already-present
+    # redundant word: a verb/punctuation/preposition means we have left the
+    # core word's own phrase, where doubling would be visible. Both UD
+    # (stanza) and OpenCorpora (pymorphy) POS names are listed.
+    _NP_BOUNDARY_POS = frozenset(
+        {"VERB", "AUX", "INFN", "GRND", "PUNCT", "ADP", "PREP"}
+    )
+    _REDUNDANT_SCAN_CAP = 6
+
+    @classmethod
     def _redundant_present(
-        tokens: Sequence[AnalyzedToken], idx: int, redundant: str, pos: str
+        cls, tokens: Sequence[AnalyzedToken], idx: int, redundant: str, pos: str
     ) -> bool:
-        """Whether the redundant word is already adjacent to the core word.
+        """Whether the redundant word already occurs in the core word's phrase.
 
         Inserting "своя" before "автобиографию" in "написал свою
         автобиографию" would produce "свою своя автобиографию" — a repetition,
         not a pleonasm. The data stores citation forms ("своя") while the text
         has inflected forms ("свою"), so we compare at the lemma level.
+
+        The scan covers the whole noun phrase (up to a clause boundary or
+        _REDUNDANT_SCAN_CAP tokens), not just adjacent tokens — "свою очень
+        подробную автобиографию" must block insertion just like "свою
+        автобиографию" (2026-06 audit).
         """
         red = redundant.lower()
         # Lemmatize the redundant word (first token if it's a phrase) so an
@@ -195,11 +209,77 @@ class PleonasmHandler:
                 return True
             return bool(t.lemma and t.lemma.lower() in red_lemmas)
 
-        if pos == "before":
-            window = range(max(0, idx - 2), idx)
-        else:
-            window = range(idx + 1, min(len(tokens), idx + 3))
-        return any(matches(tokens[j]) for j in window)
+        step = -1 if pos == "before" else 1
+        j = idx + step
+        for _ in range(cls._REDUNDANT_SCAN_CAP):
+            if not 0 <= j < len(tokens):
+                break
+            if matches(tokens[j]):
+                return True
+            if str(tokens[j].pos) in cls._NP_BOUNDARY_POS:
+                break
+            j += step
+        return False
+
+    # Inserted single words in these POS classes must agree with the core
+    # word; anything else (adverbs like "вновь", "заранее") is invariant.
+    _DECLINABLE_INSERT_POS = ("ADJF", "PRTF", "NPRO", "NUMR")
+
+    def _prepare_before_insert(
+        self, redundant: str, token: AnalyzedToken
+    ) -> str | None:
+        """Surface form for a single-word `pos=before` insert.
+
+        Declinable modifiers must agree with the core token (2026-06 audit:
+        "окончательный конечной остановке", "первым лидировала" were
+        agreement garbage). Returns None when agreement is required but
+        cannot be established — the caller skips the entry.
+        """
+        parses = _morph().parse(redundant)
+        if not parses:
+            return redundant
+        red_parse = next(
+            (p for p in parses if str(p.tag.POS) in self._DECLINABLE_INSERT_POS),
+            parses[0],
+        )
+        red_pos = str(red_parse.tag.POS)
+        if red_pos not in self._DECLINABLE_INSERT_POS and red_pos != "NOUN":
+            return redundant  # invariant word (adverb etc.) — insert as-is
+
+        core_parse = token.extra.get("pymorphy_parse") if token.extra else None
+        if core_parse is None:
+            return None
+        tag = core_parse.tag
+        core_pos = str(tag.POS)
+
+        if core_pos in ("NOUN", "NPRO", "ADJF", "PRTF"):
+            # Modifier agrees with the core in case/number/gender ("своя" →
+            # "свою автобиографию", "окончательный" → "окончательной
+            # конечной"). A noun insert ("воспоминания мемуары") keeps its
+            # own lexical gender — copy only case/number.
+            if red_pos == "NOUN":
+                wanted = (tag.case, tag.number)
+            else:
+                wanted = (tag.case, tag.number, tag.gender)
+            grams = {g for g in wanted if g is not None}
+            if not grams:
+                return None
+            result = red_parse.inflect(grams)
+            return result.word if result else None
+
+        if core_pos in ("VERB", "INFN"):
+            # "первым лидировал": the modifier keeps its own case but agrees
+            # with the verb in gender/number. Present-tense forms carry no
+            # gender — agreement unestablishable, skip.
+            if tag.gender is not None and tag.number is not None:
+                result = red_parse.inflect({tag.gender, tag.number})
+            elif str(tag.number) == "plur":
+                result = red_parse.inflect({"plur"})
+            else:
+                return None
+            return result.word if result else None
+
+        return None
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
@@ -240,27 +320,41 @@ class PleonasmHandler:
         if not usable:
             return None
 
-        entry = rng.choice(usable)
-        redundant = entry["word"]
-        pos = entry.get("pos", "before")
-
-        # Agreement: a single-word adjectival/pronoun modifier inserted before
-        # a noun should agree with it in case/number/gender ("своя" →
-        # "свою автобиографию"). Only attempt for single tokens; fixed phrases
-        # ("из армии", "первый раз") and adverbs stay as-is.
-        if pos == "before" and " " not in redundant:
-            core_parse = token.extra.get("pymorphy_parse") if token.extra else None
-            if core_parse is not None and core_parse.tag.POS in (
-                "NOUN",
-                "NPRO",
-            ):
-                agreed = _inflect_to_match(redundant, core_parse)
-                if agreed:
-                    redundant = agreed
+        # Pick in random order; entries whose modifier can't be made to
+        # agree with the core token are skipped, not inserted uninflected.
+        entry_order = list(usable)
+        rng.shuffle(entry_order)
+        redundant: str | None = None
+        pos = "before"
+        for entry in entry_order:
+            candidate = entry["word"]
+            pos = entry.get("pos", "before")
+            # Fixed phrases ("из армии", "первый раз") and after-inserts
+            # (invariant genitives like "времени") go in as-is.
+            if pos == "before" and " " not in candidate:
+                candidate = self._prepare_before_insert(candidate, token)
+            if candidate is not None:
+                redundant = candidate
+                break
+        if redundant is None:
+            return None
 
         if pos == "before":
-            # Insert redundant word before the core word
+            # Sentence-initial core: transfer capitalization to the inserted
+            # word ("Ветеран выступил" → "Старый ветеран выступил", not
+            # "старый Ветеран"). Acronyms/proper nouns are left alone.
+            core_word = sentence[idx]
+            transfer_cap = (
+                idx == 0
+                and core_word[:1].isupper()
+                and not core_word.isupper()
+                and str(token.pos) != "PROPN"
+            )
+            if transfer_cap:
+                redundant = redundant[:1].upper() + redundant[1:]
             sentence.insert(idx, redundant)
+            if transfer_cap:
+                sentence[idx + 1] = core_word[0].lower() + core_word[1:]
             return ErrorResult(
                 error_type="pleonasm_pleonasm",
                 category=self.category,
@@ -305,13 +399,33 @@ class CollocationHandler:
             self._collocations = _load_collocations()
         return self._collocations
 
+    @staticmethod
+    def _collocate_linked(
+        tokens: Sequence[AnalyzedToken], idx: int, j: int
+    ) -> bool:
+        """Whether the collocate at `j` is syntactically tied to the word
+        at `idx`.
+
+        A lemma merely co-occurring in the ±5 window is not enough: in
+        "принял гостей, обсуждавших решение" the object of "принял" is
+        "гостей", and replacing the verb would not instantiate the
+        принять+решение collocation (2026-06 audit). With depparse on we
+        require a direct dependency arc in either direction (verb→obj, or
+        amod adjective→head noun); without dep info, adjacency.
+        """
+        target, coll = tokens[idx], tokens[j]
+        if target.head_idx is not None or coll.head_idx is not None:
+            return coll.head_idx == idx or target.head_idx == j
+        return abs(idx - j) == 1
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
         lemma = token.lemma.lower() if token.lemma else token.text.lower()
         if lemma not in self.collocations:
             return False
 
-        # Check if any collocate noun is nearby (within ±5 tokens)
+        # Check if any collocate noun is nearby (within ±5 tokens) and
+        # actually linked to this word
         entries = self.collocations[lemma]
         collocate_lemmas = {e["collocate"] for e in entries}
 
@@ -322,7 +436,7 @@ class CollocationHandler:
                 tokens[j].lemma.lower() if tokens[j].lemma else tokens[j].text.lower()
             )
             for cl in collocate_lemmas:
-                if other_lemma == cl:
+                if other_lemma == cl and self._collocate_linked(tokens, idx, j):
                     return True
         return False
 
@@ -343,7 +457,7 @@ class CollocationHandler:
         if not entries:
             return None
 
-        # Find which collocate is actually present nearby
+        # Find which collocate is actually present nearby and linked
         matching_entries = []
         for entry in entries:
             cl = entry["collocate"]
@@ -351,7 +465,7 @@ class CollocationHandler:
                 if j == idx:
                     continue
                 other_lemma = tokens[j].lemma.lower() if tokens[j].lemma else ""
-                if other_lemma == cl:
+                if other_lemma == cl and self._collocate_linked(tokens, idx, j):
                     matching_entries.append(entry)
                     break
 
