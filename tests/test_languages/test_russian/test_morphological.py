@@ -552,8 +552,12 @@ class TestDepTreeAgreement:
         # Subject is Sing → target Plur
         assert sentence[1] == "читали"
 
-    def test_verb_person_number_without_dep_tree(self):
-        """Test VerbPersonNumberErrorHandler works without dep tree info."""
+    def test_verb_person_number_without_subject_does_not_fire(self):
+        """Pro-drop guard: no overt nsubj → flip would be grammatical, skip.
+
+        "Читала книгу" → "Читали книгу" is a correct Russian sentence (pro-drop),
+        so without an overt subject there is no recoverable error.
+        """
         from synterr.languages.russian.errors.morphological import (
             VerbPersonNumberErrorHandler,
         )
@@ -577,11 +581,173 @@ class TestDepTreeAgreement:
         rng = random.Random(42)
         sentence = ["читала"]
         modified = set()
-        result = handler.apply(tokens, sentence, 0, modified, rng=rng)
 
-        assert result is not None
-        # No nsubj, uses own number (Sing) → target Plur
-        assert sentence[0] == "читали"
+        assert handler.can_apply(tokens, 0) is False
+        assert handler.apply(tokens, sentence, 0, modified, rng=rng) is None
+        assert sentence[0] == "читала"
+
+    def test_verb_person_number_imperative_does_not_fire(self):
+        """Imperatives have no overt subject — Иди/Идите is a free choice."""
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
+
+        handler = VerbPersonNumberErrorHandler()
+        tokens = [
+            AnalyzedToken(
+                text="Иди",
+                lemma="идти",
+                pos="VERB",
+                features={"Mood": "Imp", "Person": "2", "Number": "Sing"},
+                idx=0,
+                dep_rel="root",
+                head_idx=0,
+                extra={"pymorphy_parse": morph.parse("иди")[0]},
+            ),
+            AnalyzedToken(
+                text="сюда",
+                lemma="сюда",
+                pos="ADV",
+                features={},
+                idx=1,
+                dep_rel="advmod",
+                head_idx=0,
+            ),
+        ]
+
+        assert handler.can_apply(tokens, 0) is False
+        sentence = ["Иди", "сюда"]
+        assert handler.apply(tokens, sentence, 0, set(), rng=random.Random(0)) is None
+
+    def _collective_subject_tokens(self, subj_text, subj_lemma, extra_tokens=()):
+        verb_parse = morph.parse("пришло")[0]
+        tokens = [
+            AnalyzedToken(
+                text=subj_text,
+                lemma=subj_lemma,
+                pos="NOUN",
+                features={"Case": "Nom", "Number": "Sing", "Gender": "Neut"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+                extra={"pymorphy_parse": morph.parse(subj_text)[0]},
+            ),
+            AnalyzedToken(
+                text="студентов",
+                lemma="студент",
+                pos="NOUN",
+                features={"Case": "Gen", "Number": "Plur"},
+                idx=1,
+                dep_rel="nmod",
+                head_idx=0,
+                extra={"pymorphy_parse": morph.parse("студентов")[0]},
+            ),
+            AnalyzedToken(
+                text="пришло",
+                lemma="прийти",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Neut"},
+                idx=2,
+                dep_rel="root",
+                head_idx=2,
+                extra={"pymorphy_parse": verb_parse},
+            ),
+            *extra_tokens,
+        ]
+        return tokens
+
+    def test_verb_person_number_collective_subject_does_not_fire(self):
+        """§183: большинство/ряд/часть subjects license both numbers — skip."""
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
+
+        handler = VerbPersonNumberErrorHandler()
+        for subj_text, subj_lemma in [
+            ("Большинство", "большинство"),
+            ("Часть", "часть"),
+        ]:
+            tokens = self._collective_subject_tokens(subj_text, subj_lemma)
+            assert handler.can_apply(tokens, 2) is False, subj_lemma
+            sentence = [t.text for t in tokens]
+            result = handler.apply(tokens, sentence, 2, set(), rng=random.Random(0))
+            assert result is None, subj_lemma
+
+    def test_verb_person_number_quantified_subject_does_not_fire(self):
+        """§184: counting-phrase subjects (пять студентов) license both numbers."""
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
+
+        handler = VerbPersonNumberErrorHandler()
+        verb_parse = morph.parse("пришло")[0]
+        tokens = [
+            AnalyzedToken(
+                text="Пять",
+                lemma="пять",
+                pos="NUM",
+                features={"Case": "Nom"},
+                idx=0,
+                dep_rel="nummod:gov",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("пять")[0]},
+            ),
+            AnalyzedToken(
+                text="студентов",
+                lemma="студент",
+                pos="NOUN",
+                features={"Case": "Gen", "Number": "Plur"},
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
+                extra={"pymorphy_parse": morph.parse("студентов")[0]},
+            ),
+            AnalyzedToken(
+                text="пришло",
+                lemma="прийти",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Neut"},
+                idx=2,
+                dep_rel="root",
+                head_idx=2,
+                extra={"pymorphy_parse": verb_parse},
+            ),
+        ]
+
+        assert handler.can_apply(tokens, 2) is False
+        sentence = [t.text for t in tokens]
+        assert handler.apply(tokens, sentence, 2, set(), rng=random.Random(0)) is None
+
+    def test_verb_person_number_plain_subject_still_fires(self):
+        """Ordinary noun subject (мама) keeps the handler active."""
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
+
+        handler = VerbPersonNumberErrorHandler()
+        tokens = [
+            AnalyzedToken(
+                text="мама",
+                lemma="мама",
+                pos="NOUN",
+                features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("мама")[0]},
+            ),
+            AnalyzedToken(
+                text="читала",
+                lemma="читать",
+                pos="VERB",
+                features={"Tense": "Past", "Number": "Sing", "Gender": "Fem"},
+                idx=1,
+                dep_rel="root",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("читала")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 1) is True
 
 
 class TestConfusionMatrixConfig:
@@ -1273,6 +1439,156 @@ class TestNumeralDeclensionGeneralCardinals:
         assert sentence[0] in {"полтора", "полторы"}
         assert result.error_type == "numeral_declension_numeral_poltora"
 
+    def _polutora_with_noun(self, noun_text, noun_lemma, gender):
+        features = {"Case": "Gen", "Number": "Plur"}
+        if gender is not None:
+            features["Gender"] = gender
+        return [
+            AnalyzedToken(
+                text="полутора",
+                lemma="полтора",
+                pos="NUM",
+                features={"Case": "Gen"},
+                idx=0,
+                dep_rel="nummod",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("полутора")[0]},
+            ),
+            AnalyzedToken(
+                text=noun_text,
+                lemma=noun_lemma,
+                pos="NOUN",
+                features=features,
+                idx=1,
+                dep_rel="obl",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse(noun_text)[0]},
+            ),
+        ]
+
+    def test_polutora_masc_noun_yields_poltora(self):
+        """полутора часов → полтора (masc head noun selects the masc citation
+        form). Regression: the old lemma-keyed lookup always emitted полторы."""
+        handler = self._handler()
+        for seed in range(5):
+            tokens = self._polutora_with_noun("часов", "час", "Masc")
+            sentence = ["полутора", "часов"]
+            result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(seed))
+            assert result is not None
+            assert sentence[0] == "полтора", f"seed {seed}"
+            assert result.error_type == "numeral_declension_numeral_poltora"
+
+    def test_polutora_fem_noun_yields_poltory(self):
+        """полутора минут → полторы (fem head noun)."""
+        handler = self._handler()
+        for seed in range(5):
+            tokens = self._polutora_with_noun("минут", "минута", "Fem")
+            sentence = ["полутора", "минут"]
+            result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(seed))
+            assert result is not None
+            assert sentence[0] == "полторы", f"seed {seed}"
+
+    def test_polutora_no_gender_reaches_both_forms(self):
+        """Pluralia tantum (суток) carry no gender → random, both reachable."""
+        handler = self._handler()
+        seen = set()
+        for seed in range(20):
+            tokens = self._polutora_with_noun("суток", "сутки", None)
+            sentence = ["полутора", "суток"]
+            result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(seed))
+            assert result is not None
+            seen.add(sentence[0])
+        assert seen == {"полтора", "полторы"}
+
+    def test_poltorasta_gets_poltora_subtype(self):
+        """§164 groups полтораста with полтора — subtype must be numeral_poltora."""
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="полутораста",
+            lemma="полтораста",
+            pos="NUM",
+            features={"Case": "Loc"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("полутораста")[0]},
+        )
+        sentence = ["полутораста"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+
+        assert result is not None
+        assert sentence[0] == "полтораста"
+        assert result.error_type == "numeral_declension_numeral_poltora"
+
+    def test_distributive_po_dative_does_not_fire(self):
+        """§164: по пяти раз has the permitted variant по пять раз — skip."""
+        handler = self._handler()
+        po = AnalyzedToken(
+            text="по",
+            lemma="по",
+            pos="ADP",
+            features={},
+            idx=0,
+            dep_rel="case",
+            head_idx=2,
+        )
+        num = AnalyzedToken(
+            text="пяти",
+            lemma="пять",
+            pos="NUM",
+            features={"Case": "Dat", "NumType": "Card"},
+            idx=1,
+            dep_rel="nummod",
+            head_idx=2,
+            extra={"pymorphy_parse": morph.parse("пяти")[0]},
+        )
+        noun = AnalyzedToken(
+            text="яблок",
+            lemma="яблоко",
+            pos="NOUN",
+            features={"Case": "Gen", "Number": "Plur"},
+            idx=2,
+            dep_rel="obj",
+            head_idx=2,
+            extra={"pymorphy_parse": morph.parse("яблок")[0]},
+        )
+        tokens = [po, num, noun]
+        assert handler.can_apply(tokens, 1) is False
+        sentence = ["по", "пяти", "яблок"]
+        assert handler.apply(tokens, sentence, 1, set(), rng=random.Random(0)) is None
+
+    def test_non_distributive_dative_still_fires(self):
+        """Dat without по keeps firing (к пятистам метрам → к пятьсот)."""
+        handler = self._handler()
+        k = AnalyzedToken(
+            text="к",
+            lemma="к",
+            pos="ADP",
+            features={},
+            idx=0,
+            dep_rel="case",
+            head_idx=2,
+        )
+        num = AnalyzedToken(
+            text="пятистам",
+            lemma="пятьсот",
+            pos="NUM",
+            features={"Case": "Dat", "NumType": "Card"},
+            idx=1,
+            dep_rel="nummod",
+            head_idx=2,
+            extra={"pymorphy_parse": morph.parse("пятистам")[0]},
+        )
+        noun = AnalyzedToken(
+            text="метрам",
+            lemma="метр",
+            pos="NOUN",
+            features={"Case": "Dat", "Number": "Plur"},
+            idx=2,
+            dep_rel="obl",
+            head_idx=2,
+            extra={"pymorphy_parse": morph.parse("метрам")[0]},
+        )
+        assert handler.can_apply([k, num, noun], 1) is True
+
 
 _STANZA_BACKEND = None
 
@@ -1349,6 +1665,29 @@ class TestNounCasePrepErrorHandler:
         assert handler.can_apply([prep, tok], 1) is False
         assert loc2 is not None  # sanity
 
+    def test_rejects_e_acceptable_lemmas(self):
+        """-е locative is standard/acceptable for мозг, аэропорт, ряд, сок...
+        (в мозге, в аэропорте, в ряде случаев) — corruption is a non-error."""
+        handler = self._handler()
+        prep = AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0)
+        for text, lemma in [
+            ("мозгу", "мозг"),
+            ("аэропорту", "аэропорт"),
+            ("ряду", "ряд"),
+            ("соку", "сок"),
+        ]:
+            parse = next((p for p in morph.parse(text) if "loc2" in str(p.tag)), None)
+            assert parse is not None, f"no loc2 parse for {text}"
+            tok = AnalyzedToken(
+                text=text,
+                lemma=lemma,
+                pos="NOUN",
+                features={"Case": "Loc"},
+                idx=1,
+                extra={"pymorphy_parse": parse},
+            )
+            assert handler.can_apply([prep, tok], 1) is False, lemma
+
     @pytest.mark.slow
     def test_real_backend_v_lesu(self):
         handler = self._handler()
@@ -1380,19 +1719,79 @@ class TestAdjFormErrorHandler:
         assert handler.category == "MORPH"
         assert handler.changes_length is False
 
-    def test_government_lemma_fallback_applies(self):
-        handler = self._handler()
+    def _sposoben_token(self, dep_rel="advcl"):
         parse = next(p for p in morph.parse("способен") if "ADJS" in str(p.tag))
-        tok = AnalyzedToken(
+        return AnalyzedToken(
             text="способен",
             lemma="способный",
             pos="ADJ",
             features={"Variant": "Short", "Gender": "Masc", "Number": "Sing"},
             idx=0,
-            dep_rel="advcl",
+            dep_rel=dep_rel,
             extra={"pymorphy_parse": parse},
         )
-        assert handler.can_apply([tok], 0) is True
+
+    def test_government_lemma_fallback_requires_complement(self):
+        """§159: without a governed complement the full form is correct —
+        the lemma fallback must not fire ('Он очень способный' is fine)."""
+        handler = self._handler()
+        tok = self._sposoben_token()
+        assert handler.can_apply([tok], 0) is False
+
+    def test_government_lemma_fallback_applies_with_complement(self):
+        handler = self._handler()
+        tok = self._sposoben_token()
+        complement = AnalyzedToken(
+            text="музыке",
+            lemma="музыка",
+            pos="NOUN",
+            features={"Case": "Dat"},
+            idx=1,
+            dep_rel="obl",
+            head_idx=0,
+            extra={"pymorphy_parse": morph.parse("музыке")[0]},
+        )
+        assert handler.can_apply([tok, complement], 0) is True
+
+    def test_xcomp_infinitive_counts_as_complement(self):
+        """'должен уйти': the infinitive is governed, full form cannot take it."""
+        handler = self._handler()
+        parse = next(p for p in morph.parse("должен") if "ADJS" in str(p.tag))
+        tok = AnalyzedToken(
+            text="должен",
+            lemma="должный",
+            pos="ADJ",
+            features={"Variant": "Short", "Gender": "Masc", "Number": "Sing"},
+            idx=0,
+            dep_rel="root",
+            extra={"pymorphy_parse": parse},
+        )
+        inf = AnalyzedToken(
+            text="уйти",
+            lemma="уйти",
+            pos="VERB",
+            features={"VerbForm": "Inf"},
+            idx=1,
+            dep_rel="xcomp",
+            head_idx=0,
+            extra={"pymorphy_parse": morph.parse("уйти")[0]},
+        )
+        assert handler.can_apply([tok, inf], 0) is True
+
+    def test_bare_predicate_without_complement_does_not_fire(self):
+        """Root short adjective with no complement → stylistic choice, skip."""
+        handler = self._handler()
+        parse = next(p for p in morph.parse("готовы") if "ADJS" in str(p.tag))
+        tok = AnalyzedToken(
+            text="готовы",
+            lemma="готовый",
+            pos="ADJ",
+            features={"Variant": "Short", "Number": "Plur"},
+            idx=0,
+            dep_rel="root",
+            extra={"pymorphy_parse": parse},
+        )
+        assert handler.can_apply([tok], 0) is False
 
     def test_rejects_full_adjective(self):
         handler = self._handler()

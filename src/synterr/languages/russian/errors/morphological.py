@@ -490,8 +490,49 @@ class AdjGenderErrorHandler:
         return None
 
 
+_SUBJECT_NSUBJ_DEPRELS = {"nsubj", "nsubj:pass"}
+
+# Subject lemmas with which Rozental §183–184 explicitly permit both singular
+# and plural predicates (большинство студентов пришло/пришли, ряд делегатов
+# участвовал/участвовали) — flipping the predicate's number there is a
+# non-error, so such subjects are skipped entirely.
+_COLLECTIVE_QUANTIFIER_LEMMAS = {
+    "большинство",
+    "меньшинство",
+    "множество",
+    "масса",
+    "ряд",
+    "часть",
+    "половина",
+    "много",
+    "немало",
+    "мало",
+    "несколько",
+    "сколько",
+    "столько",
+    "тысяча",
+    "миллион",
+    "миллиард",
+}
+
+
+def _find_overt_subject(
+    tokens: Sequence[AnalyzedToken], verb_idx: int
+) -> tuple[int, AnalyzedToken] | None:
+    """Find the verb's overt subject (nsubj / nsubj:pass) with its position."""
+    for i, token in enumerate(tokens):
+        if token.head_idx == verb_idx and token.dep_rel in _SUBJECT_NSUBJ_DEPRELS:
+            return i, token
+    return None
+
+
 class VerbPersonNumberErrorHandler:
-    """Change verb person or number."""
+    """Change verb person or number.
+
+    Requires an overt subject: Russian pro-drop makes subjectless flips
+    grammatical ("Иду сюда" / "Идите сюда" are correct sentences), so only a
+    visible nsubj controller turns the flip into a recoverable error.
+    """
 
     name = "verb_person_number"
     subtypes = ["verb_person_number"]
@@ -509,9 +550,34 @@ class VerbPersonNumberErrorHandler:
             return False
         parse = _get_pymorphy_parse(token)
         # Must have either person or number feature
-        return parse is not None and (
+        if parse is None or not (
             token.has_feature("Person") or token.has_feature("Number")
-        )
+        ):
+            return False
+        subject = _find_overt_subject(tokens, idx)
+        if subject is None:
+            return False
+        # §183–184: collective/quantified subjects license both numbers.
+        return not self._is_variant_subject(tokens, *subject)
+
+    @staticmethod
+    def _is_variant_subject(
+        tokens: Sequence[AnalyzedToken], subj_idx: int, subject: AnalyzedToken
+    ) -> bool:
+        """True for subjects where Sing/Plur predicates are both normative.
+
+        Covers collective/quantifier lemmas (большинство, ряд, часть, ...) and
+        counting phrases — a numeral nsubj or an nsubj carrying a nummod
+        dependent ("пять студентов пришло/пришли", §184).
+        """
+        if (subject.lemma or "").lower() in _COLLECTIVE_QUANTIFIER_LEMMAS:
+            return True
+        if subject.pos == "NUM":
+            return True
+        for t in tokens:
+            if t.head_idx == subj_idx and (t.dep_rel or "").startswith("nummod"):
+                return True
+        return False
 
     def apply(
         self,
@@ -530,8 +596,11 @@ class VerbPersonNumberErrorHandler:
         if parse is None:
             return None
 
-        # Find subject via dep tree (nsubj dependent)
-        subject = _find_dependent(tokens, idx, "nsubj")
+        # Overt subject is required (pro-drop guard, see can_apply).
+        found = _find_overt_subject(tokens, idx)
+        if found is None or self._is_variant_subject(tokens, *found):
+            return None
+        subject = found[1]
 
         new_word = None
         transform_type = None
@@ -777,6 +846,8 @@ _PREP_E_U_TRIGGERS = {"в", "во", "на"}
 
 # Nouns where the standard -е locative is an acceptable literary variant, so
 # corrupting -у → -е does not reliably produce an error. Skip these.
+# (pymorphy marks loc2 for many nouns whose -е form is normative: в мозге,
+# в аэропорте, в ряде случаев, во льде, в мёде, в соке, в стоге сена...)
 _PREP_E_U_STOPLIST = {
     "цех",
     "чай",
@@ -793,6 +864,17 @@ _PREP_E_U_STOPLIST = {
     "клей",
     "спирт",
     "год",
+    "мозг",
+    "аэропорт",
+    "гроб",
+    "стог",
+    "тыл",
+    "лёд",
+    "лед",
+    "мёд",
+    "мед",
+    "сок",
+    "ряд",
 }
 
 
@@ -902,10 +984,16 @@ class AdjFormErrorHandler:
         parse = _get_pymorphy_parse(token)
         if parse is None or "ADJS" not in str(parse.tag):
             return False
-        # Predicate position with a governed complement → reliably wrong.
-        if token.dep_rel in _PREDICATE_DEPRELS and self._has_complement(tokens, idx):
+        # §159: the full nominative form "такой способностью не обладает"
+        # (cannot govern) only when a complement is actually present. Without
+        # one, full vs short predicate is a stylistic choice ("Он очень
+        # способный" is correct), so a governed complement is always required.
+        if not self._has_complement(tokens, idx):
+            return False
+        # Predicate position → reliably wrong; otherwise fall back to the
+        # closed set of government adjectives (widens dep_rel only).
+        if token.dep_rel in _PREDICATE_DEPRELS:
             return True
-        # Fallback: closed set of government adjectives.
         return token.lemma.lower() in _ADJ_GOVERNMENT_LEMMAS
 
     @staticmethod
@@ -918,7 +1006,13 @@ class AdjFormErrorHandler:
     @staticmethod
     def _has_complement(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         for t in tokens:
-            if t.head_idx == idx and t.dep_rel in _ADJ_COMPLEMENT_DEPRELS:
+            if t.head_idx != idx:
+                continue
+            if t.dep_rel in _ADJ_COMPLEMENT_DEPRELS:
+                return True
+            # Infinitive complements ("должен уйти", "готов помочь") are
+            # governed too: the full form cannot take them either.
+            if t.dep_rel == "xcomp" and t.get_feature("VerbForm") == "Inf":
                 return True
         return False
 
@@ -1017,27 +1111,18 @@ class DoubleComparativeHandler:
 # LoRuGEC rules: "Склонение числительных полтора, полторы, полтораста"
 #                "Склонение количественных числительных"
 
-_POLTORA_FORMS: dict[str, dict[str, list[str]]] = {
-    # lemma → {correct_case_form: [wrong_substitutions]}
-    "полтора": {
-        "полтора": ["полутора"],  # Nom/Acc → oblique form (rare error direction)
-        "полутора": ["полтора"],  # Oblique → Nom/Acc form (common L2 error)
-    },
-    "полторы": {
-        "полторы": ["полутора"],  # Nom/Acc fem → oblique
-        "полутора": ["полторы"],  # Oblique → Nom/Acc fem
-    },
-    "полтораста": {
-        "полтораста": ["полутораста"],  # Nom/Acc → oblique
-        "полутораста": ["полтораста"],  # Oblique → Nom/Acc
-    },
+# Surface form → wrong substitutions. Keyed by form (not lemma) because the
+# oblique "полутора" is shared by the masc/neut (полтора) and fem (полторы)
+# paradigms — a lemma-keyed lookup silently overwrote one direction. For
+# "полутора" the citation-form replacement is gender-ambiguous and resolved
+# against the governed noun's gender at apply time (§164).
+_POLTORA_SUBSTITUTIONS: dict[str, list[str]] = {
+    "полтора": ["полутора"],  # Nom/Acc → oblique form (rare error direction)
+    "полторы": ["полутора"],  # Nom/Acc fem → oblique
+    "полутора": ["полтора", "полторы"],  # Oblique → Nom/Acc (common L2 error)
+    "полтораста": ["полутораста"],  # Nom/Acc → oblique
+    "полутораста": ["полтораста"],  # Oblique → Nom/Acc
 }
-
-# Map lowercased surface forms to their lemma
-_POLTORA_LOOKUP: dict[str, str] = {}
-for _lemma, _forms in _POLTORA_FORMS.items():
-    for _form in _forms:
-        _POLTORA_LOOKUP[_form] = _lemma
 
 
 # Oblique UD cases for which a general cardinal must inflect both elements.
@@ -1067,11 +1152,13 @@ class NumeralDeclensionHandler:
     changes_length = False
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        if tokens[idx].text.lower() in _POLTORA_LOOKUP:
+        if tokens[idx].text.lower() in _POLTORA_SUBSTITUTIONS:
             return True
-        return self._general_cardinal_target(tokens[idx]) is not None
+        return self._general_cardinal_target(tokens, idx) is not None
 
-    def _general_cardinal_target(self, token: AnalyzedToken) -> str | None:
+    def _general_cardinal_target(
+        self, tokens: Sequence[AnalyzedToken], idx: int
+    ) -> str | None:
         """If token is an oblique general cardinal, return its Nom/Acc form.
 
         Returns None when the token is not a declinable cardinal, is not in an
@@ -1079,7 +1166,14 @@ class NumeralDeclensionHandler:
         numerals like сорок/девяносто/сто share their oblique/nominative
         surface forms and so produce no error).
         """
+        token = tokens[idx]
         if token.get_feature("Case") not in _OBLIQUE_CASES:
+            return None
+        # §164: distributive по + Dat (по пяти раз) has an accusative variant
+        # identical to the citation form (по пять раз) that Rozental calls
+        # predominant — nominativizing such a dative yields a permitted
+        # variant, not an error.
+        if token.get_feature("Case") == "Dat" and self._governed_by_po(tokens, idx):
             return None
         parse = _get_pymorphy_parse(token)
         if parse is None or getattr(parse.tag, "POS", None) != "NUMR":
@@ -1088,6 +1182,54 @@ class NumeralDeclensionHandler:
         if nom and nom != token.text:
             return nom
         return None
+
+    @staticmethod
+    def _governed_by_po(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        """True when the numeral's dative is governed by distributive по."""
+        prev = _get_token_safe(tokens, idx - 1)
+        if prev is not None and prev.text.lower() == "по":
+            return True
+        # по may attach as a case dependent of the numeral or its head noun.
+        heads = {idx}
+        if tokens[idx].head_idx is not None:
+            heads.add(tokens[idx].head_idx)
+        for t in tokens:
+            if (
+                t.head_idx in heads
+                and (t.dep_rel or "") == "case"
+                and t.text.lower() == "по"
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _polutora_citation_form(
+        tokens: Sequence[AnalyzedToken], idx: int, rng: Random
+    ) -> str:
+        """Pick полтора/полторы for ambiguous «полутора» by the noun's gender.
+
+        The governed noun is the numeral's dep head (nummod) or, failing that,
+        the nearest following noun; Fem → полторы, Masc/Neut → полтора. With
+        no gender evidence (e.g. pluralia tantum суток) either citation form
+        is a genuine error — pick randomly.
+        """
+        token = tokens[idx]
+        noun = None
+        if token.head_idx is not None:
+            head = _get_token_safe(tokens, token.head_idx)
+            if head is not None and head.pos in {"NOUN", "PROPN"}:
+                noun = head
+        if noun is None:
+            for t in tokens[idx + 1 :]:
+                if t.pos in {"NOUN", "PROPN"}:
+                    noun = t
+                    break
+        gender = noun.get_feature("Gender") if noun is not None else None
+        if gender == "Fem":
+            return "полторы"
+        if gender in {"Masc", "Neut"}:
+            return "полтора"
+        return rng.choice(["полтора", "полторы"])
 
     def apply(
         self,
@@ -1101,24 +1243,20 @@ class NumeralDeclensionHandler:
         word = sentence[idx]
         text_lower = word.lower()
 
-        if text_lower in _POLTORA_LOOKUP:
-            lemma = _POLTORA_LOOKUP[text_lower]
-            substitutions = _POLTORA_FORMS[lemma].get(text_lower)
-            if not substitutions:
-                return None
-
-            new_lower = rng.choice(substitutions)
+        if text_lower in _POLTORA_SUBSTITUTIONS:
+            if text_lower == "полутора":
+                new_lower = self._polutora_citation_form(tokens, idx, rng)
+            else:
+                new_lower = rng.choice(_POLTORA_SUBSTITUTIONS[text_lower])
             new_word = (
                 new_lower[0].upper() + new_lower[1:] if word[0].isupper() else new_lower
             )
 
-            subtype = (
-                "numeral_poltora"
-                if lemma in ("полтора", "полторы")
-                else "numeral_declension"
-            )
+            # §164 groups полтораста with полтора/полторы (two-form declension),
+            # so the whole family carries the numeral_poltora subtype.
+            subtype = "numeral_poltora"
         else:
-            new_word = self._general_cardinal_target(tokens[idx])
+            new_word = self._general_cardinal_target(tokens, idx)
             if new_word is None:
                 return None
             subtype = "numeral_declension"
