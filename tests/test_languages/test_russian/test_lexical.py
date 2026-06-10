@@ -91,6 +91,148 @@ class TestParonymErrorHandler:
         self.handler.apply(tokens, sentence, 3, modified)
         assert modified == {0, 3}
 
+    def test_agreement_follows_stanza_features(self):
+        """The replacement must agree per stanza's disambiguated features.
+
+        The audit found 'Это цветной телевизор.' -> 'цветастой телевизор'
+        (40/40): the stored context-free pymorphy parse of 'цветной' is
+        ADJF femn,sing,gent, and blindly transferring its grammemes stacks a
+        spurious AgrGender/AgrCase error on the intended Lex error. With
+        stanza saying Masc|Nom|Sing the output must be 'цветастый'.
+        """
+        parses = self.morph.parse("цветной")
+        wrong_parse = next(p for p in parses if "femn" in p.tag.grammemes)
+        tokens = [
+            AnalyzedToken(text="Это", lemma="это", pos="PRON", features={}, idx=0),
+            AnalyzedToken(
+                text="цветной",
+                lemma="цветной",
+                pos="ADJ",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=1,
+                extra={"pymorphy_parse": wrong_parse},
+            ),
+            AnalyzedToken(
+                text="телевизор",
+                lemma="телевизор",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=2,
+            ),
+        ]
+        for seed in range(10):
+            sentence = ["Это", "цветной", "телевизор"]
+            result = self.handler.apply(
+                tokens, sentence, 1, set(), rng=random.Random(seed)
+            )
+            assert result is not None
+            assert result.corrupted == "цветастый"
+            assert sentence[1] == "цветастый"
+
+    def test_transfers_only_form_level_grammemes(self):
+        """Lexeme-level grammemes must not be forced onto the replacement.
+
+        'практичных' parses as ADJF,Qual but 'практический' is not Qual in
+        pymorphy; transferring the full grammeme set made inflection fail for
+        every such pair. Only POS + form-level grammemes (case/number/gender
+        etc.) transfer, so the Loc-plural frame now yields 'практических'.
+        """
+        parses = self.morph.parse("практичных")
+        stored = next(p for p in parses if "gent" in p.tag.grammemes)
+        tokens = [
+            AnalyzedToken(text="о", lemma="о", pos="ADP", features={}, idx=0),
+            AnalyzedToken(
+                text="практичных",
+                lemma="практичный",
+                pos="ADJ",
+                features={"Case": "Loc", "Number": "Plur"},
+                idx=1,
+                extra={"pymorphy_parse": stored},
+            ),
+            AnalyzedToken(
+                text="решениях",
+                lemma="решение",
+                pos="NOUN",
+                features={"Case": "Loc", "Number": "Plur"},
+                idx=2,
+            ),
+        ]
+        sentence = ["о", "практичных", "решениях"]
+        result = self.handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is not None
+        assert result.corrupted == "практических"
+
+    def test_skips_when_no_parse_matches_stanza_features(self):
+        """No pymorphy parse consistent with stanza features -> skip, not guess.
+
+        'цветной' has no Fem+Nom parse; if stanza (hypothetically) assigned
+        those features, transferring any stored grammeme set would produce a
+        malformed corruption, so the handler must return None.
+        """
+        tokens = [
+            AnalyzedToken(
+                text="цветной",
+                lemma="цветной",
+                pos="ADJ",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                idx=0,
+                extra={"pymorphy_parse": self.morph.parse("цветной")[0]},
+            ),
+        ]
+        sentence = ["цветной"]
+        result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence[0] == "цветной"
+
+    def test_quasi_synonym_and_unattested_pairs_removed(self):
+        """Defective lexicon entries from the audit must be gone.
+
+        - quasi-synonyms whose swap is acceptable Russian (Rozental §139
+          frames paronyms as differing in 'смысловые оттенки', with each
+          member correct in overlapping contexts): старый/старинный,
+          целый/цельный, выбирать/избирать ('старинный дом' is standard);
+        - the non-word 'народничий' (was dormant only because pymorphy
+          cannot inflect it);
+        - pairs attested in neither the EGE list nor Vishnyakova:
+          умелый/умственный, удобный/удобоваримый.
+        """
+        for word in (
+            "старый", "старинный",
+            "целый", "цельный",
+            "выбирать", "избирать",
+            "народный", "народничий",
+            "умелый", "умственный",
+            "удобный", "удобоваримый",
+        ):
+            assert word not in self.handler.paronyms, word
+        # And no surviving entry offers one of the removed words as a target.
+        all_targets = {t for v in self.handler.paronyms.values() for t in v}
+        for non_word in ("народничий", "старинный", "умственный", "удобоваримый"):
+            assert non_word not in all_targets, non_word
+
+        tokens = [
+            AnalyzedToken(
+                text="Старый",
+                lemma="старый",
+                pos="ADJ",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=0,
+                extra={"pymorphy_parse": self.morph.parse("старый")[0]},
+            ),
+            AnalyzedToken(
+                text="дом",
+                lemma="дом",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=1,
+            ),
+        ]
+        sentence = ["Старый", "дом"]
+        assert self.handler.can_apply(tokens, 0) is False
+        result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence[0] == "Старый"
+
 
 class TestPrepositionErrorHandler:
     handler = PrepositionErrorHandler()
@@ -110,46 +252,64 @@ class TestPrepositionErrorHandler:
         """Test PrepositionErrorHandler finds prepositions correctly."""
         tokens = [
             AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0),
-            AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=1),
             AnalyzedToken(
-                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+                text="вопрос",
+                lemma="вопрос",
+                pos="NOUN",
+                features={"Case": "Acc"},
+                idx=1,
             ),
-            AnalyzedToken(text="от", lemma="от", pos="ADP", features={}, idx=3),
+            AnalyzedToken(text="от", lemma="от", pos="ADP", features={}, idx=2),
+            AnalyzedToken(
+                text="друга",
+                lemma="друг",
+                pos="NOUN",
+                features={"Case": "Gen"},
+                idx=3,
+            ),
         ]
 
         assert self.handler.can_apply(tokens, 0) is True
         assert self.handler.can_apply(tokens, 1) is False
-        assert self.handler.can_apply(tokens, 2) is False
-        assert self.handler.can_apply(tokens, 3) is True
+        assert self.handler.can_apply(tokens, 2) is True
+        assert self.handler.can_apply(tokens, 3) is False
 
     def test_apply_substitutes_correctly(self):
         """Test PrepositionErrorHandler substitutes prepositions correctly."""
         tokens = [
             AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0),
-            AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=1),
             AnalyzedToken(
-                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+                text="вопрос",
+                lemma="вопрос",
+                pos="NOUN",
+                features={"Case": "Acc"},
+                idx=1,
             ),
-            AnalyzedToken(text="от", lemma="от", pos="ADP", features={}, idx=3),
+            AnalyzedToken(text="от", lemma="от", pos="ADP", features={}, idx=2),
+            AnalyzedToken(
+                text="друга",
+                lemma="друг",
+                pos="NOUN",
+                features={"Case": "Gen"},
+                idx=3,
+            ),
         ]
-        sentence = ["в", ".", "вопрос", "от"]
+        sentence = ["в", "вопрос", "от", "друга"]
         modified = set()
 
         self.handler.apply(tokens, sentence, 0, modified, rng=random.Random(0))
         self.handler.apply(tokens, sentence, 1, modified, rng=random.Random(0))
         self.handler.apply(tokens, sentence, 2, modified, rng=random.Random(0))
         self.handler.apply(tokens, sentence, 3, modified, rng=random.Random(0))
-        assert modified == {0, 3}
+        assert modified == {0, 2}
 
         # The prepositions were actually replaced, not just flagged as modified.
         assert sentence[0] != "в"
-        assert sentence[3] != "от"
-        # Replacements must be real single-token prepositions from the lexicon.
-        preps = get_preposition_list()
-        all_preps = {w for group in preps.values() for w in group}
-        for repl in (sentence[0], sentence[3]):
-            assert " " not in repl
-            assert repl in all_preps
+        assert sentence[2] != "от"
+        # Replacements must be real single-token prepositions from the lexicon
+        # that govern the same case as the original in this frame.
+        assert sentence[0] == "на"  # only same-frame (Acc) candidate for в
+        assert sentence[2] in {"из", "с"}  # Gen frame candidates for от
 
     def test_synonym_prepositions_not_corrupted(self):
         """Same-government synonyms must not be corruption sources.
@@ -221,7 +381,13 @@ class TestPrepositionErrorHandler:
         tokens = [
             AnalyzedToken(text="вышел", lemma="выйти", pos="VERB", features={}, idx=0),
             AnalyzedToken(text="из", lemma="из", pos="ADP", features={}, idx=1),
-            AnalyzedToken(text="дома", lemma="дом", pos="NOUN", features={}, idx=2),
+            AnalyzedToken(
+                text="дома",
+                lemma="дом",
+                pos="NOUN",
+                features={"Case": "Gen"},
+                idx=2,
+            ),
         ]
         for seed in range(50):
             sentence = ["вышел", "из", "дома"]
@@ -237,28 +403,36 @@ class TestPrepositionErrorHandler:
         ``из-за`` shares the ``causal_government`` group with the multi-word
         entry ``"по причине"``. Substituting that into a single token slot
         would smuggle an intra-token space into the GECToR unit and misalign
-        the token/tag stream. Across many seeds the replacement must stay
-        single-token.
+        the token/tag stream — so multi-word entries are never candidates.
         """
-        for seed in range(100):
-            tokens = [
-                AnalyzedToken(
-                    text="Из-за", lemma="из-за", pos="ADP", features={}, idx=0
-                ),
-                AnalyzedToken(
-                    text="дождя", lemma="дождь", pos="NOUN", features={}, idx=1
-                ),
-            ]
-            sentence = ["Из-за", "дождя"]
-            modified = set()
+        from synterr.languages.russian.errors.lexical import _confusion_candidates
+
+        candidates = _confusion_candidates(
+            "causal_government", ["благодаря", "из-за", "по причине"], "из-за"
+        )
+        assert "по причине" not in candidates
+        assert all(" " not in c for c in candidates)
+
+        # Under same-case gating из-за (+Gen) has no candidate at all:
+        # благодаря governs Dat, so the swap would be a Prep+Gov double error.
+        tokens = [
+            AnalyzedToken(text="Из-за", lemma="из-за", pos="ADP", features={}, idx=0),
+            AnalyzedToken(
+                text="дождя",
+                lemma="дождь",
+                pos="NOUN",
+                features={"Case": "Gen"},
+                idx=1,
+            ),
+        ]
+        sentence = ["Из-за", "дождя"]
+        assert self.handler.can_apply(tokens, 0) is False
+        for seed in range(50):
             result = self.handler.apply(
-                tokens, sentence, 0, modified, rng=random.Random(seed)
+                tokens, sentence, 0, set(), rng=random.Random(seed)
             )
-            assert result is not None
-            # The replaced token must remain a single surface token.
-            assert " " not in sentence[0]
-            assert " " not in result.corrupted
-            assert result.corrupted != "по причине"
+            assert result is None
+            assert sentence[0] == "Из-за"
 
     def test_replacement_token_tag_consistent(self):
         """A single $REPLACE must keep token count == tag count.
@@ -273,7 +447,13 @@ class TestPrepositionErrorHandler:
                     text="Вышел", lemma="выйти", pos="VERB", features={}, idx=0
                 ),
                 AnalyzedToken(text="из", lemma="из", pos="ADP", features={}, idx=1),
-                AnalyzedToken(text="дома", lemma="дом", pos="NOUN", features={}, idx=2),
+                AnalyzedToken(
+                    text="дома",
+                    lemma="дом",
+                    pos="NOUN",
+                    features={"Case": "Gen"},
+                    idx=2,
+                ),
             ]
             sentence = ["Вышел", "из", "дома"]
             result = self.handler.apply(
@@ -286,6 +466,120 @@ class TestPrepositionErrorHandler:
             assert result.fix_tag == "$REPLACE_из"
             assert result.start_idx == 1
             assert result.end_idx == 2
+
+    def test_same_case_government_required(self):
+        """A swap fires only within the same case frame (Rozental §199/§200).
+
+        The audit found 'о поездке' -> 'про поездке', 'до дома' -> 'к дома',
+        'Благодаря дождю' -> 'Из-за дождю': the replacement governs a
+        different case, leaving the unreinflected noun as a second (Gov)
+        error mislabeled as a single Prep edit.
+        """
+        # о (+Loc) may only become об (+Loc), never про (+Acc).
+        tokens = [
+            AnalyzedToken(text="говорил", lemma="говорить", pos="VERB",
+                          features={}, idx=0),
+            AnalyzedToken(text="о", lemma="о", pos="ADP", features={}, idx=1),
+            AnalyzedToken(text="поездке", lemma="поездка", pos="NOUN",
+                          features={"Case": "Loc"}, idx=2),
+        ]
+        for seed in range(30):
+            sentence = ["говорил", "о", "поездке"]
+            result = self.handler.apply(
+                tokens, sentence, 1, set(), rng=random.Random(seed)
+            )
+            assert result is not None
+            assert result.corrupted == "об"
+
+        # до (+Gen) has no same-frame partner (к governs Dat) -> inert.
+        tokens = [
+            AnalyzedToken(text="дошли", lemma="дойти", pos="VERB",
+                          features={}, idx=0),
+            AnalyzedToken(text="до", lemma="до", pos="ADP", features={}, idx=1),
+            AnalyzedToken(text="дома", lemma="дом", pos="NOUN",
+                          features={"Case": "Gen"}, idx=2),
+        ]
+        sentence = ["дошли", "до", "дома"]
+        assert self.handler.can_apply(tokens, 1) is False
+        for seed in range(30):
+            result = self.handler.apply(
+                tokens, sentence, 1, set(), rng=random.Random(seed)
+            )
+            assert result is None
+            assert sentence[1] == "до"
+
+        # благодаря (+Dat) has no same-frame partner (из-за governs Gen).
+        tokens = [
+            AnalyzedToken(text="Благодаря", lemma="благодаря", pos="ADP",
+                          features={}, idx=0),
+            AnalyzedToken(text="дождю", lemma="дождь", pos="NOUN",
+                          features={"Case": "Dat"}, idx=1),
+        ]
+        sentence = ["Благодаря", "дождю"]
+        assert self.handler.can_apply(tokens, 0) is False
+        for seed in range(30):
+            result = self.handler.apply(
+                tokens, sentence, 0, set(), rng=random.Random(seed)
+            )
+            assert result is None
+            assert sentence[0] == "Благодаря"
+
+    def test_sense_outside_lexicon_frame_skipped(self):
+        """Comitative с+Ins must not swap with source-sense из/от (+Gen).
+
+        The audit found 'гулял с другом' -> 'гулял из другом' / 'от другом'.
+        The source_iz_s_ot group only covers с in its source sense (+Gen);
+        an Ins complement means a different sense, so the handler must skip.
+        """
+        tokens = [
+            AnalyzedToken(text="гулял", lemma="гулять", pos="VERB",
+                          features={}, idx=0),
+            AnalyzedToken(text="с", lemma="с", pos="ADP", features={}, idx=1),
+            AnalyzedToken(text="другом", lemma="друг", pos="NOUN",
+                          features={"Case": "Ins"}, idx=2),
+        ]
+        sentence = ["гулял", "с", "другом"]
+        assert self.handler.can_apply(tokens, 1) is False
+        for seed in range(30):
+            result = self.handler.apply(
+                tokens, sentence, 1, set(), rng=random.Random(seed)
+            )
+            assert result is None
+            assert sentence[1] == "с"
+
+    def test_unknown_governed_case_skipped(self):
+        """No determinable case on the complement -> no swap.
+
+        Guessing the frame risks emitting a double error, which is worse
+        than producing no error at all.
+        """
+        tokens = [
+            AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0),
+            AnalyzedToken(text="спешке", lemma="спешка", pos="NOUN",
+                          features={}, idx=1),  # no Case feature
+        ]
+        sentence = ["в", "спешке"]
+        assert self.handler.can_apply(tokens, 0) is False
+        result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence[0] == "в"
+
+    def test_governed_case_via_dep_head(self):
+        """With depparse the ADP's head (UD case relation) supplies the frame,
+        even when the complement is not adjacent."""
+        tokens = [
+            AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0,
+                          dep_rel="case", head_idx=2),
+            AnalyzedToken(text="ближайшую", lemma="ближайший", pos="ADJ",
+                          features={}, idx=1),
+            AnalyzedToken(text="среду", lemma="среда", pos="NOUN",
+                          features={"Case": "Acc"}, idx=2),
+        ]
+        sentence = ["в", "ближайшую", "среду"]
+        assert self.handler.can_apply(tokens, 0) is True
+        result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert result.corrupted == "на"
 
 
 class TestConjunctionErrorHandler:

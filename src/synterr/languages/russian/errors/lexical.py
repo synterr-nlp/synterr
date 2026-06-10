@@ -10,7 +10,12 @@ from synterr.languages.russian.errors.morphological import (
     _get_pymorphy_parse,
     inflect_word,
 )
-from synterr.languages.russian.inflector import match_capitalization
+from synterr.languages.russian.inflector import (
+    UD_TO_PYMORPHY_CASE,
+    UD_TO_PYMORPHY_GENDER,
+    UD_TO_PYMORPHY_NUMBER,
+    match_capitalization,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -41,21 +46,85 @@ def _confusion_candidates(group_key: str, members: list[str], word: str) -> list
     return [x for x in pool if x != word and " " not in x]
 
 
+def _all_confusion_candidates(groups: dict[str, list[str]], word: str) -> list[str]:
+    """Union of candidates across every group containing ``word``.
+
+    Collecting from all groups (instead of breaking at the first match)
+    means JSON dict ordering can never decide which sense of a polysemous
+    word gets corrupted.
+    """
+    candidates: list[str] = []
+    for key, members in groups.items():
+        for candidate in _confusion_candidates(key, members, word):
+            if candidate not in candidates:
+                candidates.append(candidate)
+    return candidates
+
+
 def _has_confusion(groups: dict[str, list[str]], word: str) -> bool:
-    return any(
-        _confusion_candidates(key, members, word)
-        for key, members in groups.items()
-    )
+    return bool(_all_confusion_candidates(groups, word))
 
 
 def _pick_confusion(
     groups: dict[str, list[str]], word: str, rng: Random
 ) -> str | None:
-    for key, members in groups.items():
-        candidates = _confusion_candidates(key, members, word)
-        if candidates:
-            return rng.choice(candidates)
+    candidates = _all_confusion_candidates(groups, word)
+    if candidates:
+        return rng.choice(candidates)
     return None
+
+
+# UD features whose pymorphy equivalents must survive a paronym swap intact:
+# transferring an undisambiguated parse's case/gender/number stacks a spurious
+# agreement error on top of the intended Lex error.
+_UD_FEATURE_MAPS = (
+    ("Case", UD_TO_PYMORPHY_CASE),
+    ("Number", UD_TO_PYMORPHY_NUMBER),
+    ("Gender", UD_TO_PYMORPHY_GENDER),
+)
+
+
+def _context_grammemes(token: AnalyzedToken) -> set[str]:
+    """pymorphy grammemes implied by stanza's disambiguated features."""
+    wanted: set[str] = set()
+    for feature, mapping in _UD_FEATURE_MAPS:
+        value = token.features.get(feature)
+        grammeme = mapping.get(value) if value is not None else None
+        if grammeme:
+            wanted.add(grammeme)
+    return wanted
+
+
+# Grammemes that may be transferred from the original word's parse to the
+# paronym replacement: POS class plus form-level (inflectional) values.
+# Lexeme-level grammemes (Qual, aspect, transitivity, animacy) must stay
+# behind — the partner lexeme often lacks them, which would make inflection
+# fail spuriously (e.g. практичный is Qual but практический is not).
+_TRANSFER_POS = {
+    "NOUN", "ADJF", "ADJS", "COMP", "VERB", "INFN",
+    "PRTF", "PRTS", "GRND", "NUMR", "ADVB",
+}
+_TRANSFER_FORM = {
+    "nomn", "gent", "datv", "accs", "ablt", "loct", "voct", "gen2", "loc2",
+    "sing", "plur",
+    "masc", "femn", "neut",
+    "1per", "2per", "3per",
+    "past", "pres", "futr",
+    "actv", "pssv",
+    "indc", "impr",
+}
+_ANIMACY = {"anim", "inan"}
+
+
+def _transfer_grammemes(parse) -> set[str]:
+    """Form-level grammemes to carry over to the paronym replacement."""
+    grammemes = set(parse.tag.grammemes)
+    transfer = grammemes & (_TRANSFER_POS | _TRANSFER_FORM)
+    if "accs" in transfer:
+        # Accusative surface form depends on animacy; without it pymorphy
+        # would pick an arbitrary anim/inan variant.
+        transfer |= grammemes & _ANIMACY
+    return transfer
 
 
 class ParonymErrorHandler:
@@ -89,6 +158,27 @@ class ParonymErrorHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return tokens[idx].lemma in self.paronyms
 
+    def _disambiguated_parse(self, token: AnalyzedToken, word: str):
+        """Pick a pymorphy parse consistent with stanza's features.
+
+        The stored ``pymorphy_parse`` is context-free (e.g. 'цветной' ->
+        ADJF femn,sing,gent), so blindly transferring its grammemes breaks
+        agreement ('цветной телевизор' -> 'цветастой телевизор'). Trust
+        stanza's disambiguation: keep the stored parse only if it carries
+        every case/number/gender grammeme stanza assigned, otherwise re-pick
+        from all parses; if none is consistent, skip rather than guess.
+        """
+        parse = _get_pymorphy_parse(token)
+        wanted = _context_grammemes(token)
+        if not wanted:
+            return parse
+        if parse is not None and wanted <= set(parse.tag.grammemes):
+            return parse
+        for candidate in self._morph.parse(word):
+            if wanted <= set(candidate.tag.grammemes):
+                return candidate
+        return None
+
     def apply(
         self,
         tokens: Sequence[AnalyzedToken],
@@ -102,12 +192,17 @@ class ParonymErrorHandler:
         rng = rng if rng is not None else random_module
         token = tokens[idx]
         word = sentence[idx]
-        parse = _get_pymorphy_parse(token)
 
-        if parse is None or token.lemma not in self.paronyms:
+        if token.lemma not in self.paronyms:
             return None
 
-        grammemes = set(parse.tag.grammemes)
+        parse = self._disambiguated_parse(token, word)
+        if parse is None:
+            return None
+
+        grammemes = _transfer_grammemes(parse)
+        if not grammemes:
+            return None
 
         new_word_lemma = rng.choice(self.paronyms.get(token.lemma))
         new_word_parse = self._morph.parse(new_word_lemma)[0]
@@ -130,6 +225,58 @@ class ParonymErrorHandler:
         )
 
 
+# Cases each lexicon preposition governs *in the sense its confusion group
+# covers* (UD case names). Rozental keeps preposition choice (§199) and case
+# government (§200) apart: a swap is a clean Prep error only when original and
+# replacement govern the governed noun's observed case. о/об are limited to
+# the topic sense (+Loc) so the contact sense (удариться о камень, +Acc) never
+# swaps to про; с is limited to the source sense (+Gen) so comitative с+Ins
+# (гулял с другом) never swaps to из/от.
+_PREP_GOVERNMENT: dict[str, set[str]] = {
+    "в": {"Acc", "Loc"},
+    "на": {"Acc", "Loc"},
+    "из": {"Gen"},
+    "с": {"Gen"},
+    "от": {"Gen"},
+    "о": {"Loc"},
+    "об": {"Loc"},
+    "обо": {"Loc"},
+    "про": {"Acc"},
+    "к": {"Dat"},
+    "до": {"Gen"},
+    "благодаря": {"Dat"},
+    "из-за": {"Gen"},
+    "по причине": {"Gen"},
+}
+
+# POS that terminate the rightward scan for the governed nominal: past them
+# we are no longer inside this preposition's phrase.
+_GOVERNED_SCAN_STOP_POS = {"PUNCT", "VERB", "ADP", "CCONJ", "SCONJ"}
+
+
+def _governed_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
+    """Case of the nominal governed by the ADP at ``idx``.
+
+    With depparse enabled, the ADP's head *is* its complement (UD ``case``
+    relation). Without it, fall back to the first Case-bearing token to the
+    right: agreeing determiners/adjectives share the complement's case, so
+    the first hit inside the phrase is reliable.
+    """
+    token = tokens[idx]
+    head_idx = token.head_idx
+    if head_idx is not None and 0 <= head_idx < len(tokens) and head_idx != idx:
+        case = tokens[head_idx].get_feature("Case")
+        if case:
+            return case
+    for other in tokens[idx + 1 : idx + 5]:
+        if other.pos in _GOVERNED_SCAN_STOP_POS:
+            break
+        case = other.get_feature("Case")
+        if case:
+            return case
+    return None
+
+
 class PrepositionErrorHandler:
     """Replace preposition with an attested confusion from the same group.
 
@@ -146,6 +293,14 @@ class PrepositionErrorHandler:
     (e.g. ``"по причине"``) are skipped: writing one into a single token slot
     would smuggle an intra-token space into the GECToR unit and misalign the
     token/tag stream.
+
+    Case government (Rozental §199 vs §200): a swap fires only when both the
+    original and the replacement govern the case observed on the dependent
+    noun. Different-government swaps (к+Dat -> до+Gen, благодаря+Dat ->
+    из-за+Gen) would leave the unreinflected complement as a *second* error
+    that RLC annotates Gov, not Prep — a mislabeled double error is worse
+    than no error, so those candidates are skipped. When the governed case
+    cannot be determined, the handler does not fire.
     """
 
     name = "preposition"
@@ -164,10 +319,27 @@ class PrepositionErrorHandler:
             self._prepositions = get_preposition_list()
         return self._prepositions
 
+    def _candidates(
+        self, tokens: Sequence[AnalyzedToken], idx: int, word: str
+    ) -> list[str]:
+        """Same-case-frame replacement candidates for the ADP at ``idx``."""
+        case = _governed_case(tokens, idx)
+        if case is None:
+            return []
+        if case not in _PREP_GOVERNMENT.get(word, set()):
+            # Sense outside the lexicon's frames (e.g. comitative с+Ins) —
+            # the confusion group does not apply here.
+            return []
+        return [
+            candidate
+            for candidate in _all_confusion_candidates(self.prepositions, word)
+            if case in _PREP_GOVERNMENT.get(candidate, set())
+        ]
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if tokens[idx].pos != "ADP":
             return False
-        return _has_confusion(self.prepositions, tokens[idx].lemma)
+        return bool(self._candidates(tokens, idx, tokens[idx].lemma))
 
     def apply(
         self,
@@ -186,9 +358,10 @@ class PrepositionErrorHandler:
         if token.pos != "ADP":
             return None
 
-        new_word = _pick_confusion(self.prepositions, word.lower(), rng)
-        if new_word is None:
+        candidates = self._candidates(tokens, idx, word.lower())
+        if not candidates:
             return None
+        new_word = rng.choice(candidates)
 
         new_word = match_capitalization(word, new_word)
 
