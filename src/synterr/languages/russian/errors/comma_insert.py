@@ -567,6 +567,12 @@ class CommaInsertHandler:
             if not candidates:
                 return None
 
+        # weight 0 means excluded — drop before the draw so an all-zero
+        # candidate set skips instead of crashing rng.choices
+        candidates = [c for c in candidates if c[1] > 0]
+        if not candidates:
+            return None
+
         subtypes, weights = zip(*candidates, strict=False)
         chosen = rng.choices(subtypes, weights=weights, k=1)[0]
 

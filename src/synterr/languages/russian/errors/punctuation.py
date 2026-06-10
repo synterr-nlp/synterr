@@ -782,8 +782,24 @@ class DashDeleteHandler:
     category = "PUNCT"
     changes_length = True
 
+    # Classification is deterministic, so weights act as enable gates
+    # (same as CommaDeleteHandler); relative magnitudes are documentation.
+    DEFAULT_WEIGHTS = {
+        "dash_subj_pred": 25,
+        "dash_asyndetic": 25,
+        "dash_apposition": 25,
+        "dash_other": 25,
+    }
+
     def __init__(self) -> None:
+        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
         self._enabled_subtypes: set[str] | None = None
+
+    def set_subtype_weights(self, weights: dict[str, float]) -> None:
+        self._weights = self.DEFAULT_WEIGHTS.copy()
+        for subtype, weight in weights.items():
+            if subtype in self._weights:
+                self._weights[subtype] = weight
 
     def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
         if subtypes is not None:
@@ -815,7 +831,12 @@ class DashDeleteHandler:
         if subtype is None:
             return None
 
-        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
+        if self._enabled_subtypes is not None:
+            # Explicit targeting (CLI :subtype / SFT) overrides weight gates.
+            if subtype not in self._enabled_subtypes:
+                return None
+        elif self._weights.get(subtype, 0) <= 0:
+            # Subtype zeroed by the preset → skip rather than mislabel.
             return None
 
         dash_char = sentence[idx]
