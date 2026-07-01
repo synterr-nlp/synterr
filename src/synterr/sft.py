@@ -94,19 +94,21 @@ def _balance_directions(
     results_per_rule: dict[str, int],
     rng: random.Random,
 ) -> int:
-    """Cap split/merge pairs to min(split, merge), but never below floor.
+    """Cap direction pairs to min of the two directions, but never below floor.
 
+    Applies to [split]/[merge] pairs and to [delete]/[insert] comma pairs
+    (v5: the v4 delete-only skew suppressed the remove direction — see paper).
     Mutates ``examples`` and ``results_per_rule`` in place. Returns total
     number of examples dropped.
     """
-    split_rules = {r for r in LORUGEC_RULES if "[split]" in r}
-    merge_rules = {r for r in LORUGEC_RULES if "[merge]" in r}
-
     pairs = []
-    for sr in split_rules:
-        mr = sr.replace(" [split]", "") + " [merge]"
-        if mr in merge_rules:
-            pairs.append((sr, mr))
+    for a_tag, b_tag in [("[split]", "[merge]"), ("[delete]", "[insert]")]:
+        a_rules = {r for r in LORUGEC_RULES if a_tag in r}
+        b_rules = {r for r in LORUGEC_RULES if b_tag in r}
+        for ar in a_rules:
+            br = ar.replace(f" {a_tag}", "") + f" {b_tag}"
+            if br in b_rules:
+                pairs.append((ar, br))
 
     dropped = 0
     for split_rule, merge_rule in pairs:

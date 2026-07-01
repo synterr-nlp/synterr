@@ -131,9 +131,27 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
         "comma_homogeneous",
     ),
     "Обособление деепричастий после союзов": ("comma_pair_delete", "pair_gerund"),
-    "Запятая между частями СПП с общей частью": ("comma_delete", "comma_subordinate"),
+    # BIDIRECTIONAL comma rules (v5): [delete] = corruption removes a required
+    # comma (model learns to ADD); [insert] = corruption adds a spurious comma
+    # at a clause junction per §104/§109 (model learns to REMOVE). v4 was
+    # [delete]-only, which suppressed the remove direction to 0% (see paper).
+    "Запятая между частями СПП с общей частью [delete]": (
+        "comma_delete",
+        "comma_subordinate",
+    ),
+    "Запятая между частями СПП с общей частью [insert]": (
+        "comma_insert",
+        "comma_clause_junction",
+    ),
     'Запятая перед союзом "как": 1': ("comma_insert", "comma_before_kak"),
-    "Запятая между однородными придаточными": ("comma_delete", "comma_subordinate"),
+    "Запятая между однородными придаточными [delete]": (
+        "comma_delete",
+        "comma_subordinate",
+    ),
+    "Запятая между однородными придаточными [insert]": (
+        "comma_insert",
+        "comma_clause_junction",
+    ),
     "Обособление согласованных определений, относящихся к личному местоимению": (
         "comma_pair_delete",
         "pair_participle",
