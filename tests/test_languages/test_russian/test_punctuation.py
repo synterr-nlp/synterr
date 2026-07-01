@@ -1358,6 +1358,139 @@ class TestClassifyDashApposition:
         assert _classify_dash(tokens, 1) == "dash_apposition"
 
 
+# ── §79 это/вот connector dashes ─────────────────────────────────────────────
+
+
+class TestEstoConnectorDash:
+    """§79: «Тире ставится перед словами это, это есть, вот, вот значит,
+    это значит, присоединяющими сказуемое к подлежащему» — the connector
+    dash is ALWAYS required → dash_subj_pred: never dash_other (это is PRON
+    and fails the right-side nominal check), never skipped via the
+    pronoun-subject exception."""
+
+    def test_noun_subject_esto_is_subj_pred(self):
+        # "Мир — это счастье." — deps mirror the live stanza parse
+        # (это = PRON/expl); used to fall through to dash_other.
+        tokens = [
+            _tok("Мир", "NOUN", idx=0, dep_rel="nsubj", head_idx=3),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("это", "PRON", idx=2, dep_rel="expl", head_idx=3,
+                 features={"PronType": "Dem"}),
+            _tok("счастье", "NOUN", idx=3, dep_rel="root", head_idx=None),
+            _tok(".", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+        assert DashDeleteHandler().can_apply(tokens, 1) is True
+
+    def test_pronoun_subject_esto_still_fires(self):
+        # "Мы — это будущее страны." — §79's pronoun-subject exception does
+        # not apply to the connector construction: the dash stays required,
+        # so classification must NOT return None.
+        tokens = [
+            _tok("Мы", "PRON", idx=0, dep_rel="nsubj", head_idx=3,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("это", "PRON", idx=2, dep_rel="expl", head_idx=3,
+                 features={"PronType": "Dem"}),
+            _tok("будущее", "NOUN", idx=3, dep_rel="root", head_idx=None),
+            _tok("страны", "NOUN", idx=4, dep_rel="nmod", head_idx=3),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+        assert DashDeleteHandler().can_apply(tokens, 1) is True
+
+    def test_vot_connector_with_infinitive_subject(self):
+        # "Понять — вот задача." — §79 «вот» connector, infinitive subject.
+        tokens = [
+            _tok("Понять", "VERB", idx=0, dep_rel="csubj", head_idx=3,
+                 features={"VerbForm": "Inf"}),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("вот", "PART", idx=2, dep_rel="advmod", head_idx=3),
+            _tok("задача", "NOUN", idx=3, dep_rel="root", head_idx=None),
+            _tok(".", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+
+    def test_esto_after_finite_clause_stays_asyndetic(self):
+        # "Дверь открылась — это пришёл отец." — §116 БСП, not subj-pred:
+        # a finite verb left of the dash means the left side is a clause,
+        # not a subject NP, so the connector rule must not fire.
+        tokens = [
+            _tok("Дверь", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("открылась", "VERB", idx=1, dep_rel="root", head_idx=None,
+                 features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"}),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("это", "PRON", idx=3, dep_rel="expl", head_idx=4,
+                 features={"PronType": "Dem"}),
+            _tok("пришёл", "VERB", idx=4, dep_rel="parataxis", head_idx=1,
+                 features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"}),
+            _tok("отец", "NOUN", idx=5, dep_rel="nsubj", head_idx=4),
+            _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=1),
+        ]
+        assert _classify_dash(tokens, 2) == "dash_asyndetic"
+
+
+# ── §93 п.8-в paired apposition dashes ──────────────────────────────────────
+
+
+class TestPairedAppositionDash:
+    """Paired dashes bounding an explanatory apposition must classify
+    dash_apposition — not subj_pred (opening) or asyndetic (closing)."""
+
+    def _paired_tokens(self):
+        # "Мы — весёлая детвора — шли домой." — deps mirror the live stanza
+        # parse: the apposition is promoted to root, the matrix verb is
+        # conj, and NO appos/parataxis arc bridges either dash.
+        return [
+            _tok("Мы", "PRON", idx=0, dep_rel="nsubj", head_idx=3,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("весёлая", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("детвора", "NOUN", idx=3, dep_rel="root", head_idx=None),
+            _tok("—", "PUNCT", idx=4, dep_rel="punct", head_idx=5),
+            _tok("шли", "VERB", idx=5, dep_rel="conj", head_idx=3,
+                 features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"}),
+            _tok("домой", "ADV", idx=6, dep_rel="advmod", head_idx=5),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=3),
+        ]
+
+    def test_opening_dash_is_apposition(self):
+        assert _classify_dash(self._paired_tokens(), 1) == "dash_apposition"
+
+    def test_closing_dash_is_apposition(self):
+        assert _classify_dash(self._paired_tokens(), 4) == "dash_apposition"
+
+    def test_noun_subject_paired_apposition(self):
+        # "Ребята — весёлая детвора — шли домой." — with a NOUN subject the
+        # opening dash used to surface-match dash_subj_pred (amod right
+        # neighbor resolves to its NP head right of the dash).
+        tokens = self._paired_tokens()
+        tokens[0] = _tok("Ребята", "NOUN", idx=0, dep_rel="nsubj", head_idx=3)
+        assert _classify_dash(tokens, 1) == "dash_apposition"
+        assert _classify_dash(tokens, 4) == "dash_apposition"
+
+    def test_contrast_pattern_still_subj_pred(self):
+        # "Я — фабрикант, ты — судовладелец." (§79 contrast, Rozental's own
+        # example) — the comma + second clause between the two dashes
+        # distinguishes it from a verbless §93 bounded span; both dashes
+        # stay dash_subj_pred. Deps mirror the live stanza parse
+        # (судовладелец = conj).
+        tokens = [
+            _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=2,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("фабрикант", "NOUN", idx=2, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
+            _tok("ты", "PRON", idx=4, dep_rel="nsubj", head_idx=6,
+                 features={"PronType": "Prs"}),
+            _tok("—", "PUNCT", idx=5, dep_rel="punct", head_idx=4),
+            _tok("судовладелец", "NOUN", idx=6, dep_rel="conj", head_idx=2),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=2),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+        assert _classify_dash(tokens, 5) == "dash_subj_pred"
+
+
 class TestDashToCommaHandler:
     """§93 apposition dash → comma substitution."""
 

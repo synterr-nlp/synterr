@@ -558,6 +558,110 @@ def _has_parallel_pron_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     return False
 
 
+_ESTO_CONNECTOR_LEMMAS = frozenset({"это", "вот"})
+
+
+def _is_esto_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§79: «Тире ставится перед словами это, это есть, вот, вот значит,
+    это значит, присоединяющими сказуемое к подлежащему» — the connector
+    configuration is the canonical OBLIGATORY subj-pred dash. All five
+    connector variants begin with «это» or «вот», so the first token right
+    of the dash decides (bare «значит» is not in the §79 list).
+
+    Guard: the left context must be a subject phrase, not a finite clause —
+    in «Дверь открылась — это пришёл отец» the dash joins two clauses
+    (§116 asyndetic), not a subject and a predicate.
+    """
+    n = len(tokens)
+    left = tokens[idx - 1] if idx > 0 else None
+    right = tokens[idx + 1] if idx + 1 < n else None
+    if left is None or right is None:
+        return False
+    if (right.lemma or right.text).lower() not in _ESTO_CONNECTOR_LEMMAS:
+        return False
+    # Subject candidate immediately left: nominal, or an infinitive subject
+    # («Понять — это счастье», §79 nominative/infinitive combinations).
+    left_is_subject = left.pos in ("NOUN", "PROPN", "PRON", "NUM") or (
+        left.pos in ("VERB", "AUX") and left.get_feature("VerbForm") == "Inf"
+    )
+    if not left_is_subject:
+        return False
+    # No finite verb left of the dash → the left side is a subject NP,
+    # not a first clause of a БСП.
+    for t in tokens:
+        if t.idx >= idx:
+            break
+        if t.pos in FINITE_POS and t.get_feature("VerbForm") not in (
+            "Part",
+            "Conv",
+            "Inf",
+        ):
+            return False
+    return True
+
+
+def _is_apposition_pair(
+    tokens: Sequence[AnalyzedToken], open_idx: int, close_idx: int
+) -> bool:
+    """Dashes at `open_idx`/`close_idx` bound a §93 п.8-в explanatory
+    apposition span («Мы — весёлая детвора — шли домой»): the span between
+    them is verbless and comma-free, contains a nominal, is anchored to a
+    nominal immediately left of the opening dash, and the clause continues
+    after the closing dash (a sentence-final dash+NP is the single §93
+    п.8-б dash, handled by the appos-arc branch).
+
+    The §79 contrast pattern («Я — фабрикант, ты — судовладелец») has a
+    comma + second clause between its two dashes — the no-comma requirement
+    excludes it, keeping it dash_subj_pred.
+    """
+    if open_idx == 0 or close_idx - open_idx < 2:
+        return False
+    # §82 connective opening (Москва — Казань) is a route, not an apposition.
+    if _is_connective_dash(tokens, open_idx):
+        return False
+    # §79 это/вот connector wins over the paired reading: keep both dashes
+    # of «Жизнь — это движение — ...» out of dash_apposition.
+    if _is_esto_subj_pred_dash(tokens, open_idx):
+        return False
+    has_nominal = False
+    for i in range(open_idx + 1, close_idx):
+        t = tokens[i]
+        if t.text == ",":
+            return False
+        if t.pos in FINITE_POS and t.get_feature("VerbForm") not in (
+            "Part",
+            "Conv",
+            "Inf",
+        ):
+            return False
+        if t.pos in ("NOUN", "PROPN", "PRON"):
+            has_nominal = True
+    if not has_nominal:
+        return False
+    # Nominal anchor immediately left of the opening dash.
+    if tokens[open_idx - 1].pos not in ("NOUN", "PROPN", "PRON"):
+        return False
+    # The clause must continue after the closing dash.
+    return any(t.idx > close_idx and t.pos != "PUNCT" for t in tokens)
+
+
+def _paired_apposition_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """The dash at `idx` is the opening or closing dash of a §93 п.8-в
+    paired apposition. Detection is structural (POS-based span check against
+    the nearest partner dash on each side) rather than arc-based: stanza
+    tends to promote the bounded apposition to root with the matrix verb as
+    `conj` («детвора» = root, «шли» = conj in «Мы — весёлая детвора — шли
+    домой»), so no appos/parataxis arc bridges either dash; when the arc IS
+    present, `_appositional_dash_arcs` catches the dash independently.
+    """
+    dashes = [t.idx for t in tokens if t.pos == "PUNCT" and t.text in DASH_CHARS]
+    nxt = next((j for j in dashes if j > idx), None)
+    if nxt is not None and _is_apposition_pair(tokens, idx, nxt):
+        return True
+    prv = next((j for j in reversed(dashes) if j < idx), None)
+    return prv is not None and _is_apposition_pair(tokens, prv, idx)
+
+
 def _is_optional_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """§79 exceptions where the dash is authorial/intonational, so deleting
     it yields normatively CORRECT text (a non-error — must not be generated).
@@ -613,6 +717,24 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     # dash_other maps to pu_dash_other (§81–82), the correct attribution.
     if _is_connective_dash(tokens, idx):
         return "dash_other"
+
+    # §79 это/вот predicate connector («Мир — это счастье») — the canonical
+    # obligatory subj-pred dash. Must run before the surface-pattern checks:
+    # «это» is PRON, so the right-side nominal check below misses it and the
+    # dash would leak into dash_other. It also overrides the §79 exception
+    # list — the pronoun-subject/adjectival-predicate exceptions cover the
+    # bare predicate, not the connector: with это/вот the dash stays
+    # required even for «Мы — это будущее страны».
+    if _is_esto_subj_pred_dash(tokens, idx):
+        return "dash_subj_pred"
+
+    # §93 п.8-в paired dashes bounding an explanatory apposition
+    # («Мы — весёлая детвора — шли домой»). Must run before the
+    # subj_pred/contrast logic: the opening dash otherwise matches the
+    # surface nominal—NP pattern (or the §79 pronoun-subject exception)
+    # and gets mislabeled, and the closing dash surface-matches asyndetic.
+    if _paired_apposition_dash(tokens, idx):
+        return "dash_apposition"
 
     # Apposition dash (Rozental §93): appos or parataxis arc with both
     # nominal endpoints spans the dash. Must check BEFORE subj_pred because
