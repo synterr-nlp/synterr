@@ -2,91 +2,125 @@
 
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20182862-3b82f6)](https://doi.org/10.5281/zenodo.20182862)
 [![BEA 2026](https://img.shields.io/badge/paper-BEA%202026-b3261e)](https://synterr-nlp.github.io/papers/bea-2026/)
+[![Docs](https://img.shields.io/badge/docs-synterr--nlp.github.io-4c9a2a)](https://synterr-nlp.github.io/synterr/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-7a7a7a)](https://opensource.org/licenses/MIT)
 
-Generate synthetic grammatical errors for training GEC models.
+**Rule-grounded synthetic error generation for Russian GEC.**
+Feed it clean text; get back training pairs where every error names the
+rule it violates.
 
-synterr corrupts clean text with realistic learner-like errors, outputting GECToR-compatible training data with error type labels.
+![Tagged corruptions: second locative, double comparative, asyndetic comma](docs/site/assets/fig_corrupt.svg)
 
-## Why
+## Why synterr
 
-Training GEC models requires parallel data (incorrect → correct). Real learner corpora are small and expensive to annotate. synterr generates unlimited synthetic training data from any clean corpus, with error distributions matching real learner errors.
+Most synthetic-corruption tools mangle text and hope the noise resembles
+human errors. synterr takes the opposite bet — every corruption is the
+*inversion of a specific rule*, and it shows its work:
 
-## Install
+- **Every error has a defensible label.** Corruptions map to a
+  hierarchical grammar-reference taxonomy (down to § paragraphs), to
+  [RLC](https://aclanthology.org/2024.lrec-main.1241/) tags, or to ERRANT.
+  Filter, re-weight, and audit your training data *by rule*.
+- **Every error has a syntactic justification.** Government, agreement,
+  and punctuation handlers fire on dependency-tree evidence — and
+  **refuse to fire** where the "corruption" would produce acceptable
+  Russian. A wrong comma is only useful training signal if it's actually
+  wrong.
+- **Every error is population-aware.** Each fine-grained tag carries an
+  `l2_applicability` rating (full / partial / none): does the native
+  prescriptive rule describe the error the way L2 learners actually make
+  it? One schema, queryable by population, per error, in the output.
 
-Until the first PyPI release lands, install from source:
+## Quickstart
 
 ```bash
 pip install "synterr[russian] @ git+https://github.com/synterr-nlp/synterr"
 ```
 
-### Development (uv)
-
 ```bash
-git clone https://github.com/synterr-nlp/synterr
-cd synterr
-uv sync --all-extras   # install all dependencies
+# corrupt one sentence (great for inspection)
+synterr corrupt -l ru -e noun_case_prep "Мы гуляли в лесу весь день."
+# Original:  Мы гуляли в лесу весь день .
+# Corrupted: Мы гуляли в лесе весь день .
+# Error:     noun_case_prep_e_u @ position 3
+# Fix tag:   $REPLACE_лесу
+
+# generate a corpus with a learner-calibrated error distribution
+synterr generate -l ru --preset rulec --schema rozental \
+    -i clean.txt -o train.jsonl --output-format jsonl --seed 42
 ```
 
-Run commands with `uv run`:
-```bash
-uv run synterr --help
-uv run synterr list-errors -l ru
-uv run pytest  # run tests
-```
-
-Or activate the venv:
-```bash
-source .venv/bin/activate
-synterr --help
-```
-
-## Usage
+Development install:
 
 ```bash
-# Generate errors with RULEC-GEC distribution
-uv run synterr generate -l ru -i clean.txt -o train.edits --preset rulec
-
-# Use faster backend for large corpora
-uv run synterr generate -l ru -i corpus.txt -o out.edits --backend natasha
-
-# Specific error types only
-uv run synterr generate -l ru -i in.txt -o out.edits -e spelling,noun_case --depparse
-
-# Single sentence corruption (for testing)
-uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
-
-# Dep-tree-aware errors (noun_case, adj_case) need --depparse
-uv run synterr corrupt -l ru -e noun_case --depparse "Книга лежит на столе."
-# Original:  Книга лежит на столе .
-# Corrupted: Книга лежит на стол .   (wrong case: "лежит на" requires prepositional)
+git clone https://github.com/synterr-nlp/synterr && cd synterr
+uv sync --all-extras
+uv run synterr --help && uv run pytest
 ```
 
-Output formats (`-f` flag): `gector` (default), `tsv`, `jsonl`,
-`chat` (instruction-tuning), `sft` (`{src, tgt}` JSONL).
-(`to_diff()` is available on the Python API but not exposed via CLI.)
+## The pipeline
 
-Rule-targeted SFT generation (force-apply each LoRuGEC rule, with rule labels):
-
-```bash
-uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
-    -n 50000 --seed 42 --balance-directions
+```
+clean text ──► 1. survey ──► starving error classes
+                                  │
+                  2. mine-pools ◄─┘
+                        │
+   per-class pools ─────┤
+   + base corpus  ──────┴──► 3. generate ──► tagged training pairs
 ```
 
-Produces `{"src": corrupted, "tgt": clean, "rule": rule_name}` JSONL
-plus a `.dist.json` sidecar of per-rule counts.
+Stages 1–2 exist because precision-gated handlers only fire where the
+error is *recoverable* — and plain news text simply lacks many trigger
+contexts. `synterr survey` measures per-subtype fire rates on your
+corpus; `synterr mine-pools` sweeps large sources for candidate
+sentences per starving class (patterns derive from the live handler
+lexicons, so they can't drift). Measured effect: `verb_tense` fires at
+10/1k sentences on raw news vs ~1700/1k on its mined pool.
 
-## Error Types (Russian)
+Full contract — every stage, every output field:
+**[docs → Pipeline](https://synterr-nlp.github.io/synterr/pipeline/)**.
 
-| Type | Example | Label |
-|------|---------|-------|
-| Spelling | *ищо* → ещё | SPELL |
-| Noun case | *к дому* → к дом | MORPH |
-| Adj agreement | *новый книга* → новая книга | MORPH |
-| Verb conjugation | *они читает* → они читают | MORPH |
-| Paronyms | *одеть* ↔ надеть | LEX |
+### Output: two label layers
 
-Full list: `synterr list-errors -l ru`
+```jsonc
+{ "type": "noun_case_prep_e_u",              // handler-owned: always present
+  "fix_tag": "$REPLACE_лесу",
+  "schema_tag": "mo_noun_case",              // schema-owned: only with --schema
+  "schema_l2_tag": "mo_noun_case_prep_e_u",  //   → §-level taxonomy tag
+  "schema_l2_applicability": "partial" }     //   → native↔learner bridge
+```
+
+Handler-owned fields are the ground truth of what the corruption did.
+Schema-owned fields are opt-in (`--schema rozental|rlc|errant`) and
+re-labelable: the mapping lives in schema YAML, not in the corruption —
+relabel a corpus under another taxonomy without regenerating it.
+
+## What it generates
+
+28 handlers / 83 subtypes across five categories
+(`synterr list-errors -l ru` is authoritative):
+
+| Category | Examples |
+|----------|----------|
+| Spelling | *молоко → малако*, *учится ↔ учиться*, не/ни, adverb & compound spelling |
+| Morphology | case government (*ждали автобуса → автобусу*), agreement, second locative (*в лесу → в лесе*), short/full adjectives, numeral declension |
+| Punctuation | dep-tree-classified comma deletion/insertion (10+5 subtypes incl. asyndetic §116 and vocative §101), dash rules with §79 exception handling |
+| Lexical | paronyms (*одеть ↔ надеть*), preposition/conjunction confusion sets |
+| Structural | word omission/insertion with grammaticality guards |
+
+Morphological corruption is driven by **empirical confusion matrices**
+extracted from the Russian Learner Corpus (N=2,760 case confusions) —
+learners' actual substitution probabilities, not uniform noise.
+
+## Presets: how often each error fires
+
+| Preset | Source |
+|--------|--------|
+| `rulec` | RULEC-GEC L2/heritage learner essay distribution |
+| `gera` | GERA school-text distribution (punctuation-heavy) |
+| `gera_bidir` | gera with direction-balanced punctuation (SFT) |
+| `lorugec` | uniform over the 48 LoRuGEC benchmark rules |
+| `balanced` | flat coverage |
 
 ## Backends
 
@@ -98,33 +132,23 @@ Full list: `synterr list-errors -l ru`
 
 *Benchmarked on M4 Pro. Batch mode uses `generate_batch()` / `analyze_batch()`.*
 
-## Presets
+## Quality control
 
-Error weights derived from real learner corpora:
-
-- `rulec` — RULEC-GEC L2/heritage learner distribution
-- `gera` — GERA German-Russian learner distribution
-- `balanced` — Equal weights for all error types
-
-```bash
-synterr list-presets -l ru
-```
-
-## How It Works
-
-1. **Analyze** clean sentence (stanza/natasha/spacy)
-2. **Sample** error type from distribution
-3. **Apply** corruption via rule inversion (pymorphy3)
-4. **Output** with fix tag + detection label
-
-The "rule inversion" approach: look up what's grammatically correct, then generate something that violates it.
+Every handler has been audited against the underlying grammar reference,
+including live-repro adversarial review of its outputs; the invariant
+suite (`tests/test_core/test_weight_invariants.py`) structurally
+prevents the "config silently ignored" bug class; per-rule benchmark
+coverage is live-verified sentence by sentence
+([docs/research/LORUGEC_COVERAGE.md](docs/research/LORUGEC_COVERAGE.md)).
+700+ tests.
 
 ## Status
 
-**v1.0.1** — Paper release. 25 handlers / 69 subtypes covering spelling, morphology, lexical, structural, and punctuation errors. Output formats: GECToR tags, TSV, JSONL (with rule labels), chat (instruction-tuning), SFT.
-
-Active development continues toward future releases; see the `CHANGELOG.md`
-for shipped milestones.
+**v1.0.1** (BEA 2026 paper release) is tagged and archived on Zenodo;
+v4 training-data provenance and checksums:
+[`data/V4_DATA_PROVENANCE.md`](data/V4_DATA_PROVENANCE.md).
+Master moves fast — per-detail history in [`CHANGELOG.md`](CHANGELOG.md),
+current state on the [docs site](https://synterr-nlp.github.io/synterr/).
 
 ## References
 
@@ -180,9 +204,6 @@ To cite the software release specifically:
   url     = {https://github.com/synterr-nlp/synterr},
 }
 ```
-
-Data generation provenance and SHA256 checksums are documented in
-[`data/V4_DATA_PROVENANCE.md`](data/V4_DATA_PROVENANCE.md).
 
 ## License
 
