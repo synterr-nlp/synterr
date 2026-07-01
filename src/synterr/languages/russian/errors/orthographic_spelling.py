@@ -486,7 +486,7 @@ def _apply_subtype(
     lemma: str | None = None,
 ) -> str | None:
     if subtype == "pre_pri":
-        return _swap_pre_pri(word, text_lower)
+        return _swap_pre_pri(word, text_lower, lemma)
     elif subtype == "y_i_after_prefix":
         return _swap_yi_prefix(word, text_lower)
     elif subtype == "suffix_enk_onk":
@@ -510,7 +510,7 @@ def _apply_subtype(
     return None
 
 
-def _swap_pre_pri(word: str, text_lower: str) -> str | None:
+def _swap_pre_pri(word: str, text_lower: str, lemma: str | None = None) -> str | None:
     """Swap пре↔при prefix — only if morpheme dict confirms a real prefix."""
     m = _PRE_PRI_RE.match(text_lower)
     if not m:
@@ -519,6 +519,10 @@ def _swap_pre_pri(word: str, text_lower: str) -> str | None:
     # Check morpheme dict: only swap if the word actually has пре-/при- prefix
     analyzer = get_morpheme_analyzer()
     has_pfx = analyzer.has_prefix(text_lower, prefix_lower)
+    if has_pfx is None and lemma and lemma.lower() != text_lower:
+        # Dict is lemma-keyed; inflected surfaces (пребывает) miss. Prefix
+        # structure is stable across inflection, so fall back to the lemma.
+        has_pfx = analyzer.has_prefix(lemma.lower(), prefix_lower)
     if has_pfx is False:
         return None  # Not a prefix (природа, прекрасный)
     if has_pfx is None:

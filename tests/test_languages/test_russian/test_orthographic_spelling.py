@@ -71,6 +71,23 @@ class TestPrePri:
         h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert sentence[0] == "Преступить"
 
+    def test_inflected_form_fires_via_lemma_fallback(self):
+        # Morpheme dict is lemma-keyed; the surface "пребывает" is OOV
+        # but the lemma confirms the пре- prefix (LoRuGEC canonical case)
+        h = _force_subtype("pre_pri")
+        tokens = [_tok("пребывает", pos="VERB", lemma="пребывать")]
+        sentence = ["пребывает"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "прибывает"
+
+    def test_oov_surface_and_lemma_still_skipped(self):
+        h = _force_subtype("pre_pri")
+        tokens = [_tok("председатель", pos="NOUN", lemma="председатель")]
+        sentence = ["председатель"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None or sentence[0] == "председатель"
+
     def test_short_word_rejected(self):
         h = OrthographicSpellingHandler()
         tokens = [_tok("при", pos="ADP")]
