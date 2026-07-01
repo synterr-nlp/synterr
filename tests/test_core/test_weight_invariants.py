@@ -155,7 +155,16 @@ class TestPresetKeysBindToHandlers:
 # ── Invariant 2: zero subtype weight means excluded, not deprioritized ──────
 
 
-def _tok(text, pos="NOUN", lemma=None, idx=0, dep_rel=None, head_idx=None, features=None):
+def _tok(
+    text,
+    pos="NOUN",
+    lemma=None,
+    idx=0,
+    dep_rel=None,
+    head_idx=None,
+    features=None,
+    extra=None,
+):
     return AnalyzedToken(
         text=text,
         lemma=lemma or text.lower(),
@@ -164,6 +173,28 @@ def _tok(text, pos="NOUN", lemma=None, idx=0, dep_rel=None, head_idx=None, featu
         idx=idx,
         dep_rel=dep_rel,
         head_idx=head_idx,
+        extra=extra or {},
+    )
+
+
+@functools.cache
+def _pymorphy():
+    """Lazy pymorphy3 analyzer for handlers that inflect (noun_case)."""
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
+
+
+def _noun(text, case, idx, dep_rel, head_idx=None):
+    """Inflectable noun token: real pymorphy parse, mocked dep arc."""
+    return _tok(
+        text,
+        "NOUN",
+        idx=idx,
+        dep_rel=dep_rel,
+        head_idx=head_idx,
+        features={"Case": case},
+        extra={"pymorphy_parse": _pymorphy().parse(text)[0]},
     )
 
 
@@ -318,6 +349,22 @@ BATTERY: list[list[AnalyzedToken]] = [
     _seq(("ни", "PART"), ("слуху", "NOUN"), ("ни", "PART"), ("духу", "NOUN")),
     # comma_insert: adjacent conjunctions with correlative
     _seq(("и", "CCONJ"), ("когда", "SCONJ"), ("мы", "PRON"), ("пришли", "VERB"), ("то", "PART")),
+    # noun_case: governed (obl) — head governs the case
+    [
+        _tok("Мы", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+        _tok("ждали", "VERB", idx=1, dep_rel="root"),
+        _noun("автобуса", "Gen", idx=2, dep_rel="obl", head_idx=1),
+    ],
+    # noun_case: subject (nsubj)
+    [
+        _noun("книга", "Nom", idx=0, dep_rel="nsubj", head_idx=1),
+        _tok("лежит", "VERB", idx=1, dep_rel="root"),
+    ],
+    # noun_case: other (appos)
+    [
+        _noun("поезд", "Nom", idx=0, dep_rel="root"),
+        _noun("экспресс", "Nom", idx=1, dep_rel="appos", head_idx=0),
+    ],
 ]
 
 # Subtypes the battery is known to trigger when solely enabled. Keeps the
@@ -383,6 +430,11 @@ EXPECTED_FIRED: dict[str, set[str]] = {
         "dash_subj_pred",
         "dash_other",
         # dash_asyndetic / dash_apposition: no battery example yet
+    },
+    "noun_case": {
+        "noun_case_governed",
+        "noun_case_subject",
+        "noun_case_other",
     },
 }
 

@@ -227,6 +227,19 @@ mappings:
     primary: NOUN:CASE
     modifier: R
 
+  # noun_case arc-aware subtypes — ERRANT has no finer distinction
+  noun_case_governed:
+    primary: NOUN:CASE
+    modifier: R
+
+  noun_case_subject:
+    primary: NOUN:CASE
+    modifier: R
+
+  noun_case_other:
+    primary: NOUN:CASE
+    modifier: R
+
   noun_number:
     primary: NOUN:NUM
     modifier: R

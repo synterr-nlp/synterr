@@ -43,6 +43,10 @@ _MODIFIER_DEPRELS = {"amod", "acl", "acl:relcl"}
 # dep_rels where the head governs the noun's case (government relation)
 _GOVERNED_DEPRELS = {"obl", "nmod", "iobj", "obj"}
 
+# Subject dep_rels. Shared by NounCaseErrorHandler (subject-case subtype) and
+# NounNumberErrorHandler (predicate agreement evidence).
+_SUBJECT_DEPRELS = {"nsubj", "nsubj:pass"}
+
 
 def _get_pymorphy_parse(token: AnalyzedToken):
     """Get pymorphy parse object from token."""
@@ -67,27 +71,88 @@ def _find_dependent(
 
 
 class NounCaseErrorHandler:
-    """Change noun case to create morphological error."""
+    """Change noun case to create morphological error.
+
+    Arc-aware subtypes (phase 2 of the dep-arc plan): the noun's own dep_rel
+    deterministically decides the subtype, so subtype weights act as enable
+    gates rather than sampling weights (same as CommaDeleteHandler) — a
+    preset that zeroes a subtype makes the handler skip nouns classifying
+    into it instead of leaking them under another label.
+
+    - ``noun_case_governed``: head governs the case (obl/nmod/iobj/obj) —
+      textbook government errors ("ждать автобуса")
+    - ``noun_case_subject``: subject position (nsubj/nsubj:pass) — learner
+      errors putting the subject in an oblique case (RLC 'Nominative')
+    - ``noun_case_other``: any other dep-attached noun (appos, conj, root, …)
+
+    No dep info → no fire: without an arc there is no classification
+    evidence, and pre-split behavior was already dep-gated.
+    """
 
     name = "noun_case"
-    subtypes = ["noun_case"]
+    subtypes = ["noun_case_governed", "noun_case_subject", "noun_case_other"]
     category = "MORPH"
     changes_length = False
-    _confusion_matrices = None
+
+    # Enable gates, not sampling weights (classification is deterministic);
+    # magnitudes document the attestation split: government is the
+    # well-attested RLC class.
+    DEFAULT_WEIGHTS = {
+        "noun_case_governed": 70,
+        "noun_case_subject": 20,
+        "noun_case_other": 10,
+    }
+
+    def __init__(self) -> None:
+        self._confusion_matrices: dict | None = None
+        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+        self._enabled_subtypes: set[str] | None = None
 
     def set_confusion_matrix(self, matrices: dict) -> None:
         self._confusion_matrices = matrices
 
+    def set_subtype_weights(self, weights: dict[str, float]) -> None:
+        self._weights = self.DEFAULT_WEIGHTS.copy()
+        for subtype, weight in weights.items():
+            if subtype in self._weights:
+                self._weights[subtype] = weight
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype)."""
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
+    @staticmethod
+    def _classify(token: AnalyzedToken) -> str | None:
+        """Classify the case-error subtype from the noun's dep arc."""
+        if not token.dep_rel:
+            return None
+        if token.dep_rel in _GOVERNED_DEPRELS:
+            return "noun_case_governed"
+        if token.dep_rel in _SUBJECT_DEPRELS:
+            return "noun_case_subject"
+        return "noun_case_other"
+
+    def _subtype_allowed(self, subtype: str) -> bool:
+        if self._enabled_subtypes is not None:
+            # Explicit targeting (CLI :subtype / SFT) overrides weight gates.
+            return subtype in self._enabled_subtypes
+        return self._weights.get(subtype, 0) > 0
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if noun case error can be applied.
 
-        Only targets governed positions (obl, nmod, iobj, obj) where the head
-        determines the noun's case — i.e. true government errors.
+        Requires a dep arc (subtype classification evidence) and an enabled
+        subtype for that arc; see class docstring for the arc → subtype map.
         """
         token = tokens[idx]
         if token.pos != "NOUN":
             return False
-        if token.dep_rel not in _GOVERNED_DEPRELS:
+        subtype = self._classify(token)
+        if subtype is None or not self._subtype_allowed(subtype):
             return False
         parse = _get_pymorphy_parse(token)
         return parse is not None and token.has_feature("Case")
@@ -107,6 +172,10 @@ class NounCaseErrorHandler:
         parse = _get_pymorphy_parse(token)
 
         if parse is None:
+            return None
+
+        subtype = self._classify(token)
+        if subtype is None or not self._subtype_allowed(subtype):
             return None
 
         current_case_ud = token.get_feature("Case")
@@ -134,7 +203,7 @@ class NounCaseErrorHandler:
 
             original_case = token.get_feature("Case", "Nom")
             return ErrorResult(
-                error_type="noun_case",
+                error_type=subtype,
                 category=self.category,
                 start_idx=idx,
                 end_idx=idx + 1,
@@ -155,9 +224,8 @@ _NUMBER_AGREEING_DEPRELS = {"det", "amod"}
 # head noun ("его книга" / "его книги"), so they constrain nothing.
 _INVARIANT_POSSESSIVES = {"его", "её", "ее", "их"}
 
-# nsubj dep_rels and predicate POS that agree with the subject in number.
+# Predicate POS that agree with an nsubj subject in number.
 # Nominal predicates need not agree ("Книги — лучший подарок" is correct).
-_SUBJECT_DEPRELS = {"nsubj", "nsubj:pass"}
 _NUMBER_PREDICATE_POS = {"VERB", "AUX", "ADJ"}
 
 

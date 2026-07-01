@@ -892,7 +892,20 @@ mappings:
     l2_tag: sp_affix_prefix
 
   # Morphological handler subtypes — nouns
+  # plain noun_case kept for backward compatibility with pre-split data
   noun_case:
+    primary: mo_noun_case
+    l2_tag: mo_noun_case_other
+  # noun_case arc-aware subtypes: governed slots are Rozental's government
+  # chapter (§200 case selection by the governing word); subject-case errors
+  # have no Rozental § (L2-only phenomenon) so noun_case_subject maps
+  # primary-only; the residual class mirrors the pre-split mapping.
+  noun_case_governed:
+    primary: gv_government
+    l2_tag: gv_case_choice
+  noun_case_subject:
+    primary: mo_noun_case
+  noun_case_other:
     primary: mo_noun_case
     l2_tag: mo_noun_case_other
   noun_case_prep_e_u:

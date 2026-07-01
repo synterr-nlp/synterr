@@ -38,7 +38,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
-28 handlers / 75 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+28 handlers / 77 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
 
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
@@ -47,7 +47,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant, nn_suffix | Ortho | SPELL |
 | compound_spelling | num_dash, pol_spelling, compound_adj | Ortho, Hyphen | SPELL |
 | adverb_spelling | solid_to_separate, separate_to_solid, hyphen_to_separate, separate_to_hyphen | Ortho | SPELL |
-| noun_case | noun_case | Gov | MORPH |
+| noun_case | noun_case_governed (obl/nmod/iobj/obj), noun_case_subject (nsubj), noun_case_other (appos/conj/…) | Gov, Nominative, Infl | MORPH |
 | noun_case_prep | noun_case_prep_e_u (second locative в лесу→в лесе) | Gov | MORPH |
 | noun_number | noun_number | Num | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |

@@ -70,6 +70,14 @@ weights:
 
 # Subtype weights: uniform within each handler
 subtype_weights:
+  # noun_case has no LoRuGEC rules; the handler weight is already 0.0, but
+  # zero the subtypes explicitly too (unlisted subtypes keep handler DEFAULT
+  # weights, so they would leak if the handler were ever re-enabled)
+  noun_case:
+    noun_case_governed: 0
+    noun_case_subject: 0
+    noun_case_other: 0
+
   # spelling's only LoRuGEC rule is ъ/ь — zero everything else
   # (unlisted subtypes keep handler DEFAULT weights, so they must be
   # explicitly zeroed)

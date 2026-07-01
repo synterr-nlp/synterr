@@ -67,6 +67,15 @@ weights:
   word_omission: 0.032       # LACK 3.2%
   word_insertion: 0.000      # EXCESS 0%
 
+# Subtype weights within handlers
+subtype_weights:
+  # noun_case classification is deterministic (dep arc decides the subtype),
+  # so these act as enable gates; magnitudes document the attestation split.
+  noun_case:
+    noun_case_governed: 70  # Head-governed slots (obl/nmod/iobj/obj)
+    noun_case_subject: 20   # Subject case errors
+    noun_case_other: 10     # Appositions, conjuncts, other dep-attached nouns
+
 # No confusion matrices: RLC-derived matrices are L2 learner data,
 # not appropriate for GERA's L1 school text errors.
 # Morph handlers fall back to uniform random substitution.

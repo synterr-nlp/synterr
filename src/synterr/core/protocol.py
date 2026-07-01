@@ -111,7 +111,7 @@ class ErrorHandler(Protocol):
 
         Examples:
             - SpellingHandler: ['vowel_reduction', 'keyboard', 'tsa_confusion', ...]
-            - NounCaseHandler: ['noun_case']  # single subtype = handler name
+            - NounNumberHandler: ['noun_number']  # single subtype = handler name
 
         These subtypes are mapped to schema tags in the schema YAML.
         """

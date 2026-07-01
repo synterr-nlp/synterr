@@ -78,8 +78,12 @@ mappings:
   keyboard: [spelling]
   soft_sign: [spelling]
 
-  # NounCaseErrorHandler
+  # NounCaseErrorHandler (arc-aware subtypes all collapse to the noun_case tag;
+  # plain noun_case kept for backward compatibility with pre-split data)
   noun_case: [noun_case]
+  noun_case_governed: [noun_case]
+  noun_case_subject: [noun_case]
+  noun_case_other: [noun_case]
 
   # NounNumberErrorHandler
   noun_number: [noun_number]

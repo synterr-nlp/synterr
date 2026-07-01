@@ -65,5 +65,14 @@ weights:
   # Morphological - Numerals: ~1%
   numeral_declension: 0.01
 
+# Subtype weights within handlers
+subtype_weights:
+  # noun_case classification is deterministic (dep arc decides the subtype),
+  # so these act as enable gates; magnitudes document the attestation split.
+  noun_case:
+    noun_case_governed: 70  # Head-governed slots (obl/nmod/iobj/obj)
+    noun_case_subject: 20   # Subject case errors
+    noun_case_other: 10     # Appositions, conjuncts, other dep-attached nouns
+
 # No confusion matrices: this preset is corpus-agnostic.
 # Morph handlers fall back to uniform random substitution.

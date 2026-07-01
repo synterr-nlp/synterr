@@ -224,8 +224,16 @@ mappings:
   # ---------------------------------------------------------------------------
   # Morphological handler subtypes -> RLC tags
   # ---------------------------------------------------------------------------
+  # plain noun_case kept for backward compatibility with pre-split data
   noun_case:
     primary: Gov
+  # noun_case arc-aware subtypes (dep_rel decides the class)
+  noun_case_governed:
+    primary: Gov
+  noun_case_subject:
+    primary: Nominative
+  noun_case_other:
+    primary: Infl
   noun_case_prep_e_u:
     primary: Gov
   noun_number:

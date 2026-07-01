@@ -71,6 +71,13 @@ weights:
 # These control the distribution of error subtypes when a handler is selected.
 # Values are relative weights (not probabilities) - higher = more likely.
 subtype_weights:
+  # noun_case classification is deterministic (dep arc decides the subtype),
+  # so these act as enable gates; magnitudes document the attestation split.
+  noun_case:
+    noun_case_governed: 70  # Head-governed slots (obl/nmod/iobj/obj) — well-attested
+    noun_case_subject: 20   # Subject case errors (RLC 'Nominative')
+    noun_case_other: 10     # Appositions, conjuncts, other dep-attached nouns
+
   spelling:
     vowel_reduction: 30     # Unstressed vowel confusion (аканье/иканье)
     tsa_confusion: 25       # -тся/-ться confusion (most common)

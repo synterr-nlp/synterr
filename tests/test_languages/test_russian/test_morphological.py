@@ -116,8 +116,18 @@ class TestMorphologicalErrorHandlers:
         assert verb_handler.can_apply(tokens, 2) is True
         assert verb_handler.can_apply(tokens, 3) is False
 
-    def test_noun_case_requires_governed_deprel(self):
-        """NounCaseErrorHandler only targets governed positions (obl/nmod/iobj/obj)."""
+    def test_noun_case_subtypes_declared(self):
+        """The arc-aware split declares exactly three subtypes."""
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        assert NounCaseErrorHandler.subtypes == [
+            "noun_case_governed",
+            "noun_case_subject",
+            "noun_case_other",
+        ]
+
+    def test_noun_case_requires_dep_arc(self):
+        """No dep info → no fire (classification needs an arc), any arc → fire."""
         from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
 
         handler = NounCaseErrorHandler()
@@ -128,15 +138,156 @@ class TestMorphologicalErrorHandlers:
             extra={"pymorphy_parse": "mock"},
         )
 
-        # Governed dep_rels → should apply
-        for dep_rel in ("obl", "nmod", "iobj", "obj"):
+        # Dep-attached nouns of every class → should apply (default weights
+        # enable all three subtypes)
+        for dep_rel in ("obl", "nmod", "iobj", "obj", "nsubj", "nsubj:pass",
+                        "conj", "root", "appos"):
             token = AnalyzedToken(text="книга", idx=0, dep_rel=dep_rel, **base)
             assert handler.can_apply([token], 0) is True, f"should apply for {dep_rel}"
 
-        # Non-governed dep_rels → should NOT apply
-        for dep_rel in ("nsubj", "conj", "root", "appos", None):
+        # No dep info → should NOT apply
+        for dep_rel in (None, ""):
             token = AnalyzedToken(text="книга", idx=0, dep_rel=dep_rel, **base)
-            assert handler.can_apply([token], 0) is False, f"should reject {dep_rel}"
+            assert handler.can_apply([token], 0) is False, f"should reject {dep_rel!r}"
+
+
+class TestNounCaseArcSubtypes:
+    """Phase-2 arc-aware split: dep_rel deterministically decides the subtype."""
+
+    CLASSIFICATION = {
+        "obl": "noun_case_governed",
+        "nmod": "noun_case_governed",
+        "iobj": "noun_case_governed",
+        "obj": "noun_case_governed",
+        "nsubj": "noun_case_subject",
+        "nsubj:pass": "noun_case_subject",
+        "appos": "noun_case_other",
+        "conj": "noun_case_other",
+        "root": "noun_case_other",
+        "orphan": "noun_case_other",
+    }
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        return NounCaseErrorHandler()
+
+    def _token(self, dep_rel):
+        parse = morph.parse("книги")[0]  # Gen Sing Fem
+        return AnalyzedToken(
+            text="книги",
+            lemma="книга",
+            pos="NOUN",
+            features={"Case": "Gen", "Number": "Sing", "Gender": "Fem"},
+            idx=0,
+            dep_rel=dep_rel,
+            extra={"pymorphy_parse": parse},
+        )
+
+    def test_apply_emits_subtype_per_deprel(self):
+        """error_type is the classified subtype, per dep_rel."""
+        handler = self._handler()
+        for dep_rel, expected in self.CLASSIFICATION.items():
+            tokens = [self._token(dep_rel)]
+            sentence = ["книги"]
+            result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(42))
+            assert result is not None, f"apply failed for {dep_rel}"
+            assert result.error_type == expected, (
+                f"{dep_rel}: expected {expected}, got {result.error_type}"
+            )
+
+    def test_no_dep_info_never_fires(self):
+        """Dep gate unchanged from phase 1: no arc → apply returns None."""
+        handler = self._handler()
+        tokens = [self._token(None)]
+        result = handler.apply(tokens, ["книги"], 0, set(), rng=random.Random(42))
+        assert result is None
+
+    def test_zero_weight_excludes_subtype(self):
+        """A zeroed subtype never fires — no leak under another label."""
+        handler = self._handler()
+        for enabled in handler.subtypes:
+            handler.set_subtype_weights(
+                {s: (100.0 if s == enabled else 0.0) for s in handler.subtypes}
+            )
+            for dep_rel, classified in self.CLASSIFICATION.items():
+                tokens = [self._token(dep_rel)]
+                allowed = classified == enabled
+                assert handler.can_apply(tokens, 0) is allowed, (
+                    f"enabled={enabled}, dep_rel={dep_rel}"
+                )
+                result = handler.apply(
+                    tokens, ["книги"], 0, set(), rng=random.Random(42)
+                )
+                if allowed:
+                    assert result is not None and result.error_type == enabled
+                else:
+                    assert result is None, (
+                        f"enabled={enabled} but {dep_rel} fired {result.error_type}"
+                    )
+
+    def test_enabled_subtypes_overrides_weights(self):
+        """set_enabled_subtypes (CLI :subtype path) overrides zero weights."""
+        handler = self._handler()
+        handler.set_subtype_weights({s: 0.0 for s in handler.subtypes})
+        handler.set_enabled_subtypes({"noun_case_subject"})
+
+        subj = [self._token("nsubj")]
+        gov = [self._token("obl")]
+        assert handler.can_apply(subj, 0) is True
+        assert handler.can_apply(gov, 0) is False
+        result = handler.apply(subj, ["книги"], 0, set(), rng=random.Random(42))
+        assert result is not None and result.error_type == "noun_case_subject"
+
+        handler.set_enabled_subtypes(None)
+
+    def test_enabled_subtypes_rejects_unknown(self):
+        handler = self._handler()
+        with pytest.raises(ValueError, match="Unknown subtypes"):
+            handler.set_enabled_subtypes({"noun_case_bogus"})
+
+    def test_confusion_matrix_applies_to_all_subtypes(self):
+        """The RLC matrix machinery is shared: matrix lookup per subtype."""
+        handler = self._handler()
+        handler.set_confusion_matrix({"case": {"Gen": {"Nom": 1.0}}})
+        for dep_rel in ("obl", "nsubj", "appos"):
+            tokens = [self._token(dep_rel)]
+            sentence = ["книги"]
+            result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(42))
+            assert result is not None
+            assert sentence[0] == "книга", f"{dep_rel}: matrix not applied"
+
+    def test_schema_mappings_resolve(self):
+        """Every new subtype (and legacy noun_case) resolves in all schemas."""
+        from synterr.schemas import load_schema
+
+        expected_rlc = {
+            "noun_case": "Gov",  # backward compat for pre-split data
+            "noun_case_governed": "Gov",
+            "noun_case_subject": "Nominative",
+            "noun_case_other": "Infl",
+        }
+        rlc = load_schema("rlc")
+        for subtype, tag in expected_rlc.items():
+            assert rlc.get_tag_for_subtype(subtype) == tag
+            assert tag in rlc.primary_tags
+
+        rozental = load_schema("rozental")
+        assert rozental.get_tag_for_subtype("noun_case_governed") == "gv_government"
+        assert rozental.get_l2_tag_for_subtype("noun_case_governed") == "gv_case_choice"
+        assert rozental.get_tag_for_subtype("noun_case_subject") == "mo_noun_case"
+        assert rozental.get_l2_tag_for_subtype("noun_case_subject") is None
+        assert rozental.get_tag_for_subtype("noun_case_other") == "mo_noun_case"
+        assert (
+            rozental.get_l2_tag_for_subtype("noun_case_other") == "mo_noun_case_other"
+        )
+
+        for schema_name in ("errant", "synterr"):
+            schema = load_schema(schema_name)
+            for subtype in expected_rlc:
+                assert schema.get_tag_for_subtype(subtype) is not None, (
+                    f"{schema_name} does not map {subtype}"
+                )
 
 
 class TestConfusionMatrixIntegration:
