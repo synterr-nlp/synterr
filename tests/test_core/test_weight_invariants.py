@@ -349,6 +349,85 @@ BATTERY: list[list[AnalyzedToken]] = [
     _seq(("ни", "PART"), ("слуху", "NOUN"), ("ни", "PART"), ("духу", "NOUN")),
     # comma_insert: adjacent conjunctions with correlative
     _seq(("и", "CCONJ"), ("когда", "SCONJ"), ("мы", "PRON"), ("пришли", "VERB"), ("то", "PART")),
+    # comma_insert: homogeneous members joined by single и (§86 п.1)
+    [
+        _tok("Мама", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+        _tok(
+            "купила", "VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}
+        ),
+        _tok("яблоки", "NOUN", idx=2, dep_rel="obj", head_idx=1),
+        _tok("и", "CCONJ", idx=3, dep_rel="cc", head_idx=4),
+        _tok("груши", "NOUN", idx=4, dep_rel="conj", head_idx=2),
+    ],
+    # comma_insert: heavy subject NP + predicate
+    [
+        _tok(
+            "Прибывшие",
+            "VERB",
+            idx=0,
+            dep_rel="amod",
+            head_idx=1,
+            features={"VerbForm": "Part"},
+        ),
+        _tok("участники", "NOUN", idx=1, dep_rel="nsubj", head_idx=3),
+        _tok("конференции", "NOUN", idx=2, dep_rel="nmod", head_idx=1),
+        _tok(
+            "разместились",
+            "VERB",
+            idx=3,
+            dep_rel="root",
+            features={"VerbForm": "Fin"},
+        ),
+    ],
+    # comma_insert: pseudo-parenthetical ведь (§99 п.2 Прим.)
+    [
+        _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=4),
+        _tok("ведь", "PART", idx=1, dep_rel="advmod", head_idx=4),
+        _tok("ничего", "PRON", idx=2, dep_rel="obj", head_idx=4),
+        _tok("не", "PART", idx=3, dep_rel="advmod", head_idx=4),
+        _tok("знал", "VERB", idx=4, dep_rel="root", features={"VerbForm": "Fin"}),
+    ],
+    # comma_insert: sentence-initial однако (§99 п.7)
+    [
+        _tok("Однако", "ADV", idx=0, dep_rel="advmod", head_idx=2),
+        _tok("переговоры", "NOUN", idx=1, dep_rel="nsubj", head_idx=2),
+        _tok(
+            "продолжились",
+            "VERB",
+            idx=2,
+            dep_rel="root",
+            features={"VerbForm": "Fin"},
+        ),
+        _tok(".", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
+    ],
+    # comma_insert: non-splittable compound conjunction (§108 Прим.)
+    [
+        _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+        _tok("спал", "VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}),
+        _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=8),
+        _tok("в", "ADP", idx=3, dep_rel="case", head_idx=5),
+        _tok("то", "DET", idx=4, dep_rel="det", head_idx=5),
+        _tok("время", "NOUN", idx=5, dep_rel="obl", head_idx=8),
+        _tok("как", "SCONJ", idx=6, dep_rel="mark", head_idx=8),
+        _tok("я", "PRON", idx=7, dep_rel="nsubj", head_idx=8),
+        _tok(
+            "работал",
+            "VERB",
+            idx=8,
+            dep_rel="advcl",
+            head_idx=1,
+            features={"VerbForm": "Fin"},
+        ),
+    ],
+    # comma_insert: «X не X» repetition (§90 п.4)
+    _seq(
+        ("работа", "NOUN"),
+        ("не", "PART"),
+        ("работа", "NOUN"),
+        (",", "PUNCT"),
+        ("а", "CCONJ"),
+        ("мучение", "NOUN"),
+    ),
     # noun_case: governed (obl) — head governs the case
     [
         _tok("Мы", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
@@ -424,6 +503,12 @@ EXPECTED_FIRED: dict[str, set[str]] = {
         "comma_before_kak",
         "comma_in_set_phrase",
         "comma_between_conjunctions",
+        "comma_homogeneous_conj",
+        "comma_subj_pred",
+        "comma_pseudo_parenthetical",
+        "comma_after_odnako",
+        "comma_compound_conj_split",
+        "comma_x_ne_x",
         # comma_in_indivisible / comma_clause_junction: no battery example yet
     },
     "dash_delete": {

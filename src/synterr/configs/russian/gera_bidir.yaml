@@ -1,0 +1,107 @@
+# GERA distribution with bidirectional comma balance — v5 SFT preset
+#
+# Purpose: direction-balance the punctuation mass for v5 SFT training data.
+# gera.yaml is a corpus-derived distribution and stays untouched (GERA really
+# is ~6:1 delete-heavy: P:COMMA missing ~36% vs extra ~6%); direction
+# balancing is a *training* intervention, so it lives here instead.
+# Target ≈1.5:1 delete:insert weight mass (not 1:1 — evaluation sets remain
+# miss-heavy, full parity would overshoot into comma-deletion bias):
+#   delete mass 0.200 + 0.120 = 0.320
+#   insert mass 0.210 (0.170 + 0.040 pair-insert mass folded into
+#   comma_insert — no CommaPairInsertHandler; single-comma MVP forms only)
+#   → 1.52:1
+# Source: synterr-internal/BIDIRECTIONAL_COMMA_DESIGN.md §5 (2026-07-01).
+# Everything else copied from gera.yaml (GERA, Sorokin et al., 2016).
+
+name: gera_bidir
+description: "GERA distribution rebalanced for bidirectional comma errors (v5 SFT)"
+source: "GERA (Sorokin et al., 2016) + BIDIRECTIONAL_COMMA_DESIGN.md rebalance"
+
+# Pipeline settings
+error_probability: 0.7
+max_errors_per_sentence: 3
+
+# Error weights (normalized to implemented handlers)
+weights:
+  # Spelling: 20.3% in corpus (S:ORTH + S:TYPO + S:LETTER:CASE)
+  spelling: 0.712
+
+  # Morphological - Nouns: 6.0% total
+  noun_case: 0.173      # G:NOUN:CASE 5.1%
+  noun_case_prep: 0.005 # second locative -е/-у (native norm slip; estimated)
+  noun_number: 0.031    # G:NOUN:NUM 0.9%
+
+  # Morphological - Adjectives: 2.8% total
+  adj_case: 0.055       # G:ADJ:CASE 1.6%
+  adj_number: 0.020     # G:ADJ:NUM 0.6%
+  adj_gender: 0.000     # Not annotated separately
+  adj_form: 0.005       # short/full form (native norm slip; estimated)
+  adj_double_comparative: 0.002  # более интереснее (native norm slip; estimated)
+
+  # Morphological - Verbs: 2.8% total
+  verb_person_number: 0.000  # Combined in G:VERB:P/N/G
+  verb_tense: 0.009          # G:VERB:TENSE 0.7%
+
+  # Lexical
+  paronym: 0.038             # L:OTHER 3.8%
+  preposition: 0.009         # G:PREP:WRONG 0.9%
+  conjunction: 0.003         # G:CONJ:WRONG 0.3%
+
+  # Punctuation — direction-rebalanced (see header; gera.yaml has the
+  # corpus-true 0.220 / 0.140 / 0.060 split)
+  comma_delete: 0.200        # was 0.220
+  comma_pair_delete: 0.120   # was 0.140
+  comma_insert: 0.210        # was 0.060; includes folded pair-insert mass
+  dash_delete: 0.040         # P:DASH ~4% (unchanged)
+  dash_to_comma: 0.010       # P:DASH→COMMA substitution (unchanged)
+
+  # Function word spelling (S:ORTH subsumes these in GERA)
+  function_spelling: 0.10
+
+  # Orthographic spelling (suffix/prefix rules, part of S:ORTH)
+  orthographic_spelling: 0.10
+
+  # Compound word spelling
+  compound_spelling: 0.02
+
+  # Adverb spelling
+  adverb_spelling: 0.02
+
+  # Semantics (low weight for L1 school texts)
+  pleonasm: 0.005
+  collocation: 0.005
+
+  # Morphological - Numerals
+  numeral_declension: 0.005
+
+  # Structural
+  word_omission: 0.032       # LACK 3.2%
+  word_insertion: 0.000      # EXCESS 0%
+
+# Subtype weights within handlers
+subtype_weights:
+  # noun_case classification is deterministic (dep arc decides the subtype),
+  # so these act as enable gates; magnitudes document the attestation split.
+  noun_case:
+    noun_case_governed: 70  # Head-governed slots (obl/nmod/iobj/obj)
+    noun_case_subject: 20   # Subject case errors
+    noun_case_other: 10     # Appositions, conjuncts, other dep-attached nouns
+
+  # Full v5 table from BIDIRECTIONAL_COMMA_DESIGN.md §5 (unbuilt candidates
+  # omitted: comma_paired_conj_first, comma_wh_fragment, comma_gerund_idiom)
+  comma_insert:
+    comma_homogeneous_conj: 25      # C1 §86 п.1 — workhorse
+    comma_subj_pred: 20             # C2 — workhorse, zero-optionality site
+    comma_pseudo_parenthetical: 18  # C3 §99 п.2 Прим. (single-comma MVP)
+    comma_before_kak: 10            # existing
+    comma_clause_junction: 10       # existing
+    comma_compound_conj_split: 4    # C5 §108 Прим.
+    comma_after_odnako: 3           # C4 §99 п.7
+    comma_in_indivisible: 2         # existing
+    comma_x_ne_x: 1                 # C10 §90 п.4 — near-zero news yield
+    comma_in_set_phrase: 1          # existing; near-dead on news, keep as gate
+    comma_between_conjunctions: 1   # existing; near-dead (correlative gate), keep
+
+# No confusion matrices: RLC-derived matrices are L2 learner data,
+# not appropriate for GERA's L1 school text errors.
+# Morph handlers fall back to uniform random substitution.

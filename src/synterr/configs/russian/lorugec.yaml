@@ -128,6 +128,14 @@ subtype_weights:
     comma_between_conjunctions: 12  # 1 rule (стык союзов)
     comma_in_indivisible: 20  # 1 rule (цельные по смыслу)
     comma_clause_junction: 16  # §104/§109 (СПП общая часть + однородные придаточные)
+    # Bidirectional subtypes are NOT LoRuGEC rules — zero them explicitly
+    # (unlisted subtypes keep handler DEFAULT weights and would leak)
+    comma_homogeneous_conj: 0
+    comma_subj_pred: 0
+    comma_pseudo_parenthetical: 0
+    comma_after_odnako: 0
+    comma_compound_conj_split: 0
+    comma_x_ne_x: 0
 
   comma_delete:
     comma_subordinate: 22   # 2 rules (однородные придаточные + СПП)

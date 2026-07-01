@@ -345,6 +345,24 @@ mappings:
   comma_clause_junction:
     primary: Syntax
     modifier: Extra
+  comma_homogeneous_conj:
+    primary: Syntax
+    modifier: Extra
+  comma_subj_pred:
+    primary: Syntax
+    modifier: Extra
+  comma_pseudo_parenthetical:
+    primary: Syntax
+    modifier: Extra
+  comma_after_odnako:
+    primary: Syntax
+    modifier: Extra
+  comma_compound_conj_split:
+    primary: Syntax
+    modifier: Extra
+  comma_x_ne_x:
+    primary: Syntax
+    modifier: Extra
 
   # Punctuation (RLC has no dedicated punct tags; Syntax+Miss = closest)
   comma_subordinate:

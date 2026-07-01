@@ -14,6 +14,23 @@ Covers LoRuGEC rules about EXTRA commas (the error = spurious comma):
 - Inside indivisible (цельные по смыслу) expressions: как ни в чём не бывало,
   куда глаза глядят, мало кто, не иначе как, etc. (§87 п.4, §90, §114 п.1).
 
+Bidirectional (GREEN-tier) subtypes mirroring the "запятая НЕ ставится"
+clauses of §§79–116 (see synterr-internal/BIDIRECTIONAL_COMMA_DESIGN.md):
+- comma_homogeneous_conj (§86 п.1): comma before a SINGLE и/да/или/либо
+  joining two non-clausal homogeneous members ("яблоки, и груши"). Exact
+  complement of comma_clause_junction's clausality gate.
+- comma_subj_pred (no § licenses it): comma between a heavy subject NP and
+  its immediately following predicate ("Прибывшие участники, разместились").
+- comma_pseudo_parenthetical (§99 п.2 Прим.): bracketing words from the
+  closed never-вводные list ("Он, ведь ничего не знал"). MVP single-comma
+  forms: sentence-initial word → comma after; mid-sentence → comma before.
+- comma_after_odnako (§99 п.7): sentence-initial «однако» = «но», takes no
+  comma; the error inserts one ("Однако, переговоры продолжились").
+- comma_compound_conj_split (§108 Прим.): comma inside non-splittable
+  compound conjunctions ("в то время, как").
+- comma_x_ne_x (§90 п.4): comma inside «X не X» / «X так X» repetition
+  constructions ("работа, не работа").
+
 This handler inserts comma tokens into the sentence (changes_length=True).
 """
 
@@ -23,6 +40,7 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors.punctuation import _get_subtree_span
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -392,6 +410,361 @@ def _has_correlative_after(tokens: Sequence[AnalyzedToken], subord_idx: int) -> 
     return False
 
 
+# =============================================================================
+# Homogeneous members joined by a single и/да/или/либо (§86 п.1)
+# =============================================================================
+
+# §86 п.1: no comma before a SINGLE и/да(=и)/или/либо between homogeneous
+# members. Противительные (а, но, да=но) always take the comma and are
+# excluded; in clean text a comma-less «да» can only be да=и, so it is safe.
+_HOMOGENEOUS_SINGLE_CONJ = {"и", "да", "или", "либо"}
+
+# Conjunctions that form repeated patterns (§87): when TWO of these attach
+# inside one coordination, the comma before the second IS correct → skip.
+_REPEATABLE_CONJ = {"и", "да", "или", "либо", "ни"}
+
+
+def _coordination_family(
+    tokens: Sequence[AnalyzedToken], conj_head: AnalyzedToken
+) -> set[int] | None:
+    """Indices of all conjuncts in the coordination containing `conj_head`.
+
+    `conj_head` has dep_rel=conj; its head is the first conjunct, and every
+    other conj-dependent of the first conjunct belongs to the same chain.
+    """
+    first_idx = conj_head.head_idx
+    if first_idx is None or not (0 <= first_idx < len(tokens)):
+        return None
+    family = {first_idx}
+    family.update(
+        t.idx for t in tokens if t.head_idx == first_idx and t.dep_rel == "conj"
+    )
+    return family
+
+
+def _has_repeated_conjunction(
+    tokens: Sequence[AnalyzedToken], conj_head: AnalyzedToken
+) -> bool:
+    """§87 guard: the coordination carries a repeated и/да/или/либо/ни.
+
+    Counts repeatable conjunctions attached anywhere in the conj chain.
+    The LEADING conjunction of «и X и Y» is tagged by stanza as PART with
+    dep_rel=advmod on the first conjunct (verified on «росли и яблони и
+    груши»), not as cc — so «и»/«ни» count regardless of dep_rel as long as
+    they attach to a conjunct; или/либо/да count only as cc/cc:preconj.
+    Two or more → the comma would be CORRECT (§87, and the modern Lopatin
+    norm for two-member «и X и Y») → not an error site.
+    """
+    family = _coordination_family(tokens, conj_head)
+    if family is None:
+        return False
+    count = 0
+    for t in tokens:
+        if t.head_idx not in family:
+            continue
+        text = t.text.lower()
+        if text not in _REPEATABLE_CONJ:
+            continue
+        if t.dep_rel in ("cc", "cc:preconj") or text in ("и", "ни"):
+            count += 1
+    return count >= 2
+
+
+def _can_insert_homogeneous_conj(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§86 п.1: single и/да/или/либо joining NON-clausal homogeneous members.
+
+    The clausality gate is the exact inverse of _can_insert_clause_junction:
+    clausal conj heads (ССП / homogeneous clauses) belong to
+    comma_clause_junction; non-clausal ones (plain homogeneous members)
+    belong here. Together the two subtypes partition the cc-space.
+    """
+    if idx == 0:
+        return False
+    token = tokens[idx]
+    if token.text.lower() not in _HOMOGENEOUS_SINGLE_CONJ:
+        return False
+    # cc only: cc:preconj marks the LEADING conjunction of a repeated pattern
+    if token.dep_rel != "cc":
+        return False
+    if tokens[idx - 1].text == ",":
+        return False
+    # и + subordinate conjunction is §110 territory (comma_between_conjunctions)
+    if idx + 1 < len(tokens):
+        nxt = tokens[idx + 1]
+        if nxt.pos == "SCONJ" or nxt.dep_rel == "mark":
+            return False
+    if token.head_idx is None or not (0 <= token.head_idx < len(tokens)):
+        return False
+    head = tokens[token.head_idx]
+    if head.dep_rel != "conj":
+        return False
+    if _is_clausal_head(head, tokens):
+        return False  # ССП/clausal homogeneous → comma_clause_junction (§104/§109)
+    # §87: repeated conjunction → the comma would be correct, not an error
+    return not _has_repeated_conjunction(tokens, head)
+
+
+# =============================================================================
+# Comma between subject group and predicate (§79-zone; nothing licenses it)
+# =============================================================================
+
+
+def _can_insert_subj_pred(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Pause-comma after a heavy subject NP, before its predicate.
+
+    No § of §§75–138 licenses a single comma at the bare subject–predicate
+    junction, so the insertion is optionality-free. Guards:
+    - subject head is NOUN/PROPN (PRON subjects are short, never comma'd);
+    - subject subtree spans ≥ 2 tokens (the attested heavy-NP pause error);
+    - the predicate sits IMMEDIATELY after the span — a closing isolation
+      comma at the boundary («[субъект + прич. оборот], сказуемое») is
+      legitimate punctuation and vetoes the site;
+    - no comma inside the span (a bracketted phrase's partner comma would
+      be disturbed).
+    """
+    token = tokens[idx]
+    if token.dep_rel not in ("nsubj", "nsubj:pass"):
+        return False
+    if token.pos not in ("NOUN", "PROPN"):
+        return False
+    if token.head_idx is None or not (0 <= token.head_idx < len(tokens)):
+        return False
+    pred = tokens[token.head_idx]
+    if pred.idx <= token.idx:
+        return False
+    span_left, span_right = _get_subtree_span(tokens, token.idx)
+    if span_right - span_left < 1:
+        return False  # not a heavy NP
+    if span_right + 1 >= len(tokens):
+        return False
+    boundary = tokens[span_right + 1]
+    if boundary.text == ",":
+        return False  # closing isolation comma already sits at the boundary
+    if boundary.idx != pred.idx:
+        return False  # material between subject span and predicate
+    return not any(tokens[k].text == "," for k in range(span_left, span_right + 1))
+
+
+# =============================================================================
+# Pseudo-parenthetical words (§99 п.2 Примечание — never вводные)
+# =============================================================================
+
+# Curated closed list from §99 п.2 Прим. (words that are NOT вводные and
+# never take commas). Deliberately DROPS the разнобой-prone words (никак,
+# небось, авось, примерно, в довершение) and the dual-function words of
+# §99 пп.5–12 (значит, вообще, наконец, однако-mid, главным образом, во
+# всяком случае) — those are RED, both punctuations exist.
+_PSEUDO_PARENTHETICAL: list[tuple[str, ...]] = [
+    ("ведь",),
+    ("всё-таки",),
+    ("все-таки",),  # е-spelling variant of всё-таки
+    ("даже",),
+    ("именно",),
+    ("как", "раз"),
+    ("почти",),
+    ("вряд", "ли"),
+    ("едва", "ли"),
+    ("якобы",),
+    ("буквально",),
+    ("к", "тому", "же"),
+    ("вдобавок",),
+    ("как", "будто"),
+    ("как", "бы"),
+    ("словно",),
+    ("между", "тем"),
+    ("поэтому",),
+    ("просто",),
+    ("решительно",),
+    ("исключительно",),
+]
+
+_PSEUDO_INDEX: dict[str, list[tuple[str, ...]]] = {}
+for _phrase in _PSEUDO_PARENTHETICAL:
+    _PSEUDO_INDEX.setdefault(_phrase[0], []).append(_phrase)
+for _key in _PSEUDO_INDEX:
+    _PSEUDO_INDEX[_key].sort(key=len, reverse=True)  # longest match first
+
+
+# =============================================================================
+# Non-splittable compound conjunctions (§108 Примечание)
+# =============================================================================
+
+# (phrase, index of the word BEFORE which the erroneous comma goes).
+# «потому что» / «для того чтобы» are excluded — their splitting is
+# legitimate under §108 п.2 conditions. «так что» is excluded — the comma'd
+# degree reading «так, что» is grammatical.
+_COMPOUND_SCONJ: list[tuple[tuple[str, ...], int]] = [
+    (("в", "то", "время", "как"), 3),
+    (("между", "тем", "как"), 2),
+    (("тогда", "как"), 1),
+    (("словно", "как"), 1),
+    (("даже", "если"), 1),
+    (("лишь", "когда"), 1),
+]
+
+# Continuations after a trailing «как» that signal a fixed как-phrase
+# («тогда как раз», «тогда как будто») rather than the compound conjunction.
+_KAK_PHRASE_CONTINUATIONS = {"раз", "будто", "бы"}
+
+
+def _match_phrase(
+    tokens: Sequence[AnalyzedToken], idx: int, phrase: tuple[str, ...]
+) -> bool:
+    """Contiguous case-insensitive match of `phrase` starting at `idx`."""
+    if idx + len(phrase) > len(tokens):
+        return False
+    return all(tokens[idx + k].text.lower() == word for k, word in enumerate(phrase))
+
+
+def _match_compound_sconj(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> tuple[tuple[str, ...], int] | None:
+    """Match a non-splittable compound conjunction starting at `idx`."""
+    for compound, comma_pos in _COMPOUND_SCONJ:
+        if not _match_phrase(tokens, idx, compound):
+            continue
+        # «тогда как раз», «словно как будто»: trailing как opens a fixed
+        # phrase, not the conjunction → skip
+        after = idx + len(compound)
+        if (
+            compound[-1] == "как"
+            and after < len(tokens)
+            and tokens[after].text.lower() in _KAK_PHRASE_CONTINUATIONS
+        ):
+            continue
+        return compound, comma_pos
+    return None
+
+
+def _extends_to_compound_sconj(
+    tokens: Sequence[AnalyzedToken], idx: int, phrase: tuple[str, ...]
+) -> bool:
+    """`phrase` at `idx` is the prefix of a compound conjunction (§108).
+
+    «даже если», «словно как», «между тем как»: a comma BEFORE the whole
+    conjunction is legitimate clause punctuation, so the pseudo-parenthetical
+    subtype must not fire on the prefix word.
+    """
+    return any(
+        len(compound) > len(phrase)
+        and compound[: len(phrase)] == phrase
+        and _match_phrase(tokens, idx, compound)
+        for compound, _pos in _COMPOUND_SCONJ
+    )
+
+
+def _opens_following_clause(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """The word introduces the clause of a head to its right.
+
+    Connective/comparative uses (поэтому, словно, как будто opening a new
+    clause or оборот) can legitimately follow a comma, so mid-sentence
+    pseudo-parenthetical insertion must skip them: the word attaches
+    rightward to a clausal head whose subtree begins at the word itself.
+    """
+    token = tokens[idx]
+    if token.head_idx is None or not (0 <= token.head_idx < len(tokens)):
+        return False
+    head = tokens[token.head_idx]
+    if head.idx <= token.idx:
+        return False
+    if not _is_clausal_head(head, tokens):
+        return False
+    span_left, _span_right = _get_subtree_span(tokens, head.idx)
+    return span_left == token.idx
+
+
+def _pseudo_parenthetical_insert_pos(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> int | None:
+    """Insertion position for the §99 п.2 Прим. error at `idx`, or None.
+
+    MVP single-comma forms:
+    - sentence-initial word → comma AFTER it («Ведь, он не знал»);
+    - mid-sentence word → comma BEFORE it («Он, ведь ничего не знал»).
+    """
+    phrases = _PSEUDO_INDEX.get(tokens[idx].text.lower())
+    if not phrases:
+        return None
+    phrase = next((p for p in phrases if _match_phrase(tokens, idx, p)), None)
+    if phrase is None:
+        return None
+    if _extends_to_compound_sconj(tokens, idx, phrase):
+        return None  # §108 compound conjunction territory
+    end = idx + len(phrase)  # first position after the phrase
+    if idx == 0:
+        if end >= len(tokens):
+            return None
+        nxt = tokens[end]
+        if nxt.pos == "PUNCT" or nxt.text == ",":
+            return None  # fragment, or comma already present
+        return end
+    prev = tokens[idx - 1]
+    if prev.pos == "PUNCT" or prev.text == ",":
+        return None
+    if prev.pos in ("CCONJ", "SCONJ"):
+        return None  # conjunction junctions are other subtypes' territory
+    if _opens_following_clause(tokens, idx):
+        return None  # connective use — a preceding comma can be legitimate
+    return idx
+
+
+# =============================================================================
+# Sentence-initial «однако» (§99 п.7)
+# =============================================================================
+
+
+def _can_insert_after_odnako(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§99 п.7: sentence-initial «однако» = противительный союз «но», no comma.
+
+    The error inserts one (the English-calqued "However," comma). Only
+    mid-/end-clause «однако» is вводное — that position is dual-function
+    (RED) and never fires. Exception guard: interjection-like «Однако,
+    какой ветер!» keeps the comma.
+    """
+    token = tokens[idx]
+    if token.text.lower() != "однако":
+        return False
+    # sentence-initial, or clause-initial right after a semicolon
+    if idx != 0 and tokens[idx - 1].text != ";":
+        return False
+    if idx + 1 >= len(tokens):
+        return False
+    nxt = tokens[idx + 1]
+    if nxt.pos == "PUNCT" or nxt.text == ",":
+        return False
+    # «Однако, какой ветер!» — interjection exception
+    if nxt.lemma in ("какой", "как") and any(
+        t.text == "!" for t in tokens[idx + 1 :]
+    ):
+        return False
+    # fragment guard: require some clausal content after «однако»
+    return sum(1 for t in tokens[idx + 1 :] if t.pos != "PUNCT") >= 2
+
+
+# =============================================================================
+# «X не X» / «X так X» repetition constructions (§90 п.4)
+# =============================================================================
+
+
+def _can_insert_x_ne_x(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§90 п.4: no comma inside «дождь не дождь» / «свадьба так свадьба».
+
+    Detector: identical surface form on both sides of не/так, same POS.
+    Mirror of comma_delete's repetition machinery, inverted.
+    """
+    if idx + 2 >= len(tokens):
+        return False
+    first, mid, second = tokens[idx], tokens[idx + 1], tokens[idx + 2]
+    if mid.text.lower() not in ("не", "так"):
+        return False
+    text = first.text.lower()
+    if text != second.text.lower():
+        return False
+    if text in ("не", "так"):  # degenerate «не не не» / «так так так»
+        return False
+    return first.pos != "PUNCT" and first.pos == second.pos
+
+
 class CommaInsertHandler:
     """Insert spurious commas — creates extra-comma errors.
 
@@ -400,6 +773,13 @@ class CommaInsertHandler:
     - comma_in_set_phrase: insert comma inside repeated conjunction phrases
     - comma_between_conjunctions: insert comma between adjacent conjunctions
     - comma_in_indivisible: insert comma inside indivisible expressions
+    - comma_clause_junction: insert comma before clause-joining cc (§104/§109)
+    - comma_homogeneous_conj: comma before single и between homogeneous members (§86)
+    - comma_subj_pred: comma between heavy subject NP and predicate
+    - comma_pseudo_parenthetical: bracket never-вводные words (§99 п.2 Прим.)
+    - comma_after_odnako: comma after sentence-initial однако (§99 п.7)
+    - comma_compound_conj_split: split non-splittable compound conjunctions (§108)
+    - comma_x_ne_x: comma inside «X не X» repetitions (§90)
     """
 
     name = "comma_insert"
@@ -409,16 +789,30 @@ class CommaInsertHandler:
         "comma_between_conjunctions",
         "comma_in_indivisible",
         "comma_clause_junction",
+        "comma_homogeneous_conj",
+        "comma_subj_pred",
+        "comma_pseudo_parenthetical",
+        "comma_after_odnako",
+        "comma_compound_conj_split",
+        "comma_x_ne_x",
     ]
     category = "PUNCT"
     changes_length = True
 
+    # Workhorses (homogeneous_conj, subj_pred, pseudo_parenthetical) carry
+    # the direction-balance mass; see BIDIRECTIONAL_COMMA_DESIGN.md §5.
     DEFAULT_WEIGHTS = {
         "comma_before_kak": 30,
         "comma_in_set_phrase": 20,
         "comma_between_conjunctions": 15,
         "comma_in_indivisible": 15,
         "comma_clause_junction": 20,
+        "comma_homogeneous_conj": 30,
+        "comma_subj_pred": 20,
+        "comma_pseudo_parenthetical": 15,
+        "comma_after_odnako": 8,
+        "comma_compound_conj_split": 8,
+        "comma_x_ne_x": 5,
     }
 
     def __init__(self):
@@ -438,59 +832,90 @@ class CommaInsertHandler:
             if subtype in self._weights:
                 self._weights[subtype] = weight
 
-    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    def _detect_subtypes(self, tokens: Sequence[AnalyzedToken], idx: int) -> list[str]:
+        """All subtypes whose trigger fires at `idx`.
+
+        Shared by can_apply and apply so the two can never diverge (the
+        subtype-extraction bug class of June 2026).
+        """
         token = tokens[idx]
         text_lower = token.text.lower()
+        detected: list[str] = []
 
         # "как" not already preceded by comma, and NOT a clause-introducing "как"
-        if text_lower == "как" and idx > 0:
-            prev = tokens[idx - 1]
-            if prev.text != ",":
-                if token.dep_rel in _KAK_CLAUSE_DEPRELS:
-                    pass  # Clause-introducing — comma is correct, don't insert
-                elif token.dep_rel == "mark":
-                    # Stanza tags virtually all "как" as mark. Disambiguate by the
-                    # head's POS: nominal head + no finite verb → appositive
-                    # ("работал как экономист", comma wrong) → fire; verbal head
-                    # → subordinate clause ("как мы встретились") → skip.
-                    if _is_appositive_kak(tokens, idx):
-                        return True
-                elif token.dep_rel == "advmod" and token.head_idx is not None:
-                    # advmod как: Stanza mislabels clause-introducing как as advmod
-                    # ("непонятно, как можно" — comma correct, should skip).
-                    # If head is a verb → likely clause context → skip.
-                    # If head is noun/adv → fixed phrase (как минимум) → insert.
-                    head = (
-                        tokens[token.head_idx]
-                        if 0 <= token.head_idx < len(tokens)
-                        else None
-                    )
-                    if head is None or head.pos not in ("VERB", "AUX"):
-                        return True
-                else:
-                    return True
+        if text_lower == "как" and idx > 0 and tokens[idx - 1].text != ",":
+            allow = False
+            if token.dep_rel in _KAK_CLAUSE_DEPRELS:
+                pass  # clause-introducing — comma is correct, don't insert
+            elif token.dep_rel == "mark":
+                # Stanza tags virtually all "как" as mark. Disambiguate by the
+                # head's POS: nominal head + no finite verb → appositive
+                # ("работал как экономист", comma wrong) → fire; verbal head
+                # → subordinate clause ("как мы встретились") → skip.
+                if _is_appositive_kak(tokens, idx):
+                    allow = True
+            elif token.dep_rel == "advmod" and token.head_idx is not None:
+                # advmod как: Stanza mislabels clause-introducing как as advmod
+                # ("непонятно, как можно" — comma correct, should skip).
+                # If head is a verb → likely clause context → skip.
+                # If head is noun/adv → fixed phrase (как минимум) → insert.
+                head = (
+                    tokens[token.head_idx]
+                    if 0 <= token.head_idx < len(tokens)
+                    else None
+                )
+                if head is not None and head.pos not in ("VERB", "AUX"):
+                    allow = True
+            else:
+                allow = True
+            if allow:
+                detected.append("comma_before_kak")
 
-        # Frozen phrase: check if conjunction + content words match a known phrase
+        # Frozen phrase: conjunction + content words match a known phrase
         if text_lower in _FROZEN_PHRASES and _matches_frozen_phrase(tokens, idx):
-            return True
+            detected.append("comma_in_set_phrase")
 
         # Adjacent conjunctions: only when "то/так/но" correlative follows
         if text_lower in _COORDINATING and idx + 1 < len(tokens):
             next_lower = tokens[idx + 1].text.lower()
-            if next_lower in _SUBORDINATING:
-                if _has_correlative_after(tokens, idx + 1):
-                    return True
+            if next_lower in _SUBORDINATING and _has_correlative_after(tokens, idx + 1):
+                detected.append("comma_between_conjunctions")
 
         # Clause-junction CC (§104 exceptions, §109 clausal homogeneous):
         # cc joining two clauses with no current comma — error is adding one
         if _can_insert_clause_junction(tokens, idx):
-            return True
+            detected.append("comma_clause_junction")
 
         # Indivisible expressions (цельные по смыслу сочетания)
-        return bool(
+        if (
             text_lower in _INDIVISIBLE_INDEX
             and _matches_indivisible(tokens, idx) is not None
-        )
+        ):
+            detected.append("comma_in_indivisible")
+
+        # ── Bidirectional GREEN-tier subtypes ────────────────────────────
+        if _can_insert_homogeneous_conj(tokens, idx):
+            detected.append("comma_homogeneous_conj")
+
+        if _can_insert_subj_pred(tokens, idx):
+            detected.append("comma_subj_pred")
+
+        if _pseudo_parenthetical_insert_pos(tokens, idx) is not None:
+            detected.append("comma_pseudo_parenthetical")
+
+        if _can_insert_after_odnako(tokens, idx):
+            detected.append("comma_after_odnako")
+
+        if _match_compound_sconj(tokens, idx) is not None:
+            detected.append("comma_compound_conj_split")
+
+        if _can_insert_x_ne_x(tokens, idx):
+            detected.append("comma_x_ne_x")
+
+        return detected
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        return bool(self._detect_subtypes(tokens, idx))
 
     def apply(
         self,
@@ -501,63 +926,11 @@ class CommaInsertHandler:
         rng: Random | None = None,
     ) -> ErrorResult | None:
         rng = rng if rng is not None else random_module
-        token = tokens[idx]
-        text_lower = token.text.lower()
 
-        candidates: list[tuple[str, float]] = []
-
-        if text_lower == "как" and idx > 0:
-            prev = tokens[idx - 1]
-            if prev.text != ",":
-                allow = False
-                if token.dep_rel in _KAK_CLAUSE_DEPRELS:
-                    pass  # clause — comma correct
-                elif token.dep_rel == "mark":
-                    if _is_appositive_kak(tokens, idx):
-                        allow = True  # appositive/comparative — comma wrong
-                elif token.dep_rel == "advmod" and token.head_idx is not None:
-                    head = (
-                        tokens[token.head_idx]
-                        if 0 <= token.head_idx < len(tokens)
-                        else None
-                    )
-                    if head is not None and head.pos not in ("VERB", "AUX"):
-                        allow = True  # fixed phrase — no comma
-                else:
-                    allow = True
-                if allow:
-                    candidates.append(
-                        ("comma_before_kak", self._weights["comma_before_kak"])
-                    )
-
-        if text_lower in _FROZEN_PHRASES and _matches_frozen_phrase(tokens, idx):
-            candidates.append(
-                ("comma_in_set_phrase", self._weights["comma_in_set_phrase"])
-            )
-
-        if text_lower in _COORDINATING and idx + 1 < len(tokens):
-            next_lower = tokens[idx + 1].text.lower()
-            if next_lower in _SUBORDINATING and _has_correlative_after(tokens, idx + 1):
-                candidates.append(
-                    (
-                        "comma_between_conjunctions",
-                        self._weights["comma_between_conjunctions"],
-                    )
-                )
-
-        if _can_insert_clause_junction(tokens, idx):
-            candidates.append(
-                ("comma_clause_junction", self._weights["comma_clause_junction"])
-            )
-
-        if (
-            text_lower in _INDIVISIBLE_INDEX
-            and _matches_indivisible(tokens, idx) is not None
-        ):
-            candidates.append(
-                ("comma_in_indivisible", self._weights["comma_in_indivisible"])
-            )
-
+        candidates: list[tuple[str, float]] = [
+            (subtype, self._weights[subtype])
+            for subtype in self._detect_subtypes(tokens, idx)
+        ]
         if not candidates:
             return None
 
@@ -586,6 +959,18 @@ class CommaInsertHandler:
             return self._insert_clause_junction(sentence, idx)
         elif chosen == "comma_in_indivisible":
             return self._insert_in_indivisible(sentence, idx, tokens)
+        elif chosen == "comma_homogeneous_conj":
+            return self._insert_homogeneous_conj(sentence, idx)
+        elif chosen == "comma_subj_pred":
+            return self._insert_subj_pred(sentence, idx, tokens)
+        elif chosen == "comma_pseudo_parenthetical":
+            return self._insert_pseudo_parenthetical(sentence, idx, tokens)
+        elif chosen == "comma_after_odnako":
+            return self._insert_after_odnako(sentence, idx)
+        elif chosen == "comma_compound_conj_split":
+            return self._insert_compound_conj_split(sentence, idx, tokens)
+        elif chosen == "comma_x_ne_x":
+            return self._insert_x_ne_x(sentence, idx)
 
         return None
 
@@ -683,6 +1068,110 @@ class CommaInsertHandler:
             category=self.category,
             start_idx=insert_idx,
             end_idx=insert_idx + 1,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_homogeneous_conj(
+        self, sentence: list[str], idx: int
+    ) -> ErrorResult | None:
+        """§86 п.1: яблоки и груши → яблоки , и груши."""
+        sentence.insert(idx, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_homogeneous_conj",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_subj_pred(
+        self, sentence: list[str], idx: int, tokens: Sequence[AnalyzedToken]
+    ) -> ErrorResult | None:
+        """Heavy subject NP: участники конференции разместились →
+        участники конференции , разместились."""
+        _span_left, span_right = _get_subtree_span(tokens, idx)
+        insert_idx = span_right + 1
+        if insert_idx >= len(sentence):
+            return None
+        sentence.insert(insert_idx, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_subj_pred",
+            category=self.category,
+            start_idx=insert_idx,
+            end_idx=insert_idx + 1,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_pseudo_parenthetical(
+        self, sentence: list[str], idx: int, tokens: Sequence[AnalyzedToken]
+    ) -> ErrorResult | None:
+        """§99 п.2 Прим.: Он ведь не знал → Он , ведь не знал;
+        Ведь он не знал → Ведь , он не знал."""
+        insert_idx = _pseudo_parenthetical_insert_pos(tokens, idx)
+        if insert_idx is None or insert_idx > len(sentence):
+            return None
+        sentence.insert(insert_idx, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_pseudo_parenthetical",
+            category=self.category,
+            start_idx=insert_idx,
+            end_idx=insert_idx + 1,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_after_odnako(
+        self, sentence: list[str], idx: int
+    ) -> ErrorResult | None:
+        """§99 п.7: Однако переговоры → Однако , переговоры."""
+        sentence.insert(idx + 1, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_after_odnako",
+            category=self.category,
+            start_idx=idx + 1,
+            end_idx=idx + 2,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_compound_conj_split(
+        self, sentence: list[str], idx: int, tokens: Sequence[AnalyzedToken]
+    ) -> ErrorResult | None:
+        """§108 Прим.: в то время как → в то время , как."""
+        match = _match_compound_sconj(tokens, idx)
+        if match is None:
+            return None
+        _compound, comma_pos = match
+        insert_idx = idx + comma_pos
+        if insert_idx >= len(sentence):
+            return None
+        sentence.insert(insert_idx, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_compound_conj_split",
+            category=self.category,
+            start_idx=insert_idx,
+            end_idx=insert_idx + 1,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_x_ne_x(self, sentence: list[str], idx: int) -> ErrorResult | None:
+        """§90 п.4: работа не работа → работа , не работа."""
+        sentence.insert(idx + 1, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_x_ne_x",
+            category=self.category,
+            start_idx=idx + 1,
+            end_idx=idx + 2,
             original="",
             corrupted=",",
             fix_tag="$DELETE",

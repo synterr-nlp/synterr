@@ -74,5 +74,15 @@ subtype_weights:
     noun_case_subject: 20   # Subject case errors
     noun_case_other: 10     # Appositions, conjuncts, other dep-attached nouns
 
+  # Bidirectional insert subtypes (BIDIRECTIONAL_COMMA_DESIGN.md §5); the
+  # original five keep handler DEFAULT weights.
+  comma_insert:
+    comma_homogeneous_conj: 25      # §86 п.1 — workhorse
+    comma_subj_pred: 20             # heavy-NP pause comma — workhorse
+    comma_pseudo_parenthetical: 18  # §99 п.2 Прим. (single-comma MVP)
+    comma_compound_conj_split: 4    # §108 Прим.
+    comma_after_odnako: 3           # §99 п.7
+    comma_x_ne_x: 1                 # §90 п.4 — near-zero news yield
+
 # No confusion matrices: this preset is corpus-agnostic.
 # Morph handlers fall back to uniform random substitution.

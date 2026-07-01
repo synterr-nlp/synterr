@@ -1109,6 +1109,38 @@ mappings:
     modifier: Extra
     l2_tag: pu_clause_compound
 
+  # Bidirectional comma_insert subtypes (GREEN tier, BIDIRECTIONAL_COMMA_DESIGN.md)
+  # §86 п.1: extra comma before a single и/да/или/либо between homogeneous members
+  comma_homogeneous_conj:
+    primary: pu_comma
+    modifier: Extra
+    l2_tag: pu_comma_homogeneous
+  # No § licenses a comma at the subject–predicate junction (§79 is dash-or-nothing
+  # territory) — primary-only, no fine-grained child fits
+  comma_subj_pred:
+    primary: pu_comma
+    modifier: Extra
+  # §99 п.2 Прим.: bracketing words from the closed never-вводные list
+  comma_pseudo_parenthetical:
+    primary: pu_comma
+    modifier: Extra
+    l2_tag: pu_comma_parenthetical
+  # §99 п.7: sentence-initial однако = союз «но», takes no comma
+  comma_after_odnako:
+    primary: pu_comma
+    modifier: Extra
+    l2_tag: pu_comma_parenthetical
+  # §108 Прим.: comma inside non-splittable compound conjunctions (в то время как)
+  comma_compound_conj_split:
+    primary: pu_clause
+    modifier: Extra
+    l2_tag: pu_clause_subordinate
+  # §90 п.4: comma inside «X не X» / «X так X» repetition constructions
+  comma_x_ne_x:
+    primary: pu_comma
+    modifier: Extra
+    l2_tag: pu_comma_repeated
+
   # Compound spelling handler subtypes
   num_dash:
     primary: sp_compounds

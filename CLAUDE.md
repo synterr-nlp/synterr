@@ -38,7 +38,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
-28 handlers / 77 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+28 handlers / 83 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
 
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
@@ -64,7 +64,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | word_insertion | word_insertion | Syntax+Extra | OTHER |
 | comma_delete | 10 subtypes (subordinate, compound, parenthetical, isolation, homogeneous, interjection, response, repeated, asyndetic, vocative) | Syntax+Miss | PUNCT |
 | comma_pair_delete | 5 subtypes (participle, relative, gerund, parenthetical, apposition) | Syntax+Miss | PUNCT |
-| comma_insert | comma_before_kak, comma_in_set_phrase, comma_between_conjunctions, comma_in_indivisible, comma_clause_junction | Syntax+Extra | PUNCT |
+| comma_insert | 11 subtypes (before_kak, in_set_phrase, between_conjunctions, in_indivisible, clause_junction + bidirectional: homogeneous_conj §86, subj_pred, pseudo_parenthetical §99, after_odnako §99, compound_conj_split §108, x_ne_x §90) | Syntax+Extra | PUNCT |
 | dash_delete | dash_subj_pred, dash_asyndetic, dash_apposition, dash_other | Syntax+Miss | PUNCT |
 | dash_to_comma | dash_to_comma_apposition (substitution; changes_length=False) | Syntax+Miss | PUNCT |
 
