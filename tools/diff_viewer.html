@@ -5,175 +5,421 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Synterr Diff Viewer</title>
     <style>
-        * {
-            box-sizing: border-box;
+        :root {
+            --bg: #f4f5f7;
+            --surface: #ffffff;
+            --surface-2: #f8f9fa;
+            --text: #24292f;
+            --text-muted: #6a737d;
+            --text-faint: #98a1a8;
+            --border: #d8dde3;
+            --border-strong: #b9c0c7;
+            --accent: #0b6bcb;
+            --shadow: 0 1px 3px rgba(0,0,0,0.10);
+            --del-bg: #fdecec;
+            --del-fg: #b42318;
+            --del-strong: #f6c9c5;
+            --ins-bg: #e7f4ea;
+            --ins-fg: #1a7f37;
+            --ins-strong: #c3e6cd;
+            --warn-bg: #fff3cd;
+            --kbd-bg: #eceff1;
+            --v1: #1a7f37;
+            --v2: #b45309;
+            --v3: #b42318;
+            --v4: #6f42c1;
+            color-scheme: light;
+        }
+        [data-theme="dark"] {
+            --bg: #14181d;
+            --surface: #1d232a;
+            --surface-2: #232a32;
+            --text: #dfe5ea;
+            --text-muted: #9aa5af;
+            --text-faint: #6c7680;
+            --border: #333c45;
+            --border-strong: #47525c;
+            --accent: #58a6ff;
+            --shadow: 0 1px 3px rgba(0,0,0,0.5);
+            --del-bg: #3d2222;
+            --del-fg: #ff9088;
+            --del-strong: #5c2f2a;
+            --ins-bg: #1f3527;
+            --ins-fg: #7ee2a0;
+            --ins-strong: #2c4e37;
+            --warn-bg: #3d3419;
+            --kbd-bg: #2c343c;
+            --v1: #4cc272;
+            --v2: #e5a04e;
+            --v3: #f27d72;
+            --v4: #b18cf0;
+            color-scheme: dark;
         }
 
+        * { box-sizing: border-box; }
+
+        html { scrollbar-gutter: stable; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 960px;
+            font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1040px;
             margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-            color: #333;
+            padding: 0 20px 40px;
+            background: var(--bg);
+            color: var(--text);
+            text-rendering: optimizeLegibility;
+        }
+
+        button {
+            font-family: inherit;
+            color: var(--text);
         }
 
         h1 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: #444;
+            font-size: 1.1rem;
+            margin: 0;
+            font-weight: 600;
+            white-space: nowrap;
         }
 
+        /* ---------- Sticky header ---------- */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: var(--surface);
+            margin: 0 -20px 16px;
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .topbar-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .topbar-row + .topbar-row { margin-top: 8px; }
+
+        .save-indicator {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            transition: opacity 0.4s;
+            white-space: nowrap;
+        }
+        .save-indicator .dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--v1);
+            margin-right: 4px;
+            vertical-align: baseline;
+        }
+        .save-indicator.flash .dot { box-shadow: 0 0 0 4px var(--ins-strong); }
+        .save-indicator.error { color: var(--v3); font-weight: 600; }
+        .save-indicator.error .dot { background: var(--v3); }
+
+        .topbar .spacer { margin-left: auto; }
+
+        .icon-btn {
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--surface);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .icon-btn:hover { background: var(--surface-2); }
+
+        .progress-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 220px;
+            flex: 1;
+        }
+        .progress-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .progress-track {
+            flex: 1;
+            height: 8px;
+            min-width: 80px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--v1);
+            transition: width 0.15s;
+        }
+
+        .verdict-chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .vchip {
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .vchip b { color: var(--text); }
+        .vchip.v-correct b { color: var(--v1); }
+        .vchip.v-non_error b { color: var(--v2); }
+        .vchip.v-wrong_error b { color: var(--v3); }
+        .vchip.v-ambiguous b { color: var(--v4); }
+
+        /* ---------- Dropzone ---------- */
         .dropzone {
-            border: 2px dashed #ccc;
+            border: 2px dashed var(--border-strong);
             border-radius: 8px;
             padding: 40px;
             text-align: center;
-            background: #fff;
+            background: var(--surface);
             cursor: pointer;
             transition: border-color 0.2s, background 0.2s;
         }
-
-        .dropzone:hover, .dropzone.dragover {
-            border-color: #666;
-            background: #fafafa;
+        .dropzone:hover, body.dragover .dropzone {
+            border-color: var(--accent);
+            background: var(--surface-2);
+        }
+        .dropzone input { display: none; }
+        .dropzone .sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
+        .dropzone code {
+            background: var(--kbd-bg);
+            padding: 1px 5px;
+            border-radius: 3px;
         }
 
-        .dropzone input {
-            display: none;
-        }
+        .viewer { display: none; }
+        .viewer.active { display: block; }
 
-        .viewer {
-            display: none;
+        /* ---------- Panels ---------- */
+        details.panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
         }
+        details.panel > summary {
+            cursor: pointer;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            user-select: none;
+            list-style: revert;
+        }
+        details.panel > summary:hover { background: var(--surface-2); }
+        details.panel > .panel-body { padding: 4px 14px 12px; }
 
-        .viewer.active {
-            display: block;
+        .file-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 0;
+            font-size: 0.82rem;
+        }
+        .file-row .fname {
+            font-family: Consolas, "Cascadia Mono", Menlo, monospace;
+            cursor: pointer;
+            color: var(--accent);
+        }
+        .file-row .fname:hover { text-decoration: underline; }
+        .file-row .fbar {
+            width: 140px;
+            height: 6px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .file-row .fbar > div { height: 100%; background: var(--v1); }
+        .file-row .fcount { color: var(--text-muted); white-space: nowrap; }
+
+        table.subtype-table {
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            width: 100%;
+        }
+        table.subtype-table th, table.subtype-table td {
+            padding: 3px 10px 3px 0;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+        }
+        table.subtype-table th { color: var(--text-muted); font-weight: 500; }
+        table.subtype-table td:first-child, table.subtype-table th:first-child {
+            text-align: left;
+            font-family: Consolas, "Cascadia Mono", Menlo, monospace;
+        }
+        table.subtype-table td.warn { color: var(--v3); font-weight: 600; }
+
+        /* ---------- Filters / nav ---------- */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        .filter-bar label { color: var(--text-muted); }
+        .filter-bar select {
+            padding: 5px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+            background: var(--surface);
+            color: var(--text);
+            max-width: 260px;
+        }
+        .toggle-btn {
+            padding: 5px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--surface);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .toggle-btn.on {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
         }
 
         .nav {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 10px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
         }
-
         .nav button {
-            padding: 8px 16px;
-            border: 1px solid #ccc;
+            padding: 7px 14px;
+            border: 1px solid var(--border);
             border-radius: 4px;
-            background: #fff;
+            background: var(--surface);
             cursor: pointer;
             font-size: 14px;
         }
-
-        .nav button:hover:not(:disabled) {
-            background: #f0f0f0;
-        }
-
-        .nav button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .counter {
-            font-size: 14px;
-            color: #666;
-        }
-
+        .nav button:hover:not(:disabled) { background: var(--surface-2); }
+        .nav button:disabled { opacity: 0.45; cursor: not-allowed; }
+        .counter { font-size: 14px; color: var(--text-muted); white-space: nowrap; }
         .jump-input {
-            width: 60px;
+            width: 64px;
             padding: 6px 8px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--border);
             border-radius: 4px;
             font-size: 14px;
+            background: var(--surface);
+            color: var(--text);
         }
 
+        /* ---------- Card / sentences ---------- */
         .card {
-            background: #fff;
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 18px 20px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
         }
 
-        .sentence {
-            font-size: 1.25rem;
-            line-height: 1.8;
-            margin-bottom: 16px;
-        }
-
-        .token {
-            display: inline;
-            padding: 2px 0;
-        }
-
-        .token.error {
-            background: #fff3cd;
-            border-radius: 3px;
-            padding: 2px 4px;
-            margin: 0 1px;
-        }
-
-        .token .deleted {
-            color: #dc3545;
-            text-decoration: line-through;
-            opacity: 0.7;
-        }
-
-        .token .inserted {
-            color: #28a745;
-            font-weight: 500;
-        }
-
-        .token .arrow {
-            color: #666;
-            margin: 0 2px;
-            font-size: 0.9em;
-        }
-
-        .errors-list {
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #eee;
-        }
-
-        .errors-list h3 {
-            font-size: 0.875rem;
-            color: #666;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-
-        .error-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #f0f0f0;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            margin-right: 8px;
-            margin-bottom: 8px;
-            vertical-align: top;
-        }
-
-        .error-type {
-            font-weight: 500;
-            color: #333;
-        }
-
-        .error-category {
-            color: #666;
-            font-size: 0.75rem;
-        }
-
-        .error-schema {
-            color: #007bff;
+        .sent-block { margin-bottom: 10px; }
+        .sent-label {
             font-size: 0.7rem;
-            font-family: monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-faint);
+            margin-bottom: 2px;
         }
+        .sentence {
+            font-size: 1.3rem;
+            line-height: 1.85;
+            hyphens: none;
+        }
+        .sentence.original .hl {
+            background: var(--ins-bg);
+            color: var(--ins-fg);
+            border-radius: 3px;
+            padding: 1px 3px;
+            box-shadow: inset 0 0 0 1px var(--ins-strong);
+        }
+        .sentence.corrupted .hl {
+            background: var(--del-bg);
+            color: var(--del-fg);
+            border-radius: 3px;
+            padding: 1px 3px;
+            box-shadow: inset 0 0 0 1px var(--del-strong);
+        }
+        .sentence .hl .chg {
+            font-weight: 700;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .sentence .gap {
+            display: inline-block;
+            min-width: 1em;
+            text-align: center;
+            border-radius: 3px;
+            font-weight: 700;
+            padding: 1px 4px;
+            font-size: 0.85em;
+        }
+        .sentence.original .gap {
+            background: var(--ins-bg);
+            color: var(--ins-fg);
+            box-shadow: inset 0 0 0 1px var(--ins-strong);
+        }
+        .sentence.corrupted .gap {
+            background: var(--del-bg);
+            color: var(--del-fg);
+            box-shadow: inset 0 0 0 1px var(--del-strong);
+        }
+
+        /* ---------- Errors list ---------- */
+        .errors-list {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .errors-list h3 {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin: 0 0 8px;
+            font-weight: 500;
+        }
+        .error-item {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.82rem;
+            margin-bottom: 6px;
+            line-height: 1.6;
+        }
+        .error-item .error-type { font-weight: 600; }
+        .error-item .sep { color: var(--text-faint); margin: 0 5px; }
+        .error-item .mono {
+            font-family: Consolas, "Cascadia Mono", Menlo, monospace;
+            font-size: 0.78rem;
+        }
+        .error-item .tag-l2 { color: var(--accent); }
+        .error-item .diff-pair .from { color: var(--ins-fg); }
+        .error-item .diff-pair .to { color: var(--del-fg); }
+        .error-category { color: var(--text-muted); font-size: 0.75rem; }
 
         .category-SPELL { border-left: 3px solid #dc3545; }
         .category-MORPH { border-left: 3px solid #007bff; }
@@ -187,172 +433,212 @@
         .rule-text {
             margin-top: 12px;
             padding: 12px;
-            background: #f8f9fa;
-            border-left: 3px solid #dee2e6;
+            background: var(--surface-2);
+            border-left: 3px solid var(--border-strong);
             border-radius: 0 4px 4px 0;
             font-size: 0.85rem;
             line-height: 1.5;
-            color: #495057;
-            max-height: 200px;
+            color: var(--text-muted);
+            max-height: 220px;
             overflow-y: auto;
         }
-
         .rule-text .rule-header {
             font-weight: 600;
-            color: #333;
+            color: var(--text);
             margin-bottom: 4px;
         }
 
         .metadata {
-            font-size: 0.8rem;
-            color: #888;
+            font-size: 0.78rem;
+            color: var(--text-faint);
             margin-top: 12px;
         }
+        .metadata span { margin-right: 16px; }
 
-        .metadata span {
-            margin-right: 16px;
-        }
-
-        .keyboard-hint {
-            font-size: 0.75rem;
-            color: #999;
-            margin-top: 8px;
-        }
-
-        kbd {
-            background: #eee;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 0.85em;
-        }
-
+        /* ---------- Annotation bar ---------- */
         .annotation-bar {
             display: flex;
             gap: 8px;
             padding: 12px;
-            background: #fff;
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 14px;
+            box-shadow: var(--shadow);
             flex-wrap: wrap;
             align-items: center;
         }
-
-        .annotation-bar button {
-            padding: 6px 12px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background: #fff;
+        .annotation-bar button[data-label] {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            background: var(--surface);
             cursor: pointer;
-            font-size: 13px;
+            font-size: 13.5px;
+            line-height: 1.35;
+            text-align: left;
         }
-
-        .annotation-bar button:hover {
-            background: #f0f0f0;
+        .annotation-bar button[data-label] .ru {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--text-muted);
         }
-
+        .annotation-bar button:hover { background: var(--surface-2); }
         .annotation-bar button.selected-correct {
-            background: #28a745;
-            color: #fff;
-            border-color: #28a745;
+            background: var(--v1); border-color: var(--v1); color: #fff;
         }
-
-        .annotation-bar button.selected-wrong_error {
-            background: #dc3545;
-            color: #fff;
-            border-color: #dc3545;
-        }
-
         .annotation-bar button.selected-non_error {
-            background: #fd7e14;
-            color: #fff;
-            border-color: #fd7e14;
+            background: var(--v2); border-color: var(--v2); color: #fff;
         }
-
+        .annotation-bar button.selected-wrong_error {
+            background: var(--v3); border-color: var(--v3); color: #fff;
+        }
         .annotation-bar button.selected-ambiguous {
-            background: #6c757d;
-            color: #fff;
-            border-color: #6c757d;
+            background: var(--v4); border-color: var(--v4); color: #fff;
+        }
+        .annotation-bar button.selected-correct .ru,
+        .annotation-bar button.selected-non_error .ru,
+        .annotation-bar button.selected-wrong_error .ru,
+        .annotation-bar button.selected-ambiguous .ru { color: rgba(255,255,255,0.85); }
+
+        .keyboard-hint {
+            font-size: 0.75rem;
+            color: var(--text-faint);
+            margin-top: 8px;
         }
 
-        .annotation-progress {
-            font-size: 0.8rem;
-            color: #666;
-            margin-left: auto;
+        kbd {
+            background: var(--kbd-bg);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: Consolas, "Cascadia Mono", Menlo, monospace;
+            font-size: 0.85em;
+            border: 1px solid var(--border);
+            border-bottom-width: 2px;
         }
 
-        .stats {
+        /* ---------- Help overlay ---------- */
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 100;
+        }
+        .overlay.open { display: flex; align-items: center; justify-content: center; }
+        .overlay .sheet {
+            background: var(--surface);
+            border-radius: 10px;
+            padding: 24px 28px;
+            max-width: 560px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+        }
+        .overlay h2 { margin: 0 0 12px; font-size: 1.05rem; }
+        .overlay table { border-collapse: collapse; font-size: 0.85rem; }
+        .overlay td { padding: 4px 14px 4px 0; vertical-align: top; }
+        .overlay td:first-child { white-space: nowrap; }
+        .overlay .note {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+            line-height: 1.5;
+        }
+
+        /* ---------- Toast ---------- */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: var(--bg);
+            padding: 8px 18px;
+            border-radius: 6px;
             font-size: 0.85rem;
-            color: #666;
-            padding: 12px;
-            background: #fff;
-            border-radius: 8px;
-            margin-bottom: 16px;
+            z-index: 120;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+            max-width: 80vw;
         }
+        .toast.show { opacity: 0.95; }
 
-        .filter-bar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .filter-bar label {
-            font-size: 0.85rem;
-            color: #666;
-        }
-
-        .filter-bar select {
-            padding: 6px 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-            background: #fff;
+        /* ---------- Print ---------- */
+        @media print {
+            :root, [data-theme="dark"] {
+                --bg: #fff; --surface: #fff; --surface-2: #f5f5f5;
+                --text: #000; --text-muted: #444; --text-faint: #666;
+                --border: #bbb; --shadow: none;
+            }
+            .topbar, .dropzone, .filter-bar, .nav, .annotation-bar,
+            .keyboard-hint, .overlay, .toast, details.panel { display: none !important; }
+            body { max-width: none; }
         }
     </style>
 </head>
 <body>
-    <h1>Synterr Diff Viewer</h1>
+    <header class="topbar">
+        <div class="topbar-row">
+            <h1>Synterr Diff Viewer</h1>
+            <span class="save-indicator" id="saveIndicator"></span>
+            <span class="spacer"></span>
+            <button class="icon-btn" id="helpBtn" title="Keyboard shortcuts (?)"><kbd>?</kbd> Help</button>
+            <button class="icon-btn" id="themeToggle" title="Toggle dark mode">&#9789;</button>
+        </div>
+        <div class="topbar-row" id="progressRow" style="display: none;">
+            <div class="progress-wrap">
+                <span class="progress-label" id="progressLabel">0 of 0 annotated</span>
+                <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            </div>
+            <div class="verdict-chips" id="verdictChips"></div>
+            <button class="icon-btn" id="exportBtn" title="Download annotations as JSON">Export</button>
+            <button class="icon-btn" id="importBtn" title="Re-load a previously exported JSON">Import</button>
+            <button class="icon-btn" id="addFilesBtn" title="Add more JSONL files">+ Files</button>
+            <button class="icon-btn" id="resetBtn" title="Unload all files (annotations stay saved)">Unload</button>
+        </div>
+    </header>
 
     <div class="dropzone" id="dropzone">
-        <p>Drop a JSONL file here or click to select</p>
-        <p style="font-size: 0.85rem; color: #888; margin-top: 8px;">
-            Generated with <code>uv run python scripts/generate_review.py</code>
+        <p><strong>Drop JSONL files here or click to select</strong><br>
+           <span style="font-size:0.9rem;">Перетащите файлы .jsonl сюда (можно несколько сразу)</span></p>
+        <p class="sub">
+            Generated with <code>uv run python scripts/generate_review.py</code><br>
+            Annotations are saved automatically in this browser and restored when you
+            re-open the same file. &middot; Разметка сохраняется автоматически.
         </p>
-        <input type="file" id="fileInput" accept=".jsonl,.json,.txt">
+        <input type="file" id="fileInput" accept=".jsonl,.json,.txt" multiple>
     </div>
 
     <div class="viewer" id="viewer">
-        <div class="stats" id="stats"></div>
+        <details class="panel" id="fileQueuePanel">
+            <summary id="fileQueueSummary">Files</summary>
+            <div class="panel-body" id="fileQueueBody"></div>
+        </details>
+
+        <details class="panel" id="subtypePanel">
+            <summary id="subtypeSummary">Per-subtype breakdown</summary>
+            <div class="panel-body" id="subtypeBody"></div>
+        </details>
 
         <div class="filter-bar">
-            <label>Filter by category:</label>
-            <select id="categoryFilter">
-                <option value="">All</option>
-                <option value="SPELL">SPELL</option>
-                <option value="MORPH">MORPH</option>
-                <option value="AGR">AGR</option>
-                <option value="GOV">GOV</option>
-                <option value="PUNCT">PUNCT</option>
-                <option value="SYNT">SYNT</option>
-                <option value="LEX">LEX</option>
-                <option value="OTHER">OTHER</option>
-            </select>
-            <label>Error type:</label>
-            <select id="typeFilter">
-                <option value="">All</option>
-            </select>
-            <label>Annotation:</label>
+            <label>File:</label>
+            <select id="fileFilter"><option value="">All</option></select>
+            <label>Subtype:</label>
+            <select id="typeFilter"><option value="">All</option></select>
+            <label>Verdict:</label>
             <select id="annotationFilter">
                 <option value="">All</option>
                 <option value="unannotated">Unannotated</option>
-                <option value="correct">Correct</option>
-                <option value="wrong_error">Wrong error</option>
+                <option value="correct">Real error</option>
                 <option value="non_error">Non-error</option>
-                <option value="ambiguous">Ambiguous</option>
+                <option value="wrong_error">Non-word</option>
+                <option value="ambiguous">Wrong tag</option>
             </select>
+            <button class="toggle-btn" id="unannotatedToggle" title="Show only unannotated (a)">
+                Only unannotated <kbd>a</kbd>
+            </button>
         </div>
 
         <div class="nav">
@@ -361,34 +647,72 @@
             <span class="counter" id="counter">0 / 0</span>
             <input type="number" class="jump-input" id="jumpInput" min="1" placeholder="#">
             <button id="jumpBtn">Go</button>
-            <button id="resetBtn" style="margin-left: auto;">Load new file</button>
-        </div>
-
-        <div class="annotation-bar" id="annotationBar">
-            <button data-label="correct"><kbd>1</kbd> Correct</button>
-            <button data-label="wrong_error"><kbd>2</kbd> Wrong error</button>
-            <button data-label="non_error"><kbd>3</kbd> Non-error</button>
-            <button data-label="ambiguous"><kbd>4</kbd> Ambiguous</button>
-            <button id="exportBtn" style="margin-left: auto;">Export annotations</button>
-            <span class="annotation-progress" id="annotationProgress"></span>
+            <span class="counter" id="fileCounter" style="margin-left:auto;"></span>
         </div>
 
         <div class="card" id="sentenceCard">
-            <div class="sentence" id="sentenceDisplay"></div>
+            <div class="sent-block">
+                <div class="sent-label">Original &middot; оригинал (правильный)</div>
+                <div class="sentence original" id="originalDisplay"></div>
+            </div>
+            <div class="sent-block">
+                <div class="sent-label">Corrupted &middot; испорченный (с ошибкой)</div>
+                <div class="sentence corrupted" id="sentenceDisplay"></div>
+            </div>
             <div class="errors-list" id="errorsList"></div>
             <div class="rule-text" id="ruleText" style="display: none;"></div>
             <div class="metadata" id="metadata"></div>
         </div>
 
+        <div class="annotation-bar" id="annotationBar">
+            <button data-label="correct"><kbd>1</kbd> Real error<span class="ru">настоящая ошибка</span></button>
+            <button data-label="non_error"><kbd>2</kbd> Non-error<span class="ru">текст приемлем, не ошибка</span></button>
+            <button data-label="wrong_error"><kbd>3</kbd> Non-word<span class="ru">несуществующая форма</span></button>
+            <button data-label="ambiguous"><kbd>4</kbd> Wrong tag<span class="ru">ошибка есть, но тег неверный</span></button>
+            <button class="icon-btn" id="undoBtn" style="margin-left:auto;" title="Undo last verdict (u)"><kbd>u</kbd> Undo</button>
+        </div>
+
         <div class="keyboard-hint">
-            <kbd>&larr;</kbd> / <kbd>&rarr;</kbd> navigate &nbsp;&nbsp;
-            <kbd>1</kbd> correct &nbsp;&nbsp;
-            <kbd>2</kbd> wrong error &nbsp;&nbsp;
-            <kbd>3</kbd> non-error &nbsp;&nbsp;
-            <kbd>4</kbd> ambiguous &nbsp;&nbsp;
-            <kbd>e</kbd> errors only
+            <kbd>1</kbd>&ndash;<kbd>4</kbd> verdict + next &nbsp;
+            <kbd>&larr;</kbd><kbd>&rarr;</kbd> / <kbd>j</kbd><kbd>k</kbd> navigate &nbsp;
+            <kbd>u</kbd> undo &nbsp;
+            <kbd>0</kbd> clear &nbsp;
+            <kbd>n</kbd> next unannotated &nbsp;
+            <kbd>a</kbd> only unannotated &nbsp;
+            <kbd>?</kbd> help
         </div>
     </div>
+
+    <div class="overlay" id="helpOverlay">
+        <div class="sheet">
+            <h2>Keyboard shortcuts &middot; Горячие клавиши</h2>
+            <table>
+                <tr><td><kbd>1</kbd></td><td><b>Real error</b> — настоящая ошибка (генератор сработал правильно)</td></tr>
+                <tr><td><kbd>2</kbd></td><td><b>Non-error</b> — текст приемлем, ошибки нет</td></tr>
+                <tr><td><kbd>3</kbd></td><td><b>Non-word</b> — несуществующая/невозможная форма</td></tr>
+                <tr><td><kbd>4</kbd></td><td><b>Wrong tag</b> — ошибка есть, но тег/тип неверный</td></tr>
+                <tr><td><kbd>&larr;</kbd> / <kbd>k</kbd></td><td>Previous example &middot; назад</td></tr>
+                <tr><td><kbd>&rarr;</kbd> / <kbd>j</kbd></td><td>Next example &middot; вперёд</td></tr>
+                <tr><td><kbd>u</kbd></td><td>Undo last verdict &middot; отменить последний вердикт</td></tr>
+                <tr><td><kbd>0</kbd> / <kbd>Backspace</kbd></td><td>Clear verdict on current &middot; снять вердикт</td></tr>
+                <tr><td><kbd>n</kbd></td><td>Jump to next unannotated &middot; к следующему неразмеченному</td></tr>
+                <tr><td><kbd>a</kbd></td><td>Toggle &laquo;only unannotated&raquo; filter</td></tr>
+                <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last example</td></tr>
+                <tr><td><kbd>?</kbd> / <kbd>Esc</kbd></td><td>Show / hide this help</td></tr>
+            </table>
+            <div class="note">
+                Setting a verdict advances to the next example automatically.
+                Pressing the same number again just re-confirms (it does not un-set).
+                All verdicts are saved instantly in this browser (localStorage) and restored
+                when the same file is loaded again &mdash; but please <b>Export</b> regularly:
+                the JSON download is the durable copy.<br>
+                Вердикты сохраняются автоматически; регулярно нажимайте <b>Export</b> для надёжности.
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <input type="file" id="importInput" accept=".json,.jsonl" style="display:none;">
 
     <!-- Rule texts: populated by build_internal_viewer.py (INTERNAL ONLY) -->
     <script>
@@ -398,396 +722,987 @@
     </script>
 
     <script>
-        let data = [];
-        let filteredData = [];
-        let currentIndex = 0;
-        let annotations = {};
-        let errorsOnlyMode = false;
+    'use strict';
+    // ======================================================================
+    // Constants & state
+    // ======================================================================
 
-        const dropzone = document.getElementById('dropzone');
-        const fileInput = document.getElementById('fileInput');
-        const viewer = document.getElementById('viewer');
-        const sentenceDisplay = document.getElementById('sentenceDisplay');
-        const errorsList = document.getElementById('errorsList');
-        const ruleText = document.getElementById('ruleText');
-        const metadata = document.getElementById('metadata');
-        const counter = document.getElementById('counter');
-        const stats = document.getElementById('stats');
-        const prevBtn = document.getElementById('prevBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const jumpInput = document.getElementById('jumpInput');
-        const jumpBtn = document.getElementById('jumpBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const categoryFilter = document.getElementById('categoryFilter');
-        const typeFilter = document.getElementById('typeFilter');
-        const annotationFilter = document.getElementById('annotationFilter');
-        const annotationProgress = document.getElementById('annotationProgress');
+    // Legacy annotation values (kept for export compatibility) → new verdict
+    // names shown to the annotator. Do not change the value strings.
+    const LABELS = ['correct', 'non_error', 'wrong_error', 'ambiguous'];
+    const LABEL_TO_VERDICT = {
+        correct: 'real_error',
+        non_error: 'non_error',
+        wrong_error: 'non_word',
+        ambiguous: 'wrong_tag',
+    };
+    const VERDICT_TO_LABEL = {
+        real_error: 'correct',
+        non_error: 'non_error',
+        non_word: 'wrong_error',
+        wrong_tag: 'ambiguous',
+    };
+    const LABEL_DISPLAY = {
+        correct: 'Real error',
+        non_error: 'Non-error',
+        wrong_error: 'Non-word',
+        ambiguous: 'Wrong tag',
+    };
+    const KEY_TO_LABEL = { '1': 'correct', '2': 'non_error', '3': 'wrong_error', '4': 'ambiguous' };
 
-        // Drag and drop
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.classList.add('dragover');
-        });
+    const LS_PREFIX = 'synterrAnn::v2::file::';
+    const LS_META = 'synterrAnn::v2::meta';
 
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.classList.remove('dragover');
-        });
+    let files = [];          // [{name, records: [rec,...]}] in load order
+    let allRecords = [];     // flat; each rec has _file, _line, _key, _subtype
+    let view = [];           // filtered array of records (references)
+    let cursor = 0;          // index into view
+    let ann = new Map();     // _key → {v: label, t: epoch_ms}
+    let undoStack = [];      // [{key, prev|null, next}]
+    let onlyUnannotated = false;
+    let saveFailed = false;
 
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file) loadFile(file);
-        });
+    const $ = (id) => document.getElementById(id);
+    const dropzone = $('dropzone'), fileInput = $('fileInput'), viewer = $('viewer');
+    const originalDisplay = $('originalDisplay'), sentenceDisplay = $('sentenceDisplay');
+    const errorsList = $('errorsList'), ruleText = $('ruleText'), metadata = $('metadata');
+    const counter = $('counter'), fileCounter = $('fileCounter');
+    const prevBtn = $('prevBtn'), nextBtn = $('nextBtn');
+    const jumpInput = $('jumpInput'), jumpBtn = $('jumpBtn');
+    const fileFilter = $('fileFilter'), typeFilter = $('typeFilter'), annotationFilter = $('annotationFilter');
+    const unannotatedToggle = $('unannotatedToggle');
+    const progressRow = $('progressRow'), progressLabel = $('progressLabel'), progressFill = $('progressFill');
+    const verdictChips = $('verdictChips'), saveIndicator = $('saveIndicator');
+    const helpOverlay = $('helpOverlay'), toastEl = $('toast');
 
-        dropzone.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files[0]) loadFile(e.target.files[0]);
-        });
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+    }
 
-        function loadFile(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const text = e.target.result;
-                data = text.trim().split('\n').map((line, idx) => {
-                    try {
-                        const obj = JSON.parse(line);
-                        obj._index = idx;
-                        return obj;
-                    } catch {
-                        return null;
-                    }
-                }).filter(Boolean);
+    function toast(msg, ms = 3000) {
+        toastEl.textContent = msg;
+        toastEl.classList.add('show');
+        clearTimeout(toastEl._t);
+        toastEl._t = setTimeout(() => toastEl.classList.remove('show'), ms);
+    }
 
-                if (data.length === 0) {
-                    alert('No valid JSONL records found');
-                    return;
-                }
+    // ======================================================================
+    // Persistence (localStorage)
+    // ======================================================================
 
-                populateTypeFilter();
-                applyFilters();
-                dropzone.style.display = 'none';
-                viewer.classList.add('active');
-                updateStats();
-                render();
-            };
-            reader.readAsText(file);
+    function loadMeta() {
+        try { return JSON.parse(localStorage.getItem(LS_META)) || {}; }
+        catch { return {}; }
+    }
+
+    function saveMeta(patch) {
+        const meta = loadMeta();
+        Object.assign(meta, patch);
+        try { localStorage.setItem(LS_META, JSON.stringify(meta)); } catch {}
+        return meta;
+    }
+
+    function recordPace() {
+        const meta = loadMeta();
+        const log = meta.paceLog || [];
+        log.push(Date.now());
+        if (log.length > 20000) log.splice(0, log.length - 20000);
+        saveMeta({ paceLog: log });
+    }
+
+    function storageKeyFor(fileName) { return LS_PREFIX + fileName; }
+
+    function readStoredAnnotations(fileName) {
+        try {
+            const raw = localStorage.getItem(storageKeyFor(fileName));
+            if (!raw) return {};
+            const obj = JSON.parse(raw);
+            return obj.annotations || {};
+        } catch { return {}; }
+    }
+
+    // Persist all in-memory annotations belonging to one file.
+    function persistFile(fileName) {
+        const out = {};
+        for (const [key, val] of ann) {
+            if (key.startsWith(fileName + '::')) {
+                out[key.slice(fileName.length + 2)] = val;
+            }
         }
-
-        function populateTypeFilter() {
-            const types = new Set();
-            data.forEach(item => {
-                (item.errors || []).forEach(err => {
-                    if (err.type) types.add(err.type);
-                });
-            });
-
-            typeFilter.innerHTML = '<option value="">All</option>';
-            [...types].sort().forEach(type => {
-                const opt = document.createElement('option');
-                opt.value = type;
-                opt.textContent = type;
-                typeFilter.appendChild(opt);
-            });
+        try {
+            localStorage.setItem(storageKeyFor(fileName), JSON.stringify({
+                annotations: out,
+                updated: Date.now(),
+            }));
+            markSaved(true);
+        } catch (e) {
+            markSaved(false);
         }
+    }
 
-        function applyFilters() {
-            const cat = categoryFilter.value;
-            const type = typeFilter.value;
-            const ann = annotationFilter.value;
+    // Merge one annotation directly into stored data for a file that may not
+    // be loaded (used by import).
+    function mergeIntoStorage(fileName, recKey, val) {
+        let stored;
+        try { stored = JSON.parse(localStorage.getItem(storageKeyFor(fileName))) || {}; }
+        catch { stored = {}; }
+        const anns = stored.annotations || {};
+        anns[recKey] = val;
+        try {
+            localStorage.setItem(storageKeyFor(fileName), JSON.stringify({
+                annotations: anns, updated: Date.now(),
+            }));
+        } catch { markSaved(false); }
+    }
 
-            filteredData = data.filter(item => {
-                const errors = item.errors || [];
+    function markSaved(ok) {
+        if (ok) {
+            saveFailed = false;
+            const t = new Date();
+            const hh = String(t.getHours()).padStart(2, '0');
+            const mm = String(t.getMinutes()).padStart(2, '0');
+            const ss = String(t.getSeconds()).padStart(2, '0');
+            saveIndicator.className = 'save-indicator flash';
+            saveIndicator.innerHTML = `<span class="dot"></span>Saved ${hh}:${mm}:${ss} · сохранено`;
+            clearTimeout(saveIndicator._t);
+            saveIndicator._t = setTimeout(() => saveIndicator.classList.remove('flash'), 500);
+        } else {
+            saveFailed = true;
+            saveIndicator.className = 'save-indicator error';
+            saveIndicator.innerHTML = '<span class="dot"></span>SAVE FAILED — use Export now! · сохранение не работает';
+        }
+    }
 
-                // If errors only mode, skip items with no errors
-                if (errorsOnlyMode && errors.length === 0) return false;
+    window.addEventListener('beforeunload', (e) => {
+        if (saveFailed && ann.size > 0) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 
-                // Annotation filter
-                if (ann) {
-                    const itemAnn = annotations[item._index];
-                    if (ann === 'unannotated' && itemAnn) return false;
-                    if (ann !== 'unannotated' && itemAnn !== ann) return false;
-                }
+    // ======================================================================
+    // File loading
+    // ======================================================================
 
-                // If no category/type filters, include all
-                if (!cat && !type) return true;
+    function recKeyOf(rec) {
+        return rec.id !== undefined && rec.id !== null && rec.id !== ''
+            ? String(rec.id) : '#' + rec._line;
+    }
 
-                // Check if any error matches filters
-                return errors.some(err => {
-                    const catMatch = !cat || err.category === cat;
-                    const typeMatch = !type || err.type === type;
-                    return catMatch && typeMatch;
-                });
+    function loadDataFile(file) {
+        return file.text().then((text) => {
+            const name = file.name;
+            if (files.some((f) => f.name === name)) {
+                toast(`${name}: already loaded — skipped`);
+                return;
+            }
+            const records = [];
+            text.split('\n').forEach((line, idx) => {
+                line = line.trim();
+                if (!line) return;
+                try {
+                    const obj = JSON.parse(line);
+                    if (typeof obj !== 'object' || obj === null) return;
+                    obj._file = name;
+                    obj._line = idx;
+                    obj._key = name + '::' + recKeyOf(obj);
+                    obj._subtype = (obj.errors && obj.errors[0] && obj.errors[0].type) || '(none)';
+                    records.push(obj);
+                } catch { /* skip malformed line */ }
             });
+            if (records.length === 0) {
+                toast(`${name}: no valid JSONL records — skipped`);
+                return;
+            }
+            files.push({ name, records });
+            allRecords = allRecords.concat(records);
 
-            currentIndex = 0;
-            updateStats();
+            // Restore saved annotations for this file
+            const stored = readStoredAnnotations(name);
+            let restored = 0;
+            records.forEach((rec) => {
+                const rk = rec._key.slice(name.length + 2);
+                if (stored[rk] && LABELS.includes(stored[rk].v)) {
+                    ann.set(rec._key, { v: stored[rk].v, t: stored[rk].t || Date.now() });
+                    restored++;
+                }
+            });
+            if (restored > 0) toast(`${name}: restored ${restored} saved verdicts · восстановлено ${restored}`);
+        });
+    }
+
+    function looksLikeAnnotationExport(text) {
+        const t = text.trimStart();
+        if (!t.startsWith('{')) return false;
+        try {
+            const obj = JSON.parse(text);
+            return obj && obj.format === 'synterr-annotations' && Array.isArray(obj.records);
+        } catch { return false; }
+    }
+
+    function handleFiles(fileList) {
+        const arr = Array.from(fileList);
+        if (arr.length === 0) return;
+        // Route annotation exports to import, JSONL to data loading.
+        const jobs = arr.map((f) => f.text().then((text) => ({ f, text })));
+        Promise.all(jobs).then((items) => {
+            const dataFiles = [];
+            items.forEach(({ f, text }) => {
+                if (looksLikeAnnotationExport(text)) importAnnotationsText(text);
+                else dataFiles.push(f);
+            });
+            return dataFiles.reduce((p, f) => p.then(() => loadDataFile(f)), Promise.resolve());
+        }).then(() => {
+            if (allRecords.length === 0) return;
+            rebuildFilters();
+            dropzone.style.display = 'none';
+            viewer.classList.add('active');
+            progressRow.style.display = 'flex';
+            applyFilters();
+            jumpToFirstUnannotated(true);
+            refreshAll();
+        });
+    }
+
+    // ======================================================================
+    // Filters & view
+    // ======================================================================
+
+    function rebuildFilters() {
+        const keepFile = fileFilter.value, keepType = typeFilter.value;
+
+        fileFilter.innerHTML = '<option value="">All</option>';
+        files.forEach((f) => {
+            const opt = document.createElement('option');
+            opt.value = f.name;
+            opt.textContent = f.name;
+            fileFilter.appendChild(opt);
+        });
+        fileFilter.value = keepFile;
+
+        const types = new Set();
+        allRecords.forEach((rec) => (rec.errors || []).forEach((e) => { if (e.type) types.add(e.type); }));
+        typeFilter.innerHTML = '<option value="">All</option>';
+        [...types].sort().forEach((t) => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            typeFilter.appendChild(opt);
+        });
+        typeFilter.value = keepType;
+    }
+
+    function recordMatchesFilters(rec) {
+        if (fileFilter.value && rec._file !== fileFilter.value) return false;
+        if (typeFilter.value) {
+            const hit = (rec.errors || []).some((e) => e.type === typeFilter.value);
+            if (!hit) return false;
+        }
+        const a = ann.get(rec._key);
+        if (onlyUnannotated && a) return false;
+        const af = annotationFilter.value;
+        if (af === 'unannotated' && a) return false;
+        if (af && af !== 'unannotated' && (!a || a.v !== af)) return false;
+        return true;
+    }
+
+    // Rebuild view. Tries to keep the cursor on `anchorRec` if given and still
+    // visible; otherwise clamps the numeric position.
+    function applyFilters(anchorRec) {
+        const oldPos = cursor;
+        view = allRecords.filter(recordMatchesFilters);
+        if (anchorRec) {
+            const i = view.indexOf(anchorRec);
+            cursor = i >= 0 ? i : Math.min(oldPos, Math.max(0, view.length - 1));
+        } else {
+            cursor = Math.min(oldPos, Math.max(0, view.length - 1));
+        }
+    }
+
+    function current() { return view[cursor]; }
+
+    function navigate(delta) {
+        const ni = cursor + delta;
+        if (ni >= 0 && ni < view.length) {
+            cursor = ni;
             render();
         }
+    }
 
-        function updateStats() {
-            const totalErrors = data.reduce((sum, item) => sum + (item.errors?.length || 0), 0);
-            const withErrors = data.filter(item => (item.errors?.length || 0) > 0).length;
-            const annotated = Object.keys(annotations).length;
-
-            stats.innerHTML = `
-                <strong>${data.length}</strong> sentences &nbsp;|&nbsp;
-                <strong>${withErrors}</strong> with errors &nbsp;|&nbsp;
-                <strong>${totalErrors}</strong> total errors &nbsp;|&nbsp;
-                Showing <strong>${filteredData.length}</strong> after filters &nbsp;|&nbsp;
-                Annotated: <strong>${annotated}</strong>/${data.length}
-            `;
+    function jumpToFirstUnannotated(fromStart) {
+        const start = fromStart ? 0 : cursor + 1;
+        for (let i = start; i < view.length; i++) {
+            if (!ann.get(view[i]._key)) { cursor = i; return true; }
         }
-
-        function render() {
-            if (filteredData.length === 0) {
-                sentenceDisplay.innerHTML = '<em>No sentences match the current filters</em>';
-                errorsList.innerHTML = '';
-                ruleText.style.display = 'none';
-                metadata.innerHTML = '';
-                counter.textContent = '0 / 0';
-                prevBtn.disabled = true;
-                nextBtn.disabled = true;
-                updateAnnotationProgress();
-                return;
+        if (!fromStart) {
+            for (let i = 0; i < Math.min(start, view.length); i++) {
+                if (!ann.get(view[i]._key)) { cursor = i; toast('Wrapped to first unannotated'); return true; }
             }
+        }
+        return false;
+    }
 
-            const item = filteredData[currentIndex];
-            const errors = item.errors || [];
+    // ======================================================================
+    // Stats / progress
+    // ======================================================================
 
-            // Build token display
-            const corruptedTokens = item.corrupted.split(' ');
+    function verdictCounts(records) {
+        const counts = { correct: 0, non_error: 0, wrong_error: 0, ambiguous: 0 };
+        let done = 0;
+        records.forEach((rec) => {
+            const a = ann.get(rec._key);
+            if (a) { counts[a.v]++; done++; }
+        });
+        return { counts, done };
+    }
 
-            // Create error lookup by start_idx
-            const errorAt = {};
-            errors.forEach(err => {
-                errorAt[err.start_idx] = err;
-            });
+    function updateProgress() {
+        const { counts, done } = verdictCounts(allRecords);
+        const total = allRecords.length;
+        progressLabel.textContent = `${done} of ${total} annotated`;
+        progressFill.style.width = total ? (100 * done / total) + '%' : '0%';
+        verdictChips.innerHTML = LABELS.map((l) =>
+            `<span class="vchip v-${l}"><b>${counts[l]}</b> ${LABEL_DISPLAY[l]}</span>`
+        ).join('');
+    }
 
-            // Render tokens
-            let html = '';
-            corruptedTokens.forEach((token, i) => {
-                if (errorAt[i]) {
-                    const err = errorAt[i];
-                    html += `<span class="token error">`;
-                    html += `<span class="deleted">${err.original}</span>`;
-                    html += `<span class="arrow">&rarr;</span>`;
-                    html += `<span class="inserted">${err.corrupted}</span>`;
-                    html += `</span> `;
+    function updateFileQueue() {
+        $('fileQueueSummary').textContent =
+            `Files: ${files.length} · Файлы (click name to open first record)`;
+        $('fileQueueBody').innerHTML = files.map((f) => {
+            const { done } = verdictCounts(f.records);
+            const pct = f.records.length ? Math.round(100 * done / f.records.length) : 0;
+            return `<div class="file-row">
+                <span class="fname" data-file="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+                <span class="fbar"><div style="width:${pct}%"></div></span>
+                <span class="fcount">${done}/${f.records.length}</span>
+            </div>`;
+        }).join('');
+        $('fileQueueBody').querySelectorAll('.fname').forEach((el) => {
+            el.addEventListener('click', () => {
+                const rec = allRecords.find((r) => r._file === el.dataset.file && recordMatchesFilters(r));
+                if (rec) {
+                    cursor = view.indexOf(rec);
+                    render();
                 } else {
-                    html += `<span class="token">${token}</span> `;
+                    toast('No records of this file match current filters');
                 }
             });
+        });
+    }
 
-            sentenceDisplay.innerHTML = html;
+    function updateSubtypeTable() {
+        const bySubtype = new Map();
+        allRecords.forEach((rec) => {
+            const st = rec._subtype;
+            if (!bySubtype.has(st)) {
+                bySubtype.set(st, { total: 0, done: 0, correct: 0, non_error: 0, wrong_error: 0, ambiguous: 0 });
+            }
+            const row = bySubtype.get(st);
+            row.total++;
+            const a = ann.get(rec._key);
+            if (a) { row.done++; row[a.v]++; }
+        });
+        const rows = [...bySubtype.entries()].sort((a, b) => b[1].total - a[1].total);
+        let problems = 0;
+        let html = `<table class="subtype-table"><tr>
+            <th>subtype</th><th>total</th><th>done</th>
+            <th>real</th><th>non-err</th><th>non-word</th><th>wrong tag</th><th>% problem</th></tr>`;
+        rows.forEach(([st, r]) => {
+            const bad = r.non_error + r.wrong_error + r.ambiguous;
+            const pct = r.done ? Math.round(100 * bad / r.done) : 0;
+            if (r.done && pct >= 30) problems++;
+            html += `<tr><td>${escapeHtml(st)}</td><td>${r.total}</td><td>${r.done}</td>
+                <td>${r.correct}</td><td>${r.non_error}</td><td>${r.wrong_error}</td><td>${r.ambiguous}</td>
+                <td class="${r.done && pct >= 30 ? 'warn' : ''}">${r.done ? pct + '%' : '–'}</td></tr>`;
+        });
+        html += '</table>';
+        $('subtypeBody').innerHTML = html;
+        $('subtypeSummary').textContent =
+            `Per-subtype breakdown: ${rows.length} subtypes` +
+            (problems ? ` · ${problems} with ≥30% problems` : '');
+    }
 
-            // Render errors list with schema tags
-            if (errors.length > 0) {
-                let errHtml = '<h3>Errors</h3>';
-                errors.forEach(err => {
-                    let schemaInfo = '';
-                    if (err.schema_l2_tag) {
-                        schemaInfo = `<span class="error-schema">${err.schema_l2_tag}</span>`;
-                    } else if (err.schema_tag) {
-                        schemaInfo = `<span class="error-schema">${err.schema_tag}</span>`;
+    function refreshAll() {
+        updateProgress();
+        updateFileQueue();
+        updateSubtypeTable();
+        render();
+    }
+
+    // ======================================================================
+    // Token diff (LCS) & rendering
+    // ======================================================================
+
+    // Returns chunks: {t:'eq', tokens} | {t:'sub', a:[...], b:[...]}
+    // where a = original-only tokens, b = corrupted-only tokens.
+    function diffTokens(a, b) {
+        const n = a.length, m = b.length;
+        const dp = [];
+        for (let i = 0; i <= n; i++) dp.push(new Int32Array(m + 1));
+        for (let i = n - 1; i >= 0; i--) {
+            for (let j = m - 1; j >= 0; j--) {
+                dp[i][j] = a[i] === b[j]
+                    ? dp[i + 1][j + 1] + 1
+                    : Math.max(dp[i + 1][j], dp[i][j + 1]);
+            }
+        }
+        const chunks = [];
+        let i = 0, j = 0;
+        const pushEq = (tok) => {
+            const last = chunks[chunks.length - 1];
+            if (last && last.t === 'eq') last.tokens.push(tok);
+            else chunks.push({ t: 'eq', tokens: [tok] });
+        };
+        const pushDel = (tok) => {
+            const last = chunks[chunks.length - 1];
+            if (last && last.t === 'sub') last.a.push(tok);
+            else chunks.push({ t: 'sub', a: [tok], b: [] });
+        };
+        const pushIns = (tok) => {
+            const last = chunks[chunks.length - 1];
+            if (last && last.t === 'sub') last.b.push(tok);
+            else chunks.push({ t: 'sub', a: [], b: [tok] });
+        };
+        while (i < n && j < m) {
+            if (a[i] === b[j]) { pushEq(a[i]); i++; j++; }
+            else if (dp[i + 1][j] >= dp[i][j + 1]) { pushDel(a[i]); i++; }
+            else { pushIns(b[j]); j++; }
+        }
+        while (i < n) { pushDel(a[i]); i++; }
+        while (j < m) { pushIns(b[j]); j++; }
+        return chunks;
+    }
+
+    // Char-level refinement for a 1↔1 token substitution: bolds the changed
+    // middle part. Returns [aHtml, bHtml].
+    function charRefine(aTok, bTok) {
+        let p = 0;
+        const maxP = Math.min(aTok.length, bTok.length);
+        while (p < maxP && aTok[p] === bTok[p]) p++;
+        let s = 0;
+        while (s < maxP - p && aTok[aTok.length - 1 - s] === bTok[bTok.length - 1 - s]) s++;
+        const wrap = (tok) => {
+            const pre = escapeHtml(tok.slice(0, p));
+            const mid = escapeHtml(tok.slice(p, tok.length - s));
+            const suf = escapeHtml(tok.slice(tok.length - s));
+            return mid ? `${pre}<span class="chg">${mid}</span>${suf}` : pre + suf;
+        };
+        return [wrap(aTok), wrap(bTok)];
+    }
+
+    const GAP = '<span class="gap" title="здесь нет токена">&empty;</span>';
+
+    // Renders both sentence lines with aligned highlights. A chunk with only
+    // one side present renders a ∅ placeholder on the other side, so a lone
+    // inserted/deleted comma is visible in both lines.
+    function renderDiff(original, corrupted) {
+        const a = original.split(' ').filter((t) => t !== '');
+        const b = corrupted.split(' ').filter((t) => t !== '');
+        const chunks = diffTokens(a, b);
+        const oParts = [], cParts = [];
+        chunks.forEach((ch) => {
+            if (ch.t === 'eq') {
+                const txt = escapeHtml(ch.tokens.join(' '));
+                oParts.push(txt);
+                cParts.push(txt);
+                return;
+            }
+            let aHtml, bHtml;
+            if (ch.a.length === 1 && ch.b.length === 1) {
+                [aHtml, bHtml] = charRefine(ch.a[0], ch.b[0]);
+            } else {
+                aHtml = escapeHtml(ch.a.join(' '));
+                bHtml = escapeHtml(ch.b.join(' '));
+            }
+            oParts.push(ch.a.length ? `<span class="hl">${aHtml}</span>` : GAP);
+            cParts.push(ch.b.length ? `<span class="hl">${bHtml}</span>` : GAP);
+        });
+        originalDisplay.innerHTML = oParts.join(' ');
+        sentenceDisplay.innerHTML = cParts.join(' ');
+    }
+
+    // ======================================================================
+    // Card rendering
+    // ======================================================================
+
+    function render() {
+        if (view.length === 0) {
+            originalDisplay.innerHTML = '';
+            sentenceDisplay.innerHTML = '<em>No sentences match the current filters · ничего не найдено</em>';
+            errorsList.innerHTML = '';
+            ruleText.style.display = 'none';
+            metadata.innerHTML = '';
+            counter.textContent = '0 / 0';
+            fileCounter.textContent = '';
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+            updateAnnotationButtons();
+            return;
+        }
+
+        const item = current();
+        const errors = item.errors || [];
+
+        renderDiff(item.original || '', item.corrupted || '');
+
+        if (errors.length > 0) {
+            let errHtml = `<h3>Errors (${errors.length})</h3>`;
+            errors.forEach((err) => {
+                const parts = [];
+                parts.push(`<span class="error-type">${escapeHtml(err.type || '?')}</span>`);
+                if (err.category) parts.push(`<span class="error-category">${escapeHtml(err.category)}</span>`);
+                if (err.schema_tag) parts.push(`<span class="mono">${escapeHtml(err.schema_tag)}</span>`);
+                if (err.schema_l2_tag) parts.push(`<span class="mono tag-l2">${escapeHtml(err.schema_l2_tag)}</span>`);
+                if (err.schema_l2_applicability) parts.push(`<span>applicability: ${escapeHtml(err.schema_l2_applicability)}</span>`);
+                if (err.fix_tag) parts.push(`<span class="mono">${escapeHtml(err.fix_tag)}</span>`);
+                parts.push(`<span class="diff-pair mono"><span class="from">${escapeHtml(err.original ?? '∅')}</span> → <span class="to">${escapeHtml(err.corrupted ?? '∅')}</span></span>`);
+                errHtml += `<div class="error-item category-${escapeHtml(err.category || 'OTHER')}">${parts.join('<span class="sep">·</span>')}</div>`;
+            });
+            errorsList.innerHTML = errHtml;
+        } else {
+            errorsList.innerHTML = '<h3>No errors (clean sentence)</h3>';
+        }
+
+        renderRuleText(errors);
+
+        let metaHtml = '';
+        if (item.id) metaHtml += `<span>ID: ${escapeHtml(item.id)}</span>`;
+        if (item.seed !== undefined) metaHtml += `<span>Seed: ${escapeHtml(item.seed)}</span>`;
+        if (item.backend) metaHtml += `<span>Backend: ${escapeHtml(item.backend)}</span>`;
+        if (item.schema) metaHtml += `<span>Schema: ${escapeHtml(item.schema)}</span>`;
+        metaHtml += `<span>File: ${escapeHtml(item._file)} · line ${item._line + 1}</span>`;
+        metadata.innerHTML = metaHtml;
+
+        counter.textContent = `${cursor + 1} / ${view.length}`;
+        jumpInput.max = view.length;
+
+        const fileRecs = view.filter((r) => r._file === item._file);
+        const posInFile = fileRecs.indexOf(item) + 1;
+        fileCounter.textContent = files.length > 1
+            ? `${item._file}: ${posInFile}/${fileRecs.length} in view`
+            : '';
+
+        prevBtn.disabled = cursor === 0;
+        nextBtn.disabled = cursor >= view.length - 1;
+
+        updateAnnotationButtons();
+    }
+
+    function renderRuleText(errors) {
+        if (Object.keys(RULE_TEXTS).length === 0) {
+            ruleText.style.display = 'none';
+            return;
+        }
+        const rules = [];
+        errors.forEach((err) => {
+            const tag = err.schema_l2_tag || err.schema_tag;
+            if (tag && RULE_TEXTS[tag]) rules.push(RULE_TEXTS[tag]);
+        });
+        if (rules.length === 0) {
+            ruleText.style.display = 'none';
+            return;
+        }
+        let html = '';
+        rules.forEach((rule) => {
+            html += `<div class="rule-header">${rule.title}</div>`;
+            html += `<div>${rule.text}</div>`;
+        });
+        ruleText.innerHTML = html;
+        ruleText.style.display = 'block';
+    }
+
+    function updateAnnotationButtons() {
+        const item = current();
+        const a = item ? ann.get(item._key) : null;
+        document.querySelectorAll('.annotation-bar button[data-label]').forEach((btn) => {
+            btn.classList.remove('selected-correct', 'selected-non_error', 'selected-wrong_error', 'selected-ambiguous');
+            if (a && btn.dataset.label === a.v) btn.classList.add('selected-' + a.v);
+        });
+        $('undoBtn').disabled = undoStack.length === 0;
+    }
+
+    // ======================================================================
+    // Annotation, undo
+    // ======================================================================
+
+    function setVerdict(rec, label, opts = {}) {
+        const prev = ann.get(rec._key) || null;
+        if (label === null) {
+            if (!prev) return;
+            ann.delete(rec._key);
+        } else {
+            ann.set(rec._key, { v: label, t: Date.now() });
+        }
+        if (!opts.noUndo) {
+            undoStack.push({ key: rec._key, rec, prev });
+            if (undoStack.length > 1000) undoStack.shift();
+        }
+        persistFile(rec._file);
+        if (label !== null && !opts.noPace) recordPace();
+    }
+
+    function annotate(label) {
+        const rec = current();
+        if (!rec) return;
+        const prev = ann.get(rec._key);
+        if (!prev || prev.v !== label) setVerdict(rec, label);
+        // Auto-advance. Re-filter: with "only unannotated" the record leaves
+        // the view and the cursor already points at the next one.
+        const before = view.indexOf(rec);
+        applyFilters(null);
+        if (view[cursor] === rec || (view.indexOf(rec) === cursor && cursor < view.length)) {
+            // record still visible at cursor → step past it
+            if (cursor < view.length - 1) cursor++;
+            else if (!jumpToFirstUnannotated(true)) toast('All examples in view are annotated · всё размечено');
+        } else if (before >= 0 && view.length > 0 && cursor >= view.length) {
+            cursor = view.length - 1;
+        }
+        if (view.length === 0) toast('View is empty (filters) · фильтр скрыл все примеры');
+        updateProgress();
+        updateFileQueue();
+        updateSubtypeTable();
+        render();
+    }
+
+    function clearVerdict() {
+        const rec = current();
+        if (!rec || !ann.get(rec._key)) return;
+        setVerdict(rec, null);
+        applyFilters(rec);
+        refreshAll();
+        toast('Verdict cleared · вердикт снят');
+    }
+
+    function undo() {
+        const entry = undoStack.pop();
+        if (!entry) { toast('Nothing to undo'); return; }
+        if (entry.prev) ann.set(entry.key, entry.prev);
+        else ann.delete(entry.key);
+        persistFile(entry.rec._file);
+        applyFilters(entry.rec);
+        const i = view.indexOf(entry.rec);
+        if (i >= 0) {
+            cursor = i;
+            toast(`Undone: ${entry.rec._key.split('::').pop()} · отменено`);
+        } else {
+            toast('Undone (example hidden by current filters) · отменено, пример скрыт фильтром');
+        }
+        refreshAll();
+    }
+
+    // ======================================================================
+    // Export / import
+    // ======================================================================
+
+    function computePace() {
+        const log = (loadMeta().paceLog || []).slice().sort((x, y) => x - y);
+        if (log.length === 0) return null;
+        const gaps = [];
+        let activeMs = 0;
+        for (let i = 1; i < log.length; i++) {
+            const g = log[i] - log[i - 1];
+            if (g <= 120000) { gaps.push(g); activeMs += g; }
+        }
+        gaps.sort((x, y) => x - y);
+        const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+        return {
+            count: log.length,
+            first_at: new Date(log[0]).toISOString(),
+            last_at: new Date(log[log.length - 1]).toISOString(),
+            active_minutes: Math.round(activeMs / 6000) / 10,
+            per_minute: (gaps.length >= 2 && activeMs >= 1000)
+                ? Math.round(600000 * gaps.length / activeMs) / 10 : null,
+            median_seconds: median !== null ? Math.round(median / 100) / 10 : null,
+        };
+    }
+
+    function buildExport() {
+        const records = [];
+        const subtypes = {};
+        const vCounts = { correct: 0, non_error: 0, wrong_error: 0, ambiguous: 0 };
+        allRecords.forEach((rec) => {
+            const st = rec._subtype;
+            if (!subtypes[st]) {
+                subtypes[st] = { total: 0, annotated: 0, real_error: 0, non_error: 0, non_word: 0, wrong_tag: 0 };
+            }
+            subtypes[st].total++;
+            const a = ann.get(rec._key);
+            if (!a) return;
+            vCounts[a.v]++;
+            subtypes[st].annotated++;
+            subtypes[st][LABEL_TO_VERDICT[a.v]]++;
+            const out = {};
+            for (const k of Object.keys(rec)) {
+                if (!k.startsWith('_')) out[k] = rec[k];
+            }
+            out.annotation = a.v;                       // legacy value (compat)
+            out.verdict = LABEL_TO_VERDICT[a.v];        // explicit name
+            out.annotated_at = new Date(a.t).toISOString();
+            out.source_file = rec._file;
+            records.push(out);
+        });
+        const verdicts = {};
+        for (const l of LABELS) verdicts[LABEL_TO_VERDICT[l]] = vCounts[l];
+        return {
+            format: 'synterr-annotations',
+            version: 2,
+            exported_at: new Date().toISOString(),
+            label_map: { ...LABEL_TO_VERDICT },
+            files: files.map((f) => {
+                const { done } = verdictCounts(f.records);
+                return { name: f.name, records: f.records.length, annotated: done };
+            }),
+            summary: {
+                total_records: allRecords.length,
+                annotated: records.length,
+                verdicts,
+                annotations: vCounts,
+                subtypes,
+                pace: computePace(),
+            },
+            records,
+        };
+    }
+
+    function exportAnnotations() {
+        if (allRecords.length === 0) return;
+        const payload = buildExport();
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+        a.href = url;
+        a.download = `annotations_${ts}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast(`Exported ${payload.summary.annotated} annotations · экспортировано`);
+    }
+
+    function importAnnotationsText(text) {
+        let items = [];        // {file|null, recKey|null, id|null, v, t}
+        let parsedAs = '';
+        try {
+            const obj = JSON.parse(text);
+            if (obj && obj.format === 'synterr-annotations' && Array.isArray(obj.records)) {
+                parsedAs = 'v2 export';
+                items = obj.records.map((r) => {
+                    let v = LABELS.includes(r.annotation) ? r.annotation : VERDICT_TO_LABEL[r.verdict];
+                    if (!v) return null;
+                    return {
+                        file: r.source_file || null,
+                        id: r.id !== undefined ? String(r.id) : null,
+                        v,
+                        t: r.annotated_at ? Date.parse(r.annotated_at) : 0,
+                    };
+                }).filter(Boolean);
+            }
+        } catch { /* not a single JSON document — try JSONL below */ }
+
+        if (!parsedAs) {
+            // Legacy format: JSONL of records with an "annotation" field.
+            parsedAs = 'legacy JSONL';
+            text.split('\n').forEach((line) => {
+                line = line.trim();
+                if (!line) return;
+                try {
+                    const r = JSON.parse(line);
+                    if (r && LABELS.includes(r.annotation)) {
+                        items.push({
+                            file: r.source_file || null,
+                            id: r.id !== undefined ? String(r.id) : null,
+                            v: r.annotation,
+                            t: r.annotated_at ? Date.parse(r.annotated_at) : 0,
+                        });
                     }
-                    errHtml += `
-                        <span class="error-item category-${err.category}">
-                            <span class="error-type">${err.type}</span>
-                            <span class="error-category">${err.category}</span>
-                            ${schemaInfo}
-                        </span>
-                    `;
-                });
-                errorsList.innerHTML = errHtml;
+                } catch { /* skip */ }
+            });
+        }
+
+        if (items.length === 0) {
+            toast('Import: no annotations recognized in that file');
+            return;
+        }
+
+        let applied = 0, storedOnly = 0, keptLocal = 0, unmatched = 0;
+        items.forEach((it) => {
+            // Resolve to a loaded record if possible.
+            let rec = null;
+            if (it.file && it.id !== null) {
+                rec = allRecords.find((r) => r._file === it.file && recKeyOf(r) === it.id) || null;
+            }
+            if (!rec && it.id !== null) {
+                const matches = allRecords.filter((r) => recKeyOf(r) === it.id);
+                if (matches.length === 1) rec = matches[0];
+            }
+            if (rec) {
+                const cur = ann.get(rec._key);
+                if (cur && cur.t > (it.t || 0)) { keptLocal++; return; }  // local is newer
+                ann.set(rec._key, { v: it.v, t: it.t || Date.now() });
+                persistFile(rec._file);
+                applied++;
+            } else if (it.file && it.id !== null) {
+                // File not loaded — park it in localStorage for later.
+                mergeIntoStorage(it.file, it.id, { v: it.v, t: it.t || Date.now() });
+                storedOnly++;
             } else {
-                errorsList.innerHTML = '<h3>No errors (clean sentence)</h3>';
-            }
-
-            // Render rule text if available
-            renderRuleText(errors);
-
-            // Render metadata
-            let metaHtml = '';
-            if (item.id) metaHtml += `<span>ID: ${item.id}</span>`;
-            if (item.seed !== undefined) metaHtml += `<span>Seed: ${item.seed}</span>`;
-            if (item.backend) metaHtml += `<span>Backend: ${item.backend}</span>`;
-            if (item.schema) metaHtml += `<span>Schema: ${item.schema}</span>`;
-            metaHtml += `<span>Index: ${item._index}</span>`;
-            metadata.innerHTML = metaHtml;
-
-            // Update counter
-            counter.textContent = `${currentIndex + 1} / ${filteredData.length}`;
-            jumpInput.max = filteredData.length;
-
-            // Update buttons
-            prevBtn.disabled = currentIndex === 0;
-            nextBtn.disabled = currentIndex >= filteredData.length - 1;
-
-            // Update annotation buttons
-            updateAnnotationButtons();
-            updateAnnotationProgress();
-        }
-
-        function renderRuleText(errors) {
-            if (Object.keys(RULE_TEXTS).length === 0) {
-                ruleText.style.display = 'none';
-                return;
-            }
-
-            // Collect rule texts for all errors
-            const rules = [];
-            errors.forEach(err => {
-                const tag = err.schema_l2_tag || err.schema_tag;
-                if (tag && RULE_TEXTS[tag]) {
-                    rules.push(RULE_TEXTS[tag]);
-                }
-            });
-
-            if (rules.length === 0) {
-                ruleText.style.display = 'none';
-                return;
-            }
-
-            let html = '';
-            rules.forEach(rule => {
-                html += `<div class="rule-header">${rule.title}</div>`;
-                html += `<div>${rule.text}</div>`;
-            });
-            ruleText.innerHTML = html;
-            ruleText.style.display = 'block';
-        }
-
-        function updateAnnotationButtons() {
-            const item = filteredData[currentIndex];
-            if (!item) return;
-
-            const annotation = annotations[item._index];
-            document.querySelectorAll('.annotation-bar button[data-label]').forEach(btn => {
-                btn.className = '';
-                if (btn.dataset.label === annotation) {
-                    btn.classList.add('selected-' + annotation);
-                }
-            });
-        }
-
-        function updateAnnotationProgress() {
-            const total = data.length;
-            const done = Object.keys(annotations).length;
-            annotationProgress.textContent = `${done}/${total} annotated`;
-        }
-
-        function navigate(delta) {
-            const newIndex = currentIndex + delta;
-            if (newIndex >= 0 && newIndex < filteredData.length) {
-                currentIndex = newIndex;
-                render();
-            }
-        }
-
-        function jump(idx) {
-            if (idx >= 1 && idx <= filteredData.length) {
-                currentIndex = idx - 1;
-                render();
-            }
-        }
-
-        function annotate(label) {
-            const item = filteredData[currentIndex];
-            if (!item) return;
-
-            if (annotations[item._index] === label) {
-                delete annotations[item._index];
-            } else {
-                annotations[item._index] = label;
-            }
-            updateAnnotationButtons();
-            updateAnnotationProgress();
-            updateStats();
-
-            // Auto-advance on annotation
-            if (annotations[item._index] && currentIndex < filteredData.length - 1) {
-                setTimeout(() => navigate(1), 150);
-            }
-        }
-
-        function exportAnnotations() {
-            const result = data.map((item, idx) => {
-                const ann = annotations[idx];
-                if (!ann) return null;
-                const exported = {...item};
-                delete exported._index;
-                exported.annotation = ann;
-                return exported;
-            }).filter(Boolean);
-
-            const blob = new Blob([result.map(r => JSON.stringify(r)).join('\n')],
-                                  {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'annotations.jsonl';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Event listeners
-        prevBtn.addEventListener('click', () => navigate(-1));
-        nextBtn.addEventListener('click', () => navigate(1));
-        jumpBtn.addEventListener('click', () => jump(parseInt(jumpInput.value)));
-        jumpInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') jump(parseInt(jumpInput.value));
-        });
-
-        resetBtn.addEventListener('click', () => {
-            data = [];
-            filteredData = [];
-            currentIndex = 0;
-            annotations = {};
-            viewer.classList.remove('active');
-            dropzone.style.display = 'block';
-            fileInput.value = '';
-        });
-
-        categoryFilter.addEventListener('change', applyFilters);
-        typeFilter.addEventListener('change', applyFilters);
-        annotationFilter.addEventListener('change', applyFilters);
-
-        // Annotation buttons
-        document.querySelectorAll('.annotation-bar button[data-label]').forEach(btn => {
-            btn.addEventListener('click', () => annotate(btn.dataset.label));
-        });
-        document.getElementById('exportBtn')?.addEventListener('click', exportAnnotations);
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-
-            switch (e.key) {
-                case 'ArrowLeft':
-                    navigate(-1);
-                    break;
-                case 'ArrowRight':
-                    navigate(1);
-                    break;
-                case '1':
-                    annotate('correct');
-                    break;
-                case '2':
-                    annotate('wrong_error');
-                    break;
-                case '3':
-                    annotate('non_error');
-                    break;
-                case '4':
-                    annotate('ambiguous');
-                    break;
-                case 'e':
-                    errorsOnlyMode = !errorsOnlyMode;
-                    applyFilters();
-                    break;
+                unmatched++;
             }
         });
+        let msg = `Import (${parsedAs}): ${applied} applied`;
+        if (storedOnly) msg += `, ${storedOnly} saved for files not loaded yet`;
+        if (keptLocal) msg += `, ${keptLocal} kept local (newer)`;
+        if (unmatched) msg += `, ${unmatched} unmatched`;
+        toast(msg, 6000);
+        if (allRecords.length > 0) {
+            applyFilters(current());
+            refreshAll();
+        }
+    }
+
+    // ======================================================================
+    // Theme, help
+    // ======================================================================
+
+    function applyTheme(theme) {
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+    }
+
+    function toggleTheme() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const next = dark ? 'light' : 'dark';
+        applyTheme(next);
+        saveMeta({ theme: next });
+    }
+
+    function toggleHelp(force) {
+        helpOverlay.classList.toggle('open', force);
+    }
+
+    function toggleUnannotated() {
+        onlyUnannotated = !onlyUnannotated;
+        unannotatedToggle.classList.toggle('on', onlyUnannotated);
+        applyFilters(current());
+        if (onlyUnannotated) jumpToFirstUnannotated(true);
+        refreshAll();
+    }
+
+    // ======================================================================
+    // Wiring
+    // ======================================================================
+
+    applyTheme(loadMeta().theme || 'light');
+    saveIndicator.innerHTML = '<span class="dot"></span>autosave on · автосохранение включено';
+
+    // Whole-window drag & drop
+    ['dragover', 'dragenter'].forEach((ev) =>
+        document.addEventListener(ev, (e) => {
+            e.preventDefault();
+            document.body.classList.add('dragover');
+        }));
+    ['dragleave', 'dragend'].forEach((ev) =>
+        document.addEventListener(ev, (e) => {
+            if (ev === 'dragleave' && e.relatedTarget) return;
+            document.body.classList.remove('dragover');
+        }));
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+        document.body.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFiles(e.target.files);
+        fileInput.value = '';
+    });
+    $('addFilesBtn').addEventListener('click', () => fileInput.click());
+
+    $('importInput').addEventListener('change', (e) => {
+        const f = e.target.files[0];
+        if (f) f.text().then(importAnnotationsText);
+        e.target.value = '';
+    });
+    $('importBtn').addEventListener('click', () => $('importInput').click());
+    $('exportBtn').addEventListener('click', exportAnnotations);
+
+    prevBtn.addEventListener('click', () => navigate(-1));
+    nextBtn.addEventListener('click', () => navigate(1));
+    jumpBtn.addEventListener('click', () => {
+        const idx = parseInt(jumpInput.value);
+        if (idx >= 1 && idx <= view.length) { cursor = idx - 1; render(); }
+        jumpInput.blur();
+    });
+    jumpInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') jumpBtn.click();
+        if (e.key === 'Escape') jumpInput.blur();
+    });
+
+    $('resetBtn').addEventListener('click', () => {
+        // Annotations remain in localStorage; only unload the data.
+        files = [];
+        allRecords = [];
+        view = [];
+        cursor = 0;
+        ann = new Map();
+        undoStack = [];
+        viewer.classList.remove('active');
+        progressRow.style.display = 'none';
+        dropzone.style.display = 'block';
+        fileInput.value = '';
+        toast('Files unloaded. Saved verdicts stay in this browser · разметка сохранена');
+    });
+
+    fileFilter.addEventListener('change', () => { applyFilters(current()); refreshAll(); });
+    typeFilter.addEventListener('change', () => { applyFilters(current()); refreshAll(); });
+    annotationFilter.addEventListener('change', () => { applyFilters(null); cursor = 0; refreshAll(); });
+    unannotatedToggle.addEventListener('click', toggleUnannotated);
+
+    document.querySelectorAll('.annotation-bar button[data-label]').forEach((btn) => {
+        btn.addEventListener('click', () => annotate(btn.dataset.label));
+    });
+    $('undoBtn').addEventListener('click', undo);
+    $('helpBtn').addEventListener('click', () => toggleHelp());
+    $('themeToggle').addEventListener('click', toggleTheme);
+    helpOverlay.addEventListener('click', (e) => {
+        if (e.target === helpOverlay) toggleHelp(false);
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        if (helpOverlay.classList.contains('open')) {
+            if (e.key === 'Escape' || e.key === '?') { toggleHelp(false); e.preventDefault(); }
+            return;
+        }
+        if (!viewer.classList.contains('active')) {
+            if (e.key === '?') { toggleHelp(true); e.preventDefault(); }
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowLeft': case 'k': navigate(-1); e.preventDefault(); break;
+            case 'ArrowRight': case 'j': navigate(1); e.preventDefault(); break;
+            case '1': case '2': case '3': case '4':
+                annotate(KEY_TO_LABEL[e.key]); e.preventDefault(); break;
+            case 'u': undo(); e.preventDefault(); break;
+            case '0': case 'Backspace': case 'Delete':
+                clearVerdict(); e.preventDefault(); break;
+            case 'n':
+                if (!jumpToFirstUnannotated(false)) toast('No unannotated examples in view');
+                render(); e.preventDefault(); break;
+            case 'a': toggleUnannotated(); e.preventDefault(); break;
+            case 'Home': cursor = 0; render(); e.preventDefault(); break;
+            case 'End': cursor = Math.max(0, view.length - 1); render(); e.preventDefault(); break;
+            case '?': toggleHelp(true); e.preventDefault(); break;
+            case 'Escape': toggleHelp(false); break;
+        }
+    });
+
     </script>
 </body>
 </html>
