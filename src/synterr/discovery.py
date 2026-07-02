@@ -21,11 +21,13 @@ import json
 import random
 import re
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 
-def read_sentences(path: Path, limit: int | None = None, min_words: int = 5) -> list[str]:
+def read_sentences(
+    path: Path, limit: int | None = None, min_words: int = 5
+) -> list[str]:
     """Read one-sentence-per-line text, skipping very short lines."""
     sentences = []
     with path.open(encoding="utf-8", errors="ignore") as f:
@@ -94,7 +96,7 @@ def survey(
                             result = handler.apply(
                                 tokens, sentence, idx, set(), rng=rng
                             )
-                        except Exception as exc:  # noqa: BLE001 — survey must finish
+                        except Exception as exc:
                             emissions[
                                 f"{handler.name}:EXCEPTION:{type(exc).__name__}"
                             ] += 1
@@ -186,11 +188,38 @@ def build_class_patterns() -> dict[str, re.Pattern]:
     ]
     compound_sconj = [" ".join(compound) for compound, _pos in _COMPOUND_SCONJ]
     # second-locative nouns commonly governed by в/на (loc2 forms)
-    loc2 = (
-        "лесу снегу порту шкафу углу берегу мосту саду краю бою строю тылу "
-        "плену аду раю быту виду носу боку году часу ряду полу мелу льду "
-        "пруду долгу цеху отпуску аэропорту"
-    ).split()
+    loc2 = [
+        "лесу",
+        "снегу",
+        "порту",
+        "шкафу",
+        "углу",
+        "берегу",
+        "мосту",
+        "саду",
+        "краю",
+        "бою",
+        "строю",
+        "тылу",
+        "плену",
+        "аду",
+        "раю",
+        "быту",
+        "виду",
+        "носу",
+        "боку",
+        "году",
+        "часу",
+        "ряду",
+        "полу",
+        "мелу",
+        "льду",
+        "пруду",
+        "долгу",
+        "цеху",
+        "отпуску",
+        "аэропорту",
+    ]
 
     pats = {
         # never-fired on news (dialogue/colloquial/genre-bound)
@@ -274,9 +303,7 @@ def mine_pools(
         "sampled": {k: len(v) for k, v in reservoirs.items()},
     }
     for name, sents in sorted(reservoirs.items()):
-        (outdir / f"{name}.txt").write_text(
-            "\n".join(sents) + "\n", encoding="utf-8"
-        )
+        (outdir / f"{name}.txt").write_text("\n".join(sents) + "\n", encoding="utf-8")
     (outdir / "pools.meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8"
     )
