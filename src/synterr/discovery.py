@@ -163,6 +163,7 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         _TRIGRAM_SEPARATE_TO_HYPHEN,
     )
     from synterr.languages.russian.errors.comma_insert import (
+        _COMPOUND_SCONJ,
         _FROZEN_PHRASES,
         _INDIVISIBLE_FIXED,
         _INDIVISIBLE_KAK,
@@ -183,6 +184,7 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         for group in (_INDIVISIBLE_KAK, _INDIVISIBLE_PRONOUN, _INDIVISIBLE_FIXED)
         for t in group
     ]
+    compound_sconj = [" ".join(compound) for compound, _pos in _COMPOUND_SCONJ]
     # second-locative nouns commonly governed by в/на (loc2 forms)
     loc2 = (
         "лесу снегу порту шкафу углу берегу мосту саду краю бою строю тылу "
@@ -206,6 +208,8 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         "taki_hyphen": r"\b[А-Яа-яЁё]+-таки\b",
         "suffix_its_ets": r"\b[А-Яа-яЁё]{3,}(?:ица|ице|ицей|ицу|ицы)\b",
         "dash_contexts": r"\s—\s",
+        "comma_x_ne_x": r"\b([А-Яа-яЁё]{3,})\s+не\s+\1\b",
+        "comma_compound_conj_split": rf"\b(?:{alt(compound_sconj)})\b",
         "verb_tense_anchor": r"\b(?:вчера|позавчера|завтра|послезавтра|недавно)\b",
         "noun_case_prep_e_u": rf"\b(?:в|на)\s+(?:{'|'.join(loc2)})\b",
         "numeral_poltora": r"\b(?:полтора|полторы|полутора|полтораста)\b",
