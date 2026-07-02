@@ -61,6 +61,29 @@ class TestCommaBeforeKak:
         ]
         assert not handler.can_apply(tokens, 1)
 
+    def test_cannot_apply_kak_after_any_punctuation(self):
+        # Artem's M1.3 report: «, (, dashes etc. before «как» must refuse —
+        # inserting after them double-punctuates
+        handler = CommaInsertHandler()
+        for mark in ("«", "(", "—", ":", ";"):
+            tokens = [
+                _tok("сказал", pos="VERB", idx=0),
+                _tok(mark, pos="PUNCT", idx=1),
+                _tok("как", pos="SCONJ", idx=2),
+                _tok("экономист", pos="NOUN", idx=3),
+            ]
+            assert not handler.can_apply(tokens, 2), f"fired after {mark!r}"
+
+    def test_cannot_apply_kak_after_mistagged_quote(self):
+        # quotes sometimes escape the PUNCT tag — text-level fallback
+        handler = CommaInsertHandler()
+        tokens = [
+            _tok("«", pos="X", idx=0),
+            _tok("как", pos="SCONJ", idx=1),
+            _tok("дела", pos="NOUN", idx=2),
+        ]
+        assert not handler.can_apply(tokens, 1)
+
     def test_insert_comma_before_kak(self):
         h = _force_subtype("comma_before_kak")
         tokens = [

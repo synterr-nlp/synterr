@@ -2064,6 +2064,23 @@ class TestDoubleComparativeHandler:
         assert result.error_type == "adj_double_comparative"
         assert result.fix_tag == "$DELETE"
 
+    def test_apply_skips_capitalized_comparative(self):
+        # Artem's M1.3 report: «Раньше → более Раньше» read unnaturally, and
+        # a capitalization transfer would break the single-$DELETE fix — skip
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="Раньше",
+            lemma="рано",
+            pos="ADV",
+            features={"Degree": "Cmp"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("Раньше")[0]},
+        )
+        sentence = ["Раньше"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["Раньше"]
+
     @pytest.mark.slow
     def test_real_backend_interesnee(self):
         handler = self._handler()

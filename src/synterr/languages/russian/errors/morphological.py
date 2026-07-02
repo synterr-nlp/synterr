@@ -1156,6 +1156,11 @@ class DoubleComparativeHandler:
         rng: Random | None = None,
     ) -> ErrorResult | None:
         word = sentence[idx]
+        if word[:1].isupper():
+            # Sentence-initial/capitalized comparative: inserting «более»
+            # would either read unnaturally (более Раньше) or require a
+            # second capitalization edit beyond the single $DELETE fix — skip
+            return None
         sentence.insert(idx, "более")
         modified.add(idx)
         return ErrorResult(

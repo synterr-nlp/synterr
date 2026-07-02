@@ -65,6 +65,9 @@ if TYPE_CHECKING:
 # verbal head → clause (skip).
 _KAK_CLAUSE_DEPRELS = {"advcl", "ccomp", "csubj", "acl", "cc"}
 
+# Fallback for tokenizations where quotes/brackets escape the PUNCT tag
+_PUNCT_CHARS = frozenset(",;:—–-«»\"'()[]…!?.")
+
 # POS tags of the head of an appositive/comparative "как" (the "в качестве"
 # sense, §93 Прим.) where a comma is WRONG: "работал как экономист".
 _KAK_APPOSITIVE_HEAD_POS = {"NOUN", "PROPN", "ADJ", "NUM"}
@@ -842,8 +845,14 @@ class CommaInsertHandler:
         text_lower = token.text.lower()
         detected: list[str] = []
 
-        # "как" not already preceded by comma, and NOT a clause-introducing "как"
-        if text_lower == "как" and idx > 0 and tokens[idx - 1].text != ",":
+        # "как" not preceded by ANY punctuation (comma, «, (, dash, colon —
+        # inserting after those double-punctuates), and NOT clause-introducing
+        if (
+            text_lower == "как"
+            and idx > 0
+            and tokens[idx - 1].pos != "PUNCT"
+            and tokens[idx - 1].text not in _PUNCT_CHARS
+        ):
             allow = False
             if token.dep_rel in _KAK_CLAUSE_DEPRELS:
                 pass  # clause-introducing — comma is correct, don't insert
