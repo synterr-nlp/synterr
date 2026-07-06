@@ -16,6 +16,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.inflector import (
+    UD_TO_PYMORPHY_CASE,
+    UD_TO_PYMORPHY_GENDER,
+    UD_TO_PYMORPHY_NUMBER,
+    inflect_word,
+    match_capitalization,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -35,12 +42,6 @@ def _morph():
 
     return pymorphy3.MorphAnalyzer()
 
-
-# Grammeme categories copied from the original token onto the replacement,
-# in priority order. We try the full set first, then drop trailing categories
-# until pymorphy can inflect — so a verb keeps tense+number+gender+person but
-# degrades gracefully if a combination is invalid.
-_INFLECT_ATTRS = ("tense", "number", "gender", "person", "case", "mood", "aspect")
 
 # Coarse POS classes for matching a replacement's parse to the original
 # token. Lexicon citation forms are infinitives (INFN) while tokens in text
@@ -65,12 +66,115 @@ def _pos_class(pos: str | None) -> str | None:
     return _POS_CLASSES.get(str(pos), str(pos)) if pos else None
 
 
+# Grammemes that may be transferred from the original word's parse to the
+# collocate replacement: POS class plus form-level (inflectional) values.
+# Mirrors the paronym handler's approach (errors/lexical.py, the 98%-precision
+# reference); kept local because that module is separately owned. Transferring
+# the POS grammeme (PRTS/PRTF/...) and voice (actv/pssv) is what keeps a short
+# passive participle a short passive participle: "принято" → "сделано", not
+# the finite "сделало" (2026-07 annotation pass, 20/73 flagged). Lexeme-level
+# grammemes (aspect, transitivity, Qual) must stay behind — the replacement
+# lexeme often lacks them, which would make inflection fail spuriously.
+_TRANSFER_POS = {
+    "NOUN",
+    "ADJF",
+    "ADJS",
+    "COMP",
+    "VERB",
+    "INFN",
+    "PRTF",
+    "PRTS",
+    "GRND",
+    "NUMR",
+    "ADVB",
+}
+_TRANSFER_FORM = {
+    "nomn",
+    "gent",
+    "datv",
+    "accs",
+    "ablt",
+    "loct",
+    "voct",
+    "gen2",
+    "loc2",
+    "sing",
+    "plur",
+    "masc",
+    "femn",
+    "neut",
+    "1per",
+    "2per",
+    "3per",
+    "past",
+    "pres",
+    "futr",
+    "actv",
+    "pssv",
+    "indc",
+    "impr",
+}
+_ANIMACY = {"anim", "inan"}
+
+
+def _transfer_grammemes(parse) -> set[str]:
+    """Form-level grammemes to carry over to the collocate replacement."""
+    grammemes = set(parse.tag.grammemes)
+    transfer = grammemes & (_TRANSFER_POS | _TRANSFER_FORM)
+    if "accs" in transfer:
+        # Accusative surface form depends on animacy; without it pymorphy
+        # would pick an arbitrary anim/inan variant.
+        transfer |= grammemes & _ANIMACY
+    return transfer
+
+
+# UD features whose pymorphy equivalents must survive the swap intact:
+# transferring an undisambiguated parse's case/gender/number would stack a
+# spurious agreement error on top of the intended Lex error.
+_UD_FEATURE_MAPS = (
+    ("Case", UD_TO_PYMORPHY_CASE),
+    ("Number", UD_TO_PYMORPHY_NUMBER),
+    ("Gender", UD_TO_PYMORPHY_GENDER),
+)
+
+
+def _context_grammemes(token: AnalyzedToken) -> set[str]:
+    """pymorphy grammemes implied by stanza's disambiguated features."""
+    wanted: set[str] = set()
+    for feature, mapping in _UD_FEATURE_MAPS:
+        value = token.features.get(feature)
+        grammeme = mapping.get(value) if value is not None else None
+        if grammeme:
+            wanted.add(grammeme)
+    return wanted
+
+
+def _consistent_parses(token: AnalyzedToken, word: str) -> list:
+    """Parses of ``word`` consistent with stanza's disambiguated features.
+
+    The stored ``pymorphy_parse`` (tried first) is context-free, and some
+    wordforms are lexicalized under a different POS than the context uses:
+    parse("установленный")[0] is the *adjective*, whose ADJF grammemes no
+    verb lexeme can realize. Offering every feature-consistent parse lets the
+    caller fall through to the PRTF parse and inflect "завоевать" correctly
+    instead of skipping (or worse, guessing).
+    """
+    wanted = _context_grammemes(token)
+    candidates = []
+    stored = token.extra.get("pymorphy_parse") if token.extra else None
+    if stored is not None:
+        candidates.append(stored)
+    candidates.extend(_morph().parse(word))
+    return [p for p in candidates if wanted <= set(p.tag.grammemes)]
+
+
 def _inflect_to_match(
     wrong_lemma: str, original_parse, *, same_pos: bool = False
 ) -> str | None:
-    """Inflect `wrong_lemma` (a citation form) to match original_parse's
-    grammemes. Returns the inflected surface form, or None if inflection
-    failed at every fallback level.
+    """Inflect `wrong_lemma` (a citation form) to carry original_parse's
+    form-level grammemes. Returns the inflected surface form, or None if no
+    parse of `wrong_lemma` can realize them — callers must then *skip* the
+    corruption rather than fall back to the citation form (precision-first).
 
     With `same_pos=True`, only parses of `wrong_lemma` in the same coarse POS
     class as the original are considered. pymorphy ranks parses by corpus
@@ -80,31 +184,20 @@ def _inflect_to_match(
     if original_parse is None:
         return None
 
-    target_tag = original_parse.tag
-    grammemes: list[str] = []
-    for attr in _INFLECT_ATTRS:
-        val = getattr(target_tag, attr, None)
-        if val is not None:
-            grammemes.append(val)
+    grammemes = _transfer_grammemes(original_parse)
+    if not grammemes:
+        return None
 
     parses = _morph().parse(wrong_lemma)
     if not parses:
         return None
-    if same_pos:
-        target_class = _pos_class(target_tag.POS)
-        new_parse = next(
-            (p for p in parses if _pos_class(p.tag.POS) == target_class), None
-        )
-        if new_parse is None:
-            return None
-    else:
-        new_parse = parses[0]
-
-    # Try full grammeme set, then progressively shorter prefixes.
-    for k in range(len(grammemes), 0, -1):
-        result = new_parse.inflect(set(grammemes[:k]))
-        if result is not None:
-            return result.word
+    target_class = _pos_class(original_parse.tag.POS)
+    for new_parse in parses:
+        if same_pos and _pos_class(new_parse.tag.POS) != target_class:
+            continue
+        inflected = inflect_word(new_parse, grammemes)
+        if inflected is not None:
+            return inflected
     return None
 
 
@@ -116,6 +209,14 @@ def _load_pleonasms() -> dict[str, list[dict[str, str]]]:
             data = json.load(f)
             return {k: v for k, v in data.items() if not k.startswith("_")}
     return {}
+
+
+def _is_preposition(word: str) -> bool:
+    """Whether pymorphy reads ``word`` as a preposition (any parse)."""
+    try:
+        return any(str(p.tag.POS) == "PREP" for p in _morph().parse(word))
+    except Exception:
+        return False
 
 
 def _lemmatize(word: str) -> str:
@@ -196,9 +297,14 @@ class PleonasmHandler:
         автобиографию" (2026-06 audit).
         """
         red = redundant.lower()
-        # Lemmatize the redundant word (first token if it's a phrase) so an
-        # inflected occurrence in the text still matches.
-        red_first = red.split()[0] if red else red
+        # Lemmatize the redundant word so an inflected occurrence in the text
+        # still matches. For phrase entries take the first *content* word:
+        # "в первый раз" must be keyed on "первый", not on the preposition
+        # "в", which co-occurs with nearly everything.
+        words = red.split()
+        red_first = next(
+            (w for w in words if not _is_preposition(w)), words[0] if words else red
+        )
         red_lemmas = {red_first}
         try:
             for p in _morph().parse(red_first):
@@ -222,6 +328,95 @@ class PleonasmHandler:
                 break
             j += step
         return False
+
+    # Frozen expressions where the core word cannot take the redundant
+    # modifier: "в конечном итоге/счёте" is an adverbial idiom
+    # ("eventually"), so "в окончательном конечном итоге" came out as
+    # garbage, not as the Rozental §141 pleonasm «окончательный конечный»
+    # targets (2026-07 annotation pass). Keyed by core lemma → lemmas of the
+    # following word that freeze it.
+    _IDIOM_NEXT_LEMMAS = {"конечный": frozenset({"итог", "счёт"})}
+
+    # Nominal POS tags (UD and pymorphy) that read as the start of a noun
+    # complement after the core noun.
+    _NOMINAL_POS = frozenset({"NOUN", "PROPN", "PRON", "NPRO"})
+
+    @staticmethod
+    def _is_numeric(token: AnalyzedToken) -> bool:
+        if str(token.pos) in ("NUM", "NUMR"):
+            return True
+        if any(ch.isdigit() for ch in token.text):
+            return True
+        try:
+            return any(
+                str(p.tag.POS) == "NUMR" for p in _morph().parse(token.text.lower())
+            )
+        except Exception:
+            return False
+
+    def _core_blocked(
+        self, tokens: Sequence[AnalyzedToken], idx: int, lemma: str
+    ) -> bool:
+        """Context-level guards on the core word itself (2026-07 pass).
+
+        - PROPN cores are names, not the dictionary word the entry targets:
+          the spacecraft "Прогресс М1-11" is not the noun прогресс.
+        - Idiom guard: see _IDIOM_NEXT_LEMMAS.
+        - "<numeral> с половиной" is a quantity construction ("три с
+          половиной процента"); inserting «большей» into it produced
+          garbage, while "большая половина зрителей" stays a valid target.
+        """
+        token = tokens[idx]
+        if str(token.pos) == "PROPN":
+            return True
+        blocked_next = self._IDIOM_NEXT_LEMMAS.get(lemma)
+        if blocked_next and idx + 1 < len(tokens):
+            nxt = tokens[idx + 1]
+            if (nxt.lemma or nxt.text).lower() in blocked_next:
+                return True
+        if lemma == "половина" and idx >= 2:
+            if tokens[idx - 1].text.lower() == "с" and self._is_numeric(
+                tokens[idx - 2]
+            ):
+                return True
+        return False
+
+    def _after_insert_blocked(
+        self, tokens: Sequence[AnalyzedToken], idx: int, redundant: str
+    ) -> bool:
+        """Whether inserting `redundant` after the core would sever the core
+        noun from its own complement.
+
+        The after-entries for noun cores are bare genitive attributes
+        ("народа", "времени"): dropping one between the core and an existing
+        nominal complement produced "толпой народу демонстрантов" (2026-07
+        annotation pass). Only applies to noun core + noun insert; PP phrases
+        and adverbs ("вернуться обратно домой") stay grammatical.
+        """
+        if " " in redundant:
+            return False
+        token = tokens[idx]
+        if str(token.pos) not in ("NOUN", "PROPN"):
+            return False
+        parses = _morph().parse(redundant)
+        if not parses or str(parses[0].tag.POS) != "NOUN":
+            return False
+        nxt = tokens[idx + 1] if idx + 1 < len(tokens) else None
+        if nxt is not None:
+            if str(nxt.pos) in self._NOMINAL_POS:
+                return True
+            if nxt.get_feature("Case") == "Gen":
+                return True
+        # Dep fallback: any following nmod dependent of the core noun.
+        return any(t.head_idx == idx and t.dep_rel == "nmod" for t in tokens[idx + 1 :])
+
+    def _entry_blocked(
+        self, tokens: Sequence[AnalyzedToken], idx: int, entry: dict[str, str]
+    ) -> bool:
+        pos = entry.get("pos", "before")
+        if self._redundant_present(tokens, idx, entry["word"], pos):
+            return True
+        return pos == "after" and self._after_insert_blocked(tokens, idx, entry["word"])
 
     # Inserted single words in these POS classes must agree with the core
     # word; anything else (adverbs like "вновь", "заранее") is invariant.
@@ -288,12 +483,11 @@ class PleonasmHandler:
         lemma = token.lemma.lower() if token.lemma else token.text.lower()
         if lemma not in self.pleonasms:
             return False
+        if self._core_blocked(tokens, idx, lemma):
+            return False
         # At least one entry must not already be present adjacently.
         entries = self.pleonasms.get(lemma) or []
-        return any(
-            not self._redundant_present(tokens, idx, e["word"], e.get("pos", "before"))
-            for e in entries
-        )
+        return any(not self._entry_blocked(tokens, idx, e) for e in entries)
 
     def apply(
         self,
@@ -310,15 +504,12 @@ class PleonasmHandler:
         entries = self.pleonasms.get(lemma)
         if not entries:
             return None
+        if self._core_blocked(tokens, idx, lemma):
+            return None
 
-        # Only consider entries whose redundant word isn't already adjacent.
-        usable = [
-            e
-            for e in entries
-            if not self._redundant_present(
-                tokens, idx, e["word"], e.get("pos", "before")
-            )
-        ]
+        # Only consider entries whose redundant word isn't already adjacent
+        # and whose insertion point is safe.
+        usable = [e for e in entries if not self._entry_blocked(tokens, idx, e)]
         if not usable:
             return None
 
@@ -473,21 +664,27 @@ class CollocationHandler:
             return None
 
         entry = rng.choice(matching_entries)
-        wrong_word = entry["wrong"]
 
         # Inflect the replacement to match the original token's morphology so
         # "принял решение" → "сделал решение" (not the bare infinitive
-        # "сделать решение"). Falls back to the citation form if pymorphy
-        # can't inflect. same_pos guards against frequency-ranked homograph
-        # parses (parse("дорогой")[0] is the noun дорога).
-        original_parse = token.extra.get("pymorphy_parse") if token.extra else None
-        inflected = _inflect_to_match(wrong_word, original_parse, same_pos=True)
-        if inflected:
-            wrong_word = inflected
+        # "сделать решение") and "принято решение" → "сделано" (not the
+        # finite "сделало"). If no feature-consistent parse of the original
+        # can be realized on the replacement lexeme, skip — emitting the
+        # citation form stacked a spurious form error on top of the intended
+        # Lex error (2026-07 annotation pass). same_pos guards against
+        # frequency-ranked homograph parses (parse("дорогой")[0] is the noun
+        # дорога).
+        wrong_word: str | None = None
+        for original_parse in _consistent_parses(token, word):
+            wrong_word = _inflect_to_match(
+                entry["wrong"], original_parse, same_pos=True
+            )
+            if wrong_word is not None:
+                break
+        if wrong_word is None:
+            return None
 
-        # Match capitalization of the original word
-        if word[:1].isupper():
-            wrong_word = wrong_word[:1].upper() + wrong_word[1:]
+        wrong_word = match_capitalization(word, wrong_word)
 
         sentence[idx] = wrong_word
 

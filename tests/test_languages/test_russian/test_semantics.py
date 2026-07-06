@@ -186,6 +186,114 @@ class TestPleonasmHandler:
         ]
         assert self.handler.can_apply(tokens, 5) is True
 
+    # 2026-07 annotation pass: 10/100 pleonasm outputs were non-words.
+    # Root causes fixed below; per-record regressions.
+
+    def test_vpervye_insert_carries_preposition(self):
+        # "впервые" + "первый раз" produced "впервые первый раз ..." — the
+        # inserted phrase needs its preposition ("в первый раз") to stay
+        # grammatical (6/10 flagged records).
+        tokens = [
+            _tok("посещает", pos="VERB", lemma="посещать", idx=0),
+            _tok("впервые", pos="ADV", lemma="впервые", idx=1),
+            _tok("за", pos="ADP", lemma="за", idx=2),
+            _tok("десятилетие", lemma="десятилетие", idx=3),
+        ]
+        sentence = ["посещает", "впервые", "за", "десятилетие"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.corrupted == "в первый раз"
+        assert sentence == ["посещает", "впервые", "в первый раз", "за", "десятилетие"]
+
+    def test_tolpa_blocked_when_complement_follows(self):
+        # "учиненный толпой демонстрантов" → inserting the genitive attribute
+        # severed the core from its own complement ("толпой народу
+        # демонстрантов").
+        tokens = [
+            _tok("толпой", lemma="толпа", idx=0),
+            _tok("демонстрантов", lemma="демонстрант", idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 0) is False
+        sentence = ["толпой", "демонстрантов"]
+        assert self.handler.apply(tokens, sentence, 0, set()) is None
+        assert sentence == ["толпой", "демонстрантов"]
+
+    def test_tolpa_naroda_fires_standalone(self):
+        # Without a following complement the entry still fires, with the
+        # standard genitive form ("народа", not the partitive "народу").
+        tokens = [
+            _tok("собралась", pos="VERB", lemma="собраться", idx=0),
+            _tok("толпа", lemma="толпа", idx=1),
+        ]
+        sentence = ["собралась", "толпа"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert sentence == ["собралась", "толпа", "народа"]
+
+    def test_propn_core_skipped(self):
+        # The spacecraft "Прогресс М1-11" got "вперёд" injected into its
+        # name; PROPN cores are names, not the dictionary word.
+        tokens = [_tok("Династия", pos="PROPN", lemma="династия", idx=0)]
+        assert self.handler.can_apply(tokens, 0) is False
+        sentence = ["Династия"]
+        assert self.handler.apply(tokens, sentence, 0, set()) is None
+
+    def test_progress_entry_rekeyed_to_verb(self):
+        # "прогресс вперёд" is never grammatical for the noun; the attested
+        # pleonasm is the verb ("прогрессировать вперёд"). Entry re-keyed.
+        tokens = [_tok("прогресс", lemma="прогресс", idx=0)]
+        assert self.handler.can_apply(tokens, 0) is False
+        tokens = [
+            _tok("болезнь", lemma="болезнь", idx=0),
+            _tok("прогрессирует", pos="VERB", lemma="прогрессировать", idx=1),
+        ]
+        sentence = ["болезнь", "прогрессирует"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert sentence == ["болезнь", "прогрессирует", "вперёд"]
+
+    def test_konechny_itog_idiom_blocked(self):
+        # "в конечном итоге" is a frozen adverbial idiom — "в окончательном
+        # конечном итоге" was garbage. "конечная остановка" (see
+        # test_adjective_core_agreement) must keep firing.
+        tokens = [
+            _tok("в", pos="ADP", lemma="в", idx=0),
+            _tok("конечном", pos="ADJ", lemma="конечный", idx=1),
+            _tok("итоге", lemma="итог", idx=2),
+        ]
+        assert self.handler.can_apply(tokens, 1) is False
+        sentence = ["в", "конечном", "итоге"]
+        assert self.handler.apply(tokens, sentence, 1, set()) is None
+
+    @pytest.mark.parametrize("numeral", ["три", "13"])
+    def test_polovina_blocked_in_numeric_construction(self, numeral):
+        # "три с половиной процента" → "три с большей половиной" was garbage:
+        # "<numeral> с половиной" is a quantity construction, not the
+        # «большая половина» pleonasm target.
+        tokens = [
+            _tok("на", pos="ADP", lemma="на", idx=0),
+            _tok(numeral, pos="NUM", lemma=numeral, idx=1),
+            _tok("с", pos="ADP", lemma="с", idx=2),
+            _tok("половиной", lemma="половина", idx=3),
+            _tok("процента", lemma="процент", idx=4),
+        ]
+        assert self.handler.can_apply(tokens, 3) is False
+        sentence = [t.text for t in tokens]
+        assert self.handler.apply(tokens, sentence, 3, set()) is None
+
+    def test_polovina_fires_outside_numeric_construction(self):
+        # "большая половина зрителей" is the textbook pleonasm and must
+        # survive the numeric guard (before-inserts are exempt from the
+        # complement guard).
+        tokens = [
+            _tok("половина", lemma="половина", idx=0),
+            _tok("зрителей", lemma="зритель", idx=1),
+        ]
+        sentence = ["половина", "зрителей"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence == ["большая", "половина", "зрителей"]
+
     def test_minuta_vremeni_backfill_fires(self):
         # §141: "беречь каждую минуту времени" — invariant genitive attribute,
         # safe to insert after any case form of минута.
@@ -252,6 +360,86 @@ class TestCollocationHandler:
         assert result is not None
         assert sentence[0] != "вызвало"
         assert not sentence[0].endswith("ть")
+
+    # 2026-07 annotation pass: 20/73 collocation outputs did not carry the
+    # original token's form (short participles came out as finite verbs,
+    # passive participles as active: "принято"→"сделало", "нанесен"→"оказал").
+    # The replacement now receives the original's form-level grammemes (POS
+    # class, voice, tense, gender, number, case) via the paronym handler's
+    # grammeme-transfer approach, and the handler skips when the transfer
+    # cannot be realized.
+
+    def test_short_participle_neut_preserved(self):
+        # "принято решение" → "сделано", NOT the finite past "сделало"
+        tokens = [
+            _tok("принято", pos="VERB", lemma="принять", idx=0),
+            _tok("решение", lemma="решение", idx=1),
+        ]
+        sentence = ["принято", "решение"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] == "сделано"
+
+    def test_short_participle_masc_voice_preserved(self):
+        # "нанесен ущерб" → "оказан", NOT the finite active "оказал"
+        tokens = [
+            _tok("нанесен", pos="VERB", lemma="нанести", idx=0),
+            _tok("ущерб", lemma="ущерб", idx=1),
+        ]
+        sentence = ["нанесен", "ущерб"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] == "оказан"
+
+    def test_full_participle_voice_preserved(self):
+        # "нанесенный ущерб" → "оказанный" (passive), NOT "оказавший" (active)
+        tokens = [
+            _tok("нанесенный", pos="VERB", lemma="нанести", idx=0),
+            _tok("ущерб", lemma="ущерб", idx=1),
+        ]
+        sentence = ["нанесенный", "ущерб"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] == "оказанный"
+
+    def test_full_participle_oblique_case_preserved(self):
+        # "принятом решении" → "сделанном" (locative kept), NOT "сделавшем"
+        tokens = [
+            _tok("принятом", pos="VERB", lemma="принять", idx=0),
+            _tok("решении", lemma="решение", idx=1),
+        ]
+        sentence = ["принятом", "решении"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] == "сделанном"
+
+    def test_adjectivized_participle_recovers_via_verb_parse(self):
+        # parse("установленный")[0] is the lexicalized *adjective*, whose
+        # ADJF grammemes no verb lexeme can realize; the handler must fall
+        # through to the PRTF parse and yield the passive participle
+        # ("завоёванный"), not the active "завоевавший" and not a skip.
+        tokens = [
+            _tok("установленный", pos="VERB", lemma="установить", idx=0),
+            _tok("рекорд", lemma="рекорд", idx=1),
+        ]
+        sentence = ["установленный", "рекорд"]
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is not None
+        assert sentence[0] == "завоёванный"
+
+    def test_skips_when_inflection_fails(self):
+        # Precision-first: when no parse of the replacement can realize the
+        # original's grammemes, the handler must skip — not fall back to the
+        # citation form (which stacked a form error on top of the Lex error).
+        handler = CollocationHandler()
+        handler._collocations = {"принять": [{"wrong": "стол", "collocate": "решение"}]}
+        tokens = [
+            _tok("принято", pos="VERB", lemma="принять", idx=0),
+            _tok("решение", lemma="решение", idx=1),
+        ]
+        sentence = ["принято", "решение"]
+        assert handler.apply(tokens, sentence, 0, set()) is None
+        assert sentence == ["принято", "решение"]
 
     # 2026-06 audit: entries whose "wrong" replacement is dictionary-attested
     # correct Russian (кинуть взгляд, искупить вину, причинить вред,
