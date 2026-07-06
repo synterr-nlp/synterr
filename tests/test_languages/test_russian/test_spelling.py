@@ -337,3 +337,172 @@ class TestSpellingErrorHandler:
             result = handler._corrupt("брзкворт", rng)
             assert result is not None
             assert result.error_subtype == "keyboard"
+
+    # -------------------------------------------------------------------
+    # root_alternating (§3)
+    # -------------------------------------------------------------------
+
+    def test_root_alternating_fires_on_positives(self):
+        """Alternating-root swaps produce the naive vowel-only confusion.
+
+        лаг/лож and раст/рос swap ONLY the vowel (предлагать → предлогать,
+        растение → ростение), not the "correct" other allomorph
+        (предложать/росение) — that mirrors the actual learner error of
+        guessing the wrong vowel while keeping the surrounding consonants.
+        """
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        cases = [
+            ("загорать", "загорать", "загарать"),
+            ("предлагать", "предлагать", "предлогать"),
+            ("касаться", "касаться", "косаться"),
+            ("растение", "растение", "ростение"),
+            ("собирать", "собирать", "соберать"),
+            ("выбирать", "выбирать", "выберать"),
+            ("замирать", "замирать", "замерать"),
+            ("вычитать", "вычитать", "вычетать"),
+        ]
+        for word, lemma, expected in cases:
+            result = handler._root_alternating(word, lemma=lemma)
+            assert result is not None, word
+            assert result.corrupted == expected, word
+            assert result.error_subtype == "root_alternating"
+
+    def test_root_alternating_preserves_capitalization(self):
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        result = handler._root_alternating("Растение", lemma="растение")
+        assert result is not None
+        assert result.corrupted == "Ростение"
+
+        result = handler._root_alternating("РАСТЕНИЕ", lemma="растение")
+        assert result is not None
+        assert result.corrupted == "РОСТЕНИЕ"
+
+    def test_root_alternating_skips_stressed_vowel(self):
+        """The stress-conditioned pairs (гар/гор etc.) only confuse the
+        UNSTRESSED alternant — a stressed occurrence is definitionally
+        correct, so no confusion is possible there (mirrors
+        vowel_reduction's own stressed-vowel skip).
+
+        Regression: 'загар' (stressed а, §3 correct) must not become
+        'загор'.
+        """
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        for word, lemma in [("загар", "загар"), ("вплавить", "вплавить")]:
+            assert handler._root_alternating(word, lemma=lemma) is None, word
+
+    def test_root_alternating_skips_standalone_lexeme(self):
+        """мир/пир/тир are unrelated standalone nouns that happen to spell
+        like the мер/пер/тер~мир/пир/тир verb root — not this alternation.
+
+        Regression: 'мир' (peace/world) must not become 'мер'.
+        """
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        for word in ["мир", "пир", "тир"]:
+            assert handler._root_alternating(word, lemma=word) is None, word
+
+    def test_root_alternating_rejects_real_word_results(self):
+        """мак/мок is meaning-conditioned (dip vs. soak) — both forms are
+        often real words, so the swap must be rejected when it lands on one.
+
+        'обмакнуть' (dip) → swapping а→о yields 'обмокнуть' (soak), a real
+        word with a different meaning, not a misspelling.
+        """
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        assert handler._root_alternating("обмакнуть", lemma="обмакнуть") is None
+
+    def test_root_alternating_no_stress_check_needed_for_suffix_group(self):
+        """бер/бир-type pairs are suffix-а--conditioned, not stress-based —
+        no stress lookup is required (unlike гар/гор etc.). An OOV word
+        (no stress_dict entry) still fires for this group."""
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        # "запирать" IS in the stress dict, but the point is stress_checked
+        # is False for this family — verify via an unstressed-vs-stressed
+        # sanity: the swap fires without needing a stress lookup at all.
+        result = handler._root_alternating("запирать", lemma="запирать")
+        assert result is not None
+        assert result.corrupted == "заперать"
+
+    def test_root_alternating_skips_unsegmented_words(self):
+        """Words absent from the morpheme dict (no segmentation) are
+        skipped — can't verify the ROOT morpheme."""
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        assert handler._root_alternating("бгзкворт", lemma="бгзкворт") is None
+
+    # -------------------------------------------------------------------
+    # root_unchecked (§2)
+    # -------------------------------------------------------------------
+
+    def test_root_unchecked_fires_on_positives(self):
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        cases = [
+            ("винегрет", "винегрет", "винигрет"),
+            ("корзина", "корзина", "карзина"),
+            ("вокзал", "вокзал", "вакзал"),
+            ("собака", "собака", "сабака"),
+            ("карандаш", "карандаш", "корандаш"),
+        ]
+        for word, lemma, expected in cases:
+            result = handler._root_unchecked(word, lemma=lemma)
+            assert result is not None, word
+            assert result.corrupted == expected, word
+            assert result.error_subtype == "root_unchecked"
+
+    def test_root_unchecked_fires_on_inflected_forms(self):
+        """Lookup is by lemma, but the substitution applies to the actual
+        surface form (position stable across regular declension)."""
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        result = handler._root_unchecked("корзины", lemma="корзина")
+        assert result is not None
+        assert result.corrupted == "карзины"
+
+    def test_root_unchecked_preserves_capitalization(self):
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        result = handler._root_unchecked("Собака", lemma="собака")
+        assert result is not None
+        assert result.corrupted == "Сабака"
+
+    def test_root_unchecked_requires_lemma(self):
+        """No lemma means the exact-lemma guard can't be checked — skip."""
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        assert handler._root_unchecked("корзина", lemma=None) is None
+
+    def test_root_unchecked_skips_words_not_in_lexicon(self):
+        from synterr.languages.russian.errors.spelling import SpellingErrorHandler
+
+        handler = SpellingErrorHandler()
+
+        for word in ["стол", "книга", "человек"]:
+            assert handler._root_unchecked(word, lemma=word) is None, word

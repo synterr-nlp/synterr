@@ -19,6 +19,12 @@ weights:
   # Morphological - Nouns: 15.2% total
   noun_case: 0.280      # 12.8% in corpus
   noun_case_prep: 0.005 # second locative -е/-у (subsumed in Gov; estimated)
+  noun_case_gen_partitive: 0.01 # §150 partitive gen -а/-у (subsumed in Gov; estimated)
+  noun_case_instr_pl: 0.003 # §155 instr pl -ями/-ьми (estimated)
+  noun_number_gen_pl: 0.02 # §154 nonstandard gen pl (estimated)
+  neg_genitive: 0.015 # §201 Acc/Gen under negation (subsumed in Gov; estimated)
+  pronoun_svoy: 0.015 # §167 свой vs personal possessive (Ref; estimated)
+  pronoun_sebya: 0.01 # §168 себя vs personal pronoun (Ref; estimated)
   noun_number: 0.053    # 2.4%
 
   # Morphological - Adjectives: 5.4% total
@@ -99,6 +105,8 @@ subtype_weights:
     double_consonant: 5     # Double consonant errors
     keyboard: 3             # Keyboard typos
     soft_sign: 2            # Soft sign errors
+    root_alternating: 8   # §3 alternating roots
+    root_unchecked: 5     # §2 unchecked vowels, curated lexicon
 
 # Empirical confusion matrices from RLC annotations (N=2,760 case, 917 gender, 942 number)
 # Source: docs/research/confusion_matrices.json

@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "description": "Masculine mass/uncountable nouns with a colloquial partitive genitive in -у/-ю (Rozental §150), alongside the standard -а/-я genitive. Verified via pymorphy3's 'gen2' grammeme (distinct from the standard 'gent' form); lexemes where gen2 collapses onto gent (e.g. огонь, толк, картофель) are deliberately excluded. Used by NounCaseGenPartitiveHandler to corrupt the standard -а/-я genitive into the -у/-ю form outside genuine partitive contexts.",
+    "source": "manual curation; Rozental grammar tradition (second/partitive genitive); pymorphy3 gen2 cross-check",
+    "rozental_paragraph": "150",
+    "version": "1.0"
+  },
+  "nouns": [
+    "чай",
+    "сахар",
+    "мёд",
+    "суп",
+    "сыр",
+    "народ",
+    "снег",
+    "песок",
+    "коньяк",
+    "табак",
+    "чеснок",
+    "лёд",
+    "лук",
+    "квас",
+    "творог",
+    "рис",
+    "горох",
+    "изюм",
+    "виноград",
+    "перец",
+    "хрен",
+    "укроп",
+    "воздух",
+    "дым",
+    "шум",
+    "крик",
+    "компот",
+    "кефир",
+    "кисель",
+    "морс",
+    "бульон",
+    "шоколад"
+  ]
+}

@@ -3,7 +3,7 @@
 Covers Rozental suffix/prefix spelling rules that depend on morpheme structure,
 POS, or conjugation class — distinct from the phonetic spelling handler.
 
-10 subtypes covering 10 LoRuGEC rules:
+12 subtypes:
 - pre_pri: пре-/при- prefix confusion (§31–32)
 - y_i_after_prefix: ы/и after consonant-ending prefix (§34)
 - suffix_enk_onk: -еньк/-оньк in nouns (§38)
@@ -11,9 +11,18 @@ POS, or conjugation class — distinct from the phonetic spelling handler.
 - suffix_its_ets: -иц/-ец in neuter nouns (§38)
 - suffix_ek_ik: -ек/-ик in nouns (§38)
 - participle_suffix: conjugation-dependent participle suffixes (§51)
-- vowel_after_ts: vowels after ц (§35)
-- vowel_after_sibilant: ё/о/ю after ш,щ,ж,ч (§35)
+- vowel_after_ts: vowels after ц (§35, suffix/ending position)
+- vowel_after_sibilant: ё/о/ю after ш,щ,ж,ч (§35, suffix/ending position)
 - nn_suffix: н/нн in adjective/participle suffixes (§39–40)
+- root_vowel_after_sibilant: и/ы after ц in ROOTS (§7) — the root-position
+  complement of vowel_after_ts, which explicitly skips root position.
+  (Sibling rule §4, ё/о after ш,ж,ч,щ in roots, is intentionally NOT
+  duplicated here — vowel_after_sibilant's existing stress-aware root
+  branch already produces it; see handler docstring note below.)
+- adj_ending_vowel: -ем/-им confusion in Ins/Loc singular soft-stem
+  adjectives (§39 per task spec; see final report for a paragraph-mapping
+  caveat — the located §39 text covers -ый/-ий adjective selection, not
+  this case-ending pair)
 """
 
 from __future__ import annotations
@@ -131,6 +140,61 @@ _SIBILANT_VOWEL_SWAPS = {
 
 
 # =============================================================================
+# и/ы after ц in ROOTS (§7)
+#
+# Complement of vowel_after_ts, which explicitly requires suffix/ending
+# position. Default: и is correct (цирк, цифра) — error introduces ы.
+# Exception family (цыган, цыплёнок, цыпочки, цыц, цыкать + derivatives):
+# ы is correct — error introduces и.
+#
+# Note: the parallel root rule for sibilants (§4: ё/о after ш,ж,ч,щ, e.g.
+# чёрный/шёпот vs. шов/крыжовник) is deliberately NOT implemented as part
+# of this subtype — vowel_after_sibilant's existing stress-aware root
+# branch already produces these exact corrections (verified empirically:
+# шов→шёв, крыжовник→крыжёвник, капюшон→капюшён, чёрный→чорный all already
+# fire under that subtype). Duplicating it here would create two subtypes
+# racing to label the same corruption. See final report for details.
+# =============================================================================
+
+_ROOT_TS_VOWEL_SWAPS = {"и": "ы", "ы": "и"}
+
+# The five classic ы-after-ц root exceptions (+ derivatives), matched by
+# stem prefix so all inflected surfaces are covered without a lemma round
+# trip (none of these five roots have a fleeting-vowel alternation that
+# would shift the stem's start).
+_ROOT_TS_EXCEPTION_STEMS = (
+    "цыган",  # цыган, цыгане, цыганский, цыганка...
+    "цыпл",  # цыплёнок, цыплята, цыплячий...
+    "цыпоч",  # цыпочки (на цыпочках)
+    "цыц",  # цыц (invariable interjection)
+    "цык",  # цыкать, цыкнуть...
+)
+
+
+# =============================================================================
+# -ем/-им ending confusion in Ins/Loc singular soft-stem adjectives (§39,
+# see report caveat on paragraph attribution)
+# =============================================================================
+
+# ADPs whose object is unambiguously Loc / Ins (used to confirm the
+# adjective's own Case feature is contextually licensed, not to derive it)
+_ADJ_ENDING_LOC_PREPS = {"в", "во", "на", "о", "об", "обо", "при"}
+_ADJ_ENDING_INS_PREPS = {
+    "с",
+    "со",
+    "за",
+    "над",
+    "надо",
+    "под",
+    "подо",
+    "перед",
+    "передо",
+    "между",
+    "меж",
+}
+
+
+# =============================================================================
 # н/нн in adjective/participle suffixes (§39-40)
 # =============================================================================
 
@@ -179,6 +243,8 @@ class OrthographicSpellingHandler:
         "vowel_after_ts",
         "vowel_after_sibilant",
         "nn_suffix",
+        "root_vowel_after_sibilant",
+        "adj_ending_vowel",
     ]
     category = "SPELL"
     changes_length = False
@@ -194,6 +260,8 @@ class OrthographicSpellingHandler:
         "vowel_after_ts": 8,
         "vowel_after_sibilant": 8,
         "nn_suffix": 17,
+        "root_vowel_after_sibilant": 8,
+        "adj_ending_vowel": 7,
     }
 
     def __init__(self):
@@ -256,7 +324,9 @@ class OrthographicSpellingHandler:
             return True
         if any(c in text_lower for c in "шщжч"):
             return True
-        return bool(token.pos == "ADJ" and _can_nn_swap(text_lower))
+        if token.pos == "ADJ" and _can_nn_swap(text_lower):
+            return True
+        return _can_adj_ending_swap(tokens, idx)
 
     def apply(
         self,
@@ -307,6 +377,17 @@ class OrthographicSpellingHandler:
 
         if token.pos == "ADJ" and _can_nn_swap(text_lower):
             candidates.append(("nn_suffix", self._weights["nn_suffix"]))
+
+        if _can_root_ts_vowel(text_lower):
+            candidates.append(
+                (
+                    "root_vowel_after_sibilant",
+                    self._weights["root_vowel_after_sibilant"],
+                )
+            )
+
+        if _can_adj_ending_swap(tokens, idx):
+            candidates.append(("adj_ending_vowel", self._weights["adj_ending_vowel"]))
 
         if self._enabled_subtypes is not None:
             candidates = [c for c in candidates if c[0] in self._enabled_subtypes]
@@ -507,6 +588,10 @@ def _apply_subtype(
         )
     elif subtype == "nn_suffix":
         return _swap_nn(word, text_lower)
+    elif subtype == "root_vowel_after_sibilant":
+        return _swap_root_ts_vowel(word, text_lower, analyzer, lemma)
+    elif subtype == "adj_ending_vowel":
+        return _swap_adj_ending(word, text_lower)
     return None
 
 
@@ -802,6 +887,151 @@ def _swap_nn(word: str, text_lower: str) -> str | None:
             return corrupted
 
     return None
+
+
+def _can_root_ts_vowel(text_lower: str) -> bool:
+    """Quick check: is there a ц+и/ы sequence anywhere?
+
+    Root/suffix disambiguation and exception-lexicon direction gating both
+    happen in ``_swap_root_ts_vowel`` — this is just a cheap pre-filter for
+    candidate assembly.
+    """
+    for i, c in enumerate(text_lower):
+        if (
+            c == "ц"
+            and i + 1 < len(text_lower)
+            and text_lower[i + 1] in _ROOT_TS_VOWEL_SWAPS
+        ):
+            return True
+    return False
+
+
+def _matches_root_ts_exception(text_lower: str, lemma: str | None) -> bool:
+    """True if the word belongs to the цыган/цыплёнок/цыпочки/цыц/цыкать family."""
+    candidates = [text_lower]
+    if lemma:
+        candidates.append(lemma.lower())
+    return any(
+        cand.startswith(stem)
+        for cand in candidates
+        for stem in _ROOT_TS_EXCEPTION_STEMS
+    )
+
+
+def _swap_root_ts_vowel(
+    word: str,
+    text_lower: str,
+    analyzer: MorphemeAnalyzer | None,
+    lemma: str | None = None,
+) -> str | None:
+    """§7: и/ы after ц in ROOTS — the root-position complement of
+    vowel_after_ts (which requires suffix/ending position).
+
+    Default (regular root): и is correct (цирк, цифра) — error introduces ы.
+    Exception family (цыган, цыплёнок, цыпочки, цыц, цыкать + derivatives):
+    ы is correct — error introduces и.
+
+    Precision guards:
+    - both the ц and the target vowel must be confirmed ROOT via the
+      unified-dict segmentation (lemma fallback for inflected surfaces);
+      words without segmentation are skipped rather than guessed at.
+    - the corrupted surface must not itself be a known word.
+    """
+    if analyzer is None:
+        return None
+    is_exception = _matches_root_ts_exception(text_lower, lemma)
+    for i, c in enumerate(text_lower):
+        if c != "ц" or i + 1 >= len(text_lower):
+            continue
+        next_c = text_lower[i + 1]
+        if next_c not in _ROOT_TS_VOWEL_SWAPS:
+            continue
+        # Only the direction consistent with the word's lexical class
+        # applies — regular roots only corrupt и→ы, the exception family
+        # only corrupts ы→и.
+        if is_exception and next_c != "ы":
+            continue
+        if not is_exception and next_c != "и":
+            continue
+        pos = i + 1
+        cons_root = analyzer.char_in_morpheme_type(text_lower, i, "ROOT", lemma)
+        vowel_root = analyzer.char_in_morpheme_type(text_lower, pos, "ROOT", lemma)
+        if cons_root is not True or vowel_root is not True:
+            continue  # suffix/ending (vowel_after_ts's turf) or unsegmented
+        new_c = _ROOT_TS_VOWEL_SWAPS[next_c]
+        if word[pos].isupper():
+            new_c = new_c.upper()
+        corrupted = word[:pos] + new_c + word[pos + 1 :]
+        if analyzer.word_is_known(corrupted):
+            continue  # coincides with a real word — skip (precision-first)
+        return corrupted
+    return None
+
+
+def _adj_ending_governing_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
+    """Scan up to 3 tokens to the left for a governing ADP.
+
+    Returns "Loc" or "Ins" if a case-unambiguous preposition is found in
+    range, else None. Does not walk past a sentence-initial boundary.
+    """
+    for offset in (1, 2, 3):
+        j = idx - offset
+        if j < 0:
+            break
+        t = tokens[j]
+        if t.pos != "ADP":
+            continue
+        w = t.text.lower()
+        if w in _ADJ_ENDING_LOC_PREPS:
+            return "Loc"
+        if w in _ADJ_ENDING_INS_PREPS:
+            return "Ins"
+    return None
+
+
+def _can_adj_ending_swap(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§39: -ем/-им ending confusion in Ins/Loc singular soft-stem adjectives.
+
+    Gates on: ADJ, singular, masc/neut (fem Ins/Loc adjective endings don't
+    have this pattern), Case in {Ins, Loc}, surface ending in -ем/-им, and a
+    governing ADP within 3 tokens to the left whose case matches the
+    token's own Case feature (context-disambiguation, not case derivation —
+    the swap always produces a real form of the same lexeme in the other
+    of the two cases, which is exactly the intended error).
+    """
+    token = tokens[idx]
+    if token.pos != "ADJ":
+        return False
+    if token.get_feature("Number") != "Sing":
+        return False
+    if token.get_feature("Gender") not in ("Masc", "Neut"):
+        return False
+    case = token.get_feature("Case")
+    if case not in ("Ins", "Loc"):
+        return False
+    text_lower = token.text.lower()
+    if not (text_lower.endswith("ем") or text_lower.endswith("им")):
+        return False
+    return _adj_ending_governing_case(tokens, idx) == case
+
+
+def _swap_adj_ending(word: str, text_lower: str) -> str | None:
+    """Swap -ем<->-им ending (Ins/Loc confusion in soft-stem adjectives)."""
+    if text_lower.endswith("ем"):
+        new_suffix = "им"
+    elif text_lower.endswith("им"):
+        new_suffix = "ем"
+    else:
+        return None
+    orig_suffix = word[-2:]
+    replacement = "".join(
+        ch.upper() if orig_suffix[i].isupper() else ch
+        for i, ch in enumerate(new_suffix)
+    )
+    corrupted = word[:-2] + replacement
+    if corrupted == word:
+        return None
+    return corrupted
 
 
 def _match_case(target: str, source: str) -> str:

@@ -2475,3 +2475,574 @@ class TestDoubleComparativeHandler:
         assert sentence[idx] == "более"
         assert sentence[idx + 1] == "интереснее"
         assert " ".join(sentence) == "Эти опыты были более интереснее ."
+
+
+class TestNounCaseGenPartitiveHandler:
+    """noun_case_gen_partitive (§150): standard -а/-я genitive -> -у/-ю."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NounCaseGenPartitiveHandler,
+        )
+
+        return NounCaseGenPartitiveHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "noun_case_gen_partitive"
+        assert handler.subtypes == ["noun_case_gen_partitive"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _chaya_token(self, dep_rel=None, head_idx=None, idx=1):
+        parse = morph.parse("чая")[0]  # Gen Sing Masc
+        return AnalyzedToken(
+            text="чая",
+            lemma="чай",
+            pos="NOUN",
+            features={"Case": "Gen", "Number": "Sing", "Gender": "Masc"},
+            idx=idx,
+            dep_rel=dep_rel,
+            head_idx=head_idx,
+            extra={"pymorphy_parse": parse},
+        )
+
+    def test_fires_in_non_partitive_context(self):
+        """ "аромат чая" -- head is a regular noun, not a quantity/verb trigger."""
+        handler = self._handler()
+        head = AnalyzedToken(
+            text="аромат", lemma="аромат", pos="NOUN", features={"Case": "Nom"}, idx=0
+        )
+        tok = self._chaya_token(dep_rel="nmod", head_idx=0)
+        tokens = [head, tok]
+        assert handler.can_apply(tokens, 1) is True
+
+        sentence = ["аромат", "чая"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[1] == "чаю"
+        assert result.error_type == "noun_case_gen_partitive"
+        assert result.fix_tag == "$REPLACE_чая"
+
+    def test_skips_quantity_head(self):
+        """ "стакан чая" -- -у/-ю is the licensed partitive variant here, not
+        an error."""
+        handler = self._handler()
+        head = AnalyzedToken(
+            text="стакан", lemma="стакан", pos="NOUN", features={"Case": "Acc"}, idx=0
+        )
+        tok = self._chaya_token(dep_rel="nmod", head_idx=0)
+        tokens = [head, tok]
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_skips_partitive_verb_head(self):
+        """ "выпил чая" -- verb governs a genuine partitive genitive."""
+        handler = self._handler()
+        verb = AnalyzedToken(
+            text="выпил", lemma="выпить", pos="VERB", features={}, idx=0
+        )
+        tok = self._chaya_token(dep_rel="obj", head_idx=0)
+        tokens = [verb, tok]
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_lexicon_gate_rejects_non_partitive_noun(self):
+        handler = self._handler()
+        parse = morph.parse("стола")[0]
+        tok = AnalyzedToken(
+            text="стола",
+            lemma="стол",
+            pos="NOUN",
+            features={"Case": "Gen", "Number": "Sing"},
+            idx=0,
+            extra={"pymorphy_parse": parse},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_without_dep_info_falls_back_to_linear_scan(self):
+        """No head_idx: a preceding quantity noun still blocks the corruption."""
+        handler = self._handler()
+        stakan = AnalyzedToken(
+            text="стакан", lemma="стакан", pos="NOUN", features={}, idx=0
+        )
+        tok = self._chaya_token()
+        tokens = [stakan, tok]
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_wrong_case_or_number_does_not_fire(self):
+        handler = self._handler()
+        parse = morph.parse("чай")[0]
+        tok = AnalyzedToken(
+            text="чай",
+            lemma="чай",
+            pos="NOUN",
+            features={"Case": "Nom", "Number": "Sing"},
+            idx=0,
+            extra={"pymorphy_parse": parse},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_narod(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Это история народа.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "народа")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "народу"
+
+    @pytest.mark.slow
+    def test_real_backend_partitive_context_skipped(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Он выпил стакан чая.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "чая")
+        assert handler.can_apply(tokens, idx) is False
+
+
+class TestNounCaseInstrPlHandler:
+    """noun_case_instr_pl (§155): instrumental-plural -ями/-(ь)ми variant."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NounCaseInstrPlHandler,
+        )
+
+        return NounCaseInstrPlHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "noun_case_instr_pl"
+        assert handler.subtypes == ["noun_case_instr_pl"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _tok(self, text, lemma, idx=0, head_idx=None, dep_rel=None):
+        return AnalyzedToken(
+            text=text,
+            lemma=lemma,
+            pos="NOUN",
+            features={"Case": "Ins", "Number": "Plur"},
+            idx=idx,
+            dep_rel=dep_rel,
+            head_idx=head_idx,
+        )
+
+    def test_default_direction_fires(self):
+        handler = self._handler()
+        tok = self._tok("дверями", "дверь")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["дверями"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "дверьми"
+        assert result.error_type == "noun_case_instr_pl"
+        assert result.fix_tag == "$REPLACE_дверями"
+
+    def test_marked_form_does_not_fire(self):
+        """Already-marked -ьми form is not corrupted further."""
+        handler = self._handler()
+        tok = self._tok("дверьми", "дверь")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_capitalization_preserved(self):
+        handler = self._handler()
+        tok = self._tok("Дверями", "дверь")
+        sentence = ["Дверями"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "Дверьми"
+
+    def test_kost_idiom_reversal(self):
+        """Inside "лечь костьми" -ьми is the norm -- corrupt to -ями."""
+        handler = self._handler()
+        lech = AnalyzedToken(text="лечь", lemma="лечь", pos="VERB", features={}, idx=0)
+        kost = self._tok("костьми", "кость", idx=1, head_idx=0, dep_rel="obl")
+        tokens = [lech, kost]
+        assert handler.can_apply(tokens, 1) is True
+
+        sentence = ["лечь", "костьми"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[1] == "костями"
+
+    def test_kost_default_direction_outside_idiom(self):
+        handler = self._handler()
+        tok = self._tok("костями", "кость")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["костями"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "костьми"
+
+    def test_kost_marked_form_outside_idiom_does_not_fire(self):
+        """ "костьми" without a лечь/полечь trigger keeps the default polarity."""
+        handler = self._handler()
+        other_head = AnalyzedToken(
+            text="усеяно", lemma="усеять", pos="VERB", features={}, idx=0
+        )
+        kost = self._tok("костьми", "кость", idx=1, head_idx=0, dep_rel="obl")
+        tokens = [other_head, kost]
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_wrong_case_or_number_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="дверями",
+            lemma="дверь",
+            pos="NOUN",
+            features={"Case": "Ins", "Number": "Sing"},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_not_in_lexicon_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="столами",
+            lemma="стол",
+            pos="NOUN",
+            features={"Case": "Ins", "Number": "Plur"},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_dveryami(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Соседи хлопали дверями всю ночь.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "дверями")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "дверьми"
+
+
+class TestNounNumberGenPlHandler:
+    """noun_number_gen_pl (§154): nonstandard genitive-plural variant."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NounNumberGenPlHandler,
+        )
+
+        return NounNumberGenPlHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "noun_number_gen_pl"
+        assert handler.subtypes == ["noun_number_gen_pl"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _tok(self, text, lemma):
+        return AnalyzedToken(
+            text=text,
+            lemma=lemma,
+            pos="NOUN",
+            features={"Case": "Gen", "Number": "Plur"},
+            idx=0,
+        )
+
+    def test_ov_overgeneralization_direction(self):
+        """апельсинов (norm) -> апельсин (overgeneralized zero ending)."""
+        handler = self._handler()
+        tok = self._tok("апельсинов", "апельсин")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["апельсинов"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "апельсин"
+        assert result.error_type == "noun_number_gen_pl"
+
+    def test_zero_ending_hypercorrection_direction(self):
+        """мест (norm) -> местов (hypercorrected -ов)."""
+        handler = self._handler()
+        tok = self._tok("мест", "место")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["мест"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "местов"
+
+    def test_classic_nosok_chulok_pair(self):
+        """The textbook "пять носков, но пять чулок" confusion, both directions."""
+        handler = self._handler()
+        for text, lemma, expected in [
+            ("носков", "носок", "носок"),
+            ("чулок", "чулок", "чулков"),
+        ]:
+            tok = self._tok(text, lemma)
+            sentence = [text]
+            result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+            assert result is not None, lemma
+            assert sentence[0] == expected, lemma
+
+    def test_already_nonstandard_form_does_not_fire(self):
+        """A form already equal to the error target is not re-corrupted."""
+        handler = self._handler()
+        tok = self._tok("апельсин", "апельсин")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_wrong_number_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="апельсинов",
+            lemma="апельсин",
+            pos="NOUN",
+            features={"Case": "Gen", "Number": "Sing"},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_not_in_lexicon_does_not_fire(self):
+        handler = self._handler()
+        tok = self._tok("столов", "стол")
+        assert handler.can_apply([tok], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_apelsinov(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("В магазине было пять апельсинов.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "апельсинов")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "апельсин"
+
+
+class TestNegGenitiveErrorHandler:
+    """neg_genitive (§201): Acc<->Gen flip on a negated verb's direct object."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NegGenitiveErrorHandler,
+        )
+
+        return NegGenitiveErrorHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "neg_genitive"
+        assert handler.subtypes == ["neg_genitive"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _neg_obj_tokens(
+        self, obj_text, obj_lemma, obj_case, obj_number="Sing", **feats
+    ):
+        features = {"Case": obj_case, "Number": obj_number, **feats}
+        return [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={"Case": "Nom"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="не",
+                lemma="не",
+                pos="PART",
+                features={},
+                idx=1,
+                dep_rel="advmod",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="читал",
+                lemma="читать",
+                pos="VERB",
+                features={},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text=obj_text,
+                lemma=obj_lemma,
+                pos="NOUN",
+                features=features,
+                idx=3,
+                dep_rel="obj",
+                head_idx=2,
+                extra={"pymorphy_parse": morph.parse(obj_text)[0]},
+            ),
+        ]
+
+    def test_acc_to_gen(self):
+        handler = self._handler()
+        tokens = self._neg_obj_tokens("книгу", "книга", "Acc", Gender="Fem")
+        assert handler.can_apply(tokens, 3) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[3] == "книги"
+        assert result.error_type == "neg_genitive"
+        assert result.fix_tag == "$TRANSFORM_CASE_Acc"
+
+    def test_gen_to_acc_fem_singular(self):
+        handler = self._handler()
+        tokens = self._neg_obj_tokens("книги", "книга", "Gen", Gender="Fem")
+        assert handler.can_apply(tokens, 3) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[3] == "книгу"
+        assert result.fix_tag == "$TRANSFORM_CASE_Gen"
+
+    def test_gen_to_acc_plural_uses_animacy(self):
+        """Plural Acc is animacy-ambiguous; the noun's own inanimacy resolves it."""
+        handler = self._handler()
+        tokens = self._neg_obj_tokens("газет", "газета", "Gen", obj_number="Plur")
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[3] == "газеты"
+
+    def test_gen_to_acc_animate_masc_syncretism_is_a_no_op(self):
+        """друга: animate masc singular Gen and Acc forms coincide -- no
+        recoverable error, apply must not report a false corruption."""
+        handler = self._handler()
+        tokens = self._neg_obj_tokens("друга", "друг", "Gen", Gender="Masc")
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence[3] == "друга"
+
+    def test_no_neg_particle_does_not_fire(self):
+        handler = self._handler()
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="читал",
+                lemma="читать",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="книгу",
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+                idx=2,
+                dep_rel="obj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("книгу")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 2) is False
+
+    def test_non_obj_deprel_does_not_fire(self):
+        """obl (oblique/indirect) is not the direct-object slot -- skip."""
+        handler = self._handler()
+        tokens = self._neg_obj_tokens("книги", "книга", "Gen", Gender="Fem")
+        tokens[3].dep_rel = "obl"
+        assert handler.can_apply(tokens, 3) is False
+
+    def test_pronoun_object_does_not_fire(self):
+        handler = self._handler()
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="не",
+                lemma="не",
+                pos="PART",
+                features={},
+                idx=1,
+                dep_rel="advmod",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="видел",
+                lemma="видеть",
+                pos="VERB",
+                features={},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="её",
+                lemma="она",
+                pos="PRON",
+                features={"Case": "Gen"},
+                idx=3,
+                dep_rel="obj",
+                head_idx=2,
+                extra={"pymorphy_parse": morph.parse("её")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 3) is False
+
+    def test_without_dep_info_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="книгу",
+            lemma="книга",
+            pos="NOUN",
+            features={"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("книгу")[0]},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_acc_to_gen(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Я не читал эту книгу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "книгу")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "книги"
+
+    @pytest.mark.slow
+    def test_real_backend_gen_to_acc(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Он не читал книги.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "книги")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "книгу"

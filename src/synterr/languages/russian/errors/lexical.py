@@ -403,6 +403,461 @@ class PrepositionErrorHandler:
         )
 
 
+# ---------------------------------------------------------------------------
+# Pronoun confusion: shared dependency-tree "find the clause subject" walk.
+#
+# Both PronounSvoyErrorHandler (свой vs мой/твой/наш/ваш/его/её/их, §167) and
+# PronounSebyaErrorHandler (себя/себе/собой vs personal pronouns, §168) need
+# to identify the subject that the reflexive/possessive corefers with. That
+# subject is found by climbing head_idx from a starting token until an
+# nsubj/nsubj:pass dependent turns up.
+# ---------------------------------------------------------------------------
+
+# dep_rels marking a subordination/control boundary. Crossing one of these
+# while climbing *without having found a local subject* risks resolving the
+# wrong antecedent: control verbs assign an embedded infinitive's understood
+# subject differently depending on the verb (просить = object control, хотеть
+# = subject control), and relative/adverbial/complement/parataxis clauses
+# routinely have a subject of their own that differs from the outer clause's.
+# A local nsubj found *at* one of these nodes is still used (nearest-subject
+# binding is correct); only climbing past one empty-handed is refused.
+_CLAUSE_BOUNDARY_DEPRELS = {"xcomp", "acl", "acl:relcl", "advcl", "ccomp", "parataxis"}
+
+# Bounds the climb so a malformed/cyclic parse can't loop forever.
+_MAX_SUBJECT_WALK = 5
+
+_SUBJECT_DEPRELS = ("nsubj", "nsubj:pass")
+
+_FIRST_SECOND_PERSON_LEMMAS = {"я", "ты", "мы", "вы"}
+_ALL_PERSONAL_PRONOUN_LEMMAS = {"я", "ты", "он", "она", "оно", "мы", "вы", "они"}
+
+
+def _find_dependent_by_rel(
+    tokens: Sequence[AnalyzedToken], head_idx: int, *dep_rels: str
+) -> AnalyzedToken | None:
+    """First token depending on head_idx via one of dep_rels."""
+    for token in tokens:
+        if token.head_idx == head_idx and token.dep_rel in dep_rels:
+            return token
+    return None
+
+
+def _walk_up_for_subject(
+    tokens: Sequence[AnalyzedToken], start_idx: int
+) -> AnalyzedToken | None:
+    """Nearest nsubj/nsubj:pass reachable by climbing head_idx from start_idx.
+
+    Stops (returns None) on a clause-boundary dep_rel that has no local
+    subject of its own, rather than inheriting a possibly-wrong outer one.
+    """
+    current: int | None = start_idx
+    seen: set[int] = set()
+    for _ in range(_MAX_SUBJECT_WALK):
+        if current is None or current in seen or not (0 <= current < len(tokens)):
+            return None
+        seen.add(current)
+        subject = _find_dependent_by_rel(tokens, current, *_SUBJECT_DEPRELS)
+        if subject is not None:
+            return subject
+        head_tok = tokens[current]
+        if head_tok.dep_rel in _CLAUSE_BOUNDARY_DEPRELS:
+            return None
+        if head_tok.head_idx is None or head_tok.head_idx == current:
+            return None
+        current = head_tok.head_idx
+    return None
+
+
+# UD Animacy -> pymorphy grammeme. свой/мой/твой/наш/ваш never carry Animacy
+# themselves (only nouns do), but the masc-sing-Acc slot is animacy-ambiguous
+# in pymorphy (моего vs мой), so it must be read off the noun being modified.
+_UD_TO_PYMORPHY_ANIMACY = {"Anim": "anim", "Inan": "inan"}
+
+# свой -> personal possessive, referent is 1st/2nd person: these decline like
+# adjectives (мой, моя, моё, мои, моего, ...), so they go through pymorphy.
+_SVOY_TO_PERSONAL_DECLINABLE = {"я": "мой", "ты": "твой", "мы": "наш", "вы": "ваш"}
+
+# свой -> personal possessive, referent is 3rd person: его/её/их are frozen
+# genitive forms of он/оно/она/они (pymorphy tags them ADJF,Fixd,Apro) and
+# never inflect for the noun's case/number/gender, so no pymorphy call needed.
+_SVOY_TO_PERSONAL_INVARIABLE = {"он": "его", "оно": "его", "она": "её", "они": "их"}
+
+# Head nouns where свой is lexicalized/idiomatic rather than a productive
+# reflexive-possessive slot: swapping in a personal possessive would not read
+# as the target error, just as a broken idiom (не в своей тарелке, в своё
+# время, на свой лад, идти своим чередом), so these are never corrupted.
+_SVOY_IDIOM_HEAD_LEMMAS = {"тарелка", "время", "лад", "черёд"}
+
+
+def _svoy_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
+    """Subject свой's referent must agree with, or None if undeterminable.
+
+    With dep info: climb from the noun свой modifies (свой's own head) up to
+    the clause subject. Two results are degenerate and rejected: the "subject"
+    coming back as свой's own head noun (свой directly modifies the subject,
+    e.g. "Своя рубашка ближе к телу" — no distinct external referent to
+    borrow person/number from) or as свой itself (substantivized свой acting
+    as the subject, e.g. "Свои всегда помогут" — nothing to corefer with).
+
+    Without dep info: fall back to the nearest *preceding* 1st/2nd-person
+    pronoun only. 3rd-person antecedents are excluded here because scanning
+    "somewhere earlier in the sentence" for он/она/они without a parse is too
+    likely to grab an unrelated referent; a bare я/ты/мы/вы is a much safer
+    guess since Russian sentences rarely juggle more than one such speech-act
+    participant.
+    """
+    token = tokens[idx]
+    noun_idx = token.head_idx
+    if noun_idx is not None and 0 <= noun_idx < len(tokens) and noun_idx != idx:
+        subject = _walk_up_for_subject(tokens, noun_idx)
+        if subject is None or subject.idx in (idx, noun_idx):
+            return None
+        return subject
+    for i in range(idx - 1, -1, -1):
+        if tokens[i].lemma in _FIRST_SECOND_PERSON_LEMMAS:
+            return tokens[i]
+    return None
+
+
+class PronounSvoyErrorHandler:
+    """свой -> personal possessive confusion (Rozental §167, RLC Ref).
+
+    The textbook L2 error: a reflexive possessive whose referent is the
+    clause subject gets replaced by a personal possessive agreeing with that
+    same referent ("Я нашёл свою книгу" -> "Я нашёл мою книгу"). Only this
+    direction (свой -> personal) is generated.
+
+    The reverse direction (personal possessive -> свой) was deliberately not
+    implemented. It only constitutes an error when the personal possessive is
+    *not* coreferent with the subject ("Он взял его книгу" [чужую] -> "Он взял
+    свою книгу" *changes what book is meant* rather than merely miscasing a
+    reference) — detecting non-coreference reliably needs discourse-level
+    entity tracking this handler has no access to (dep parse gives syntactic
+    subjects, not discourse antecedents). Firing on ordinary "он ... его X"
+    sentences where the possessor already is the subject (a redundant but
+    common construction, itself sometimes flagged as the *same* §167 error in
+    the other direction) would corrupt already-correct-enough text into a
+    meaning change instead of a graded grammaticality error. Precision over
+    recall: skip rather than guess at coreference.
+
+    Guards: skips when no subject is determinable, when свой's own head noun
+    is one of a small idiom list (§167 does not cover lexicalized свой), and
+    when the target possessive fails to inflect (declinable branch only —
+    его/её/их never inflect).
+    """
+
+    name = "pronoun_svoy"
+    subtypes = ["pronoun_svoy"]
+    category = "OTHER"
+    changes_length = False
+
+    def __init__(self):
+        self.__morph = None
+
+    @property
+    def _morph(self):
+        if self.__morph is None:
+            from synterr.languages.russian.resources import get_morph_analyzer
+
+            self.__morph = get_morph_analyzer()
+        return self.__morph
+
+    def _apro_parse(self, lemma: str):
+        """First pymorphy parse that is a declinable pronoun-adjective.
+
+        'Fixd' parses (его/её/их as frozen possessives) are excluded here —
+        they are handled via _SVOY_TO_PERSONAL_INVARIABLE and never reach
+        this method — but excluding them defensively keeps this method
+        honest about only returning something .inflect() can vary.
+        """
+        for parse in self._morph.parse(lemma):
+            if "Apro" in parse.tag.grammemes and "Fixd" not in parse.tag.grammemes:
+                return parse
+        return None
+
+    def _resolve(self, tokens: Sequence[AnalyzedToken], idx: int):
+        """Plan the replacement, or None if the handler should not fire.
+
+        Returns ("literal", word) for invariable его/её/их, or
+        ("inflect", parse, grammemes) for declinable мой/твой/наш/ваш.
+        """
+        token = tokens[idx]
+        if token.lemma != "свой" or token.pos not in ("DET", "PRON"):
+            return None
+
+        noun_idx = token.head_idx
+        noun = (
+            tokens[noun_idx]
+            if noun_idx is not None and 0 <= noun_idx < len(tokens)
+            else None
+        )
+        if noun is not None and noun.lemma in _SVOY_IDIOM_HEAD_LEMMAS:
+            return None
+
+        subject = _svoy_subject(tokens, idx)
+        if subject is None:
+            return None
+
+        if subject.lemma in _SVOY_TO_PERSONAL_INVARIABLE:
+            return ("literal", _SVOY_TO_PERSONAL_INVARIABLE[subject.lemma])
+
+        if subject.lemma in _SVOY_TO_PERSONAL_DECLINABLE:
+            target_lemma = _SVOY_TO_PERSONAL_DECLINABLE[subject.lemma]
+        elif subject.pos in ("NOUN", "PROPN"):
+            number = subject.get_feature("Number")
+            gender = subject.get_feature("Gender")
+            if number == "Plur":
+                return ("literal", _SVOY_TO_PERSONAL_INVARIABLE["они"])
+            if gender == "Fem":
+                return ("literal", _SVOY_TO_PERSONAL_INVARIABLE["она"])
+            if gender in ("Masc", "Neut"):
+                return ("literal", _SVOY_TO_PERSONAL_INVARIABLE["он"])
+            return None
+        else:
+            # Relative/interrogative/indefinite pronoun subject (который,
+            # кто, ...) or anything else we can't map to a person/gender: no
+            # reliable target, so skip rather than guess.
+            return None
+
+        grammemes = _context_grammemes(token)
+        if not grammemes:
+            return None
+        # Animacy only disambiguates the Acc slot for masc-sing and plural;
+        # fem/neut-sing Acc is unambiguous and pymorphy's .inflect() rejects
+        # an anim/inan grammeme there outright (returns None), so it must not
+        # be added except where it is actually needed.
+        is_animacy_ambiguous_acc = "accs" in grammemes and (
+            "plur" in grammemes or {"masc", "sing"} <= grammemes
+        )
+        if is_animacy_ambiguous_acc and noun is not None:
+            animacy = _UD_TO_PYMORPHY_ANIMACY.get(noun.get_feature("Animacy"))
+            if animacy:
+                grammemes.add(animacy)
+        parse = self._apro_parse(target_lemma)
+        if parse is None:
+            return None
+        return ("inflect", parse, grammemes)
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        return self._resolve(tokens, idx) is not None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        """Apply свой -> personal possessive error."""
+        word = sentence[idx]
+
+        plan = self._resolve(tokens, idx)
+        if plan is None:
+            return None
+
+        if plan[0] == "literal":
+            new_word_raw = plan[1]
+        else:
+            _, parse, grammemes = plan
+            new_word_raw = inflect_word(parse, grammemes, word)
+            if new_word_raw is None:
+                return None
+
+        new_word = match_capitalization(word, new_word_raw)
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+
+        return ErrorResult(
+            error_type=self.name,
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pronoun confusion: reflexive себя/себе/собой -> personal pronoun (§168)
+# ---------------------------------------------------------------------------
+
+
+# Set phrases where себя/собой is lexicalized rather than a productive
+# reflexive argument: swapping in a personal pronoun would not read as the
+# target case-selection error, just as broken idiom. Checked by neighboring
+# lemma (works identically with or without depparse) rather than a parse.
+def _is_sebya_set_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    def lemma_at(i: int) -> str | None:
+        return tokens[i].lemma if 0 <= i < len(tokens) else None
+
+    prev1, prev2 = lemma_at(idx - 1), lemma_at(idx - 2)
+    if prev1 == "так":  # так себе
+        return True
+    if prev1 == "сам":  # само собой (разумеется)
+        return True
+    if prev1 == "по" and prev2 == "сам":  # сам по себе
+        return True
+    if prev1 == "между":  # между собой
+        return True
+    if prev1 == "в" and prev2 in ("прийти", "приходить"):  # прийти/приходить в себя
+        return True
+    return False
+
+
+def _sebya_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
+    """Subject себя's referent must agree with, or None if undeterminable.
+
+    With dep info: себя/себе/собой attaches directly to its governing
+    predicate (obj/iobj/obl), so the walk starts at that head_idx directly —
+    no intermediate noun hop like свой needs. Degenerate self-reference
+    (subject resolving to себя's own token — not reachable in practice since
+    себя has no nominative form, kept as a defensive check) is rejected.
+
+    Without dep info: fall back to a *clause-initial* personal pronoun only
+    (position 0), not "somewhere earlier" — sentence-initial position is a
+    strong subject signal under Russian's unmarked word order, which an
+    arbitrary earlier pronoun is not.
+    """
+    token = tokens[idx]
+    head_idx = token.head_idx
+    if head_idx is not None and 0 <= head_idx < len(tokens) and head_idx != idx:
+        subject = _walk_up_for_subject(tokens, head_idx)
+        if subject is None or subject.idx == idx:
+            return None
+        return subject
+    first = tokens[0] if tokens else None
+    if (
+        first is not None
+        and first.idx != idx
+        and first.lemma in _ALL_PERSONAL_PRONOUN_LEMMAS
+    ):
+        return first
+    return None
+
+
+class PronounSebyaErrorHandler:
+    """Reflexive себя/себе/собой -> personal pronoun confusion (§168, RLC Ref).
+
+    The textbook L2 error: a reflexive pronoun coreferent with the clause
+    subject gets replaced by the personal pronoun matching that subject's
+    person/number/gender ("Она довольна собой" -> "Она довольна ей/ею";
+    "Он купил себе квартиру" -> "Он купил ему квартиру"). The replacement is
+    inflected to себя's own case (Acc/Gen/Dat/Ins), carried over from the
+    subject's person/number/gender — the same referent, wrong pronoun class.
+
+    Guards: subject must be identifiable via the nsubj dep-tree arc (or, with
+    no dep info, a clause-initial personal pronoun); a small set-phrase
+    blocklist (так себе, само собой, сам по себе, между собой, прийти/
+    приходить в себя) is excluded since себя there is lexicalized, not a
+    referential slot; and a subject we can't map to person/gender (relative/
+    interrogative/indefinite pronouns) skips rather than guesses.
+    """
+
+    name = "pronoun_sebya"
+    subtypes = ["pronoun_sebya"]
+    category = "OTHER"
+    changes_length = False
+
+    def __init__(self):
+        self.__morph = None
+
+    @property
+    def _morph(self):
+        if self.__morph is None:
+            from synterr.languages.russian.resources import get_morph_analyzer
+
+            self.__morph = get_morph_analyzer()
+        return self.__morph
+
+    def _npro_parse(self, lemma: str):
+        for parse in self._morph.parse(lemma):
+            if "NPRO" in parse.tag.grammemes:
+                return parse
+        return None
+
+    def _resolve(self, tokens: Sequence[AnalyzedToken], idx: int):
+        """Plan the replacement (target_lemma, pymorphy_parse, grammemes),
+        or None if the handler should not fire."""
+        token = tokens[idx]
+        if token.lemma != "себя" or token.pos != "PRON":
+            return None
+        if _is_sebya_set_phrase(tokens, idx):
+            return None
+
+        case = UD_TO_PYMORPHY_CASE.get(token.get_feature("Case"))
+        if case is None:
+            return None
+
+        subject = _sebya_subject(tokens, idx)
+        if subject is None:
+            return None
+
+        if subject.lemma in _ALL_PERSONAL_PRONOUN_LEMMAS:
+            target_lemma = subject.lemma
+        elif subject.pos in ("NOUN", "PROPN"):
+            number = subject.get_feature("Number")
+            gender = subject.get_feature("Gender")
+            if number == "Plur":
+                target_lemma = "они"
+            elif gender == "Fem":
+                target_lemma = "она"
+            elif gender in ("Masc", "Neut"):
+                target_lemma = "он"
+            else:
+                return None
+        else:
+            return None
+
+        parse = self._npro_parse(target_lemma)
+        if parse is None:
+            return None
+        return (parse, {case})
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        return self._resolve(tokens, idx) is not None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        """Apply себя -> personal pronoun error."""
+        word = sentence[idx]
+
+        plan = self._resolve(tokens, idx)
+        if plan is None:
+            return None
+        parse, grammemes = plan
+
+        new_word_raw = inflect_word(parse, grammemes, word)
+        if new_word_raw is None:
+            return None
+        new_word = match_capitalization(word, new_word_raw)
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+
+        return ErrorResult(
+            error_type=self.name,
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
 class ConjunctionErrorHandler:
     """Replace conjunction with an attested confusion from the same group.
 

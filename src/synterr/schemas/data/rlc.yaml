@@ -266,6 +266,26 @@ mappings:
     primary: Prep
   conjunction:
     primary: Conj
+  pronoun_svoy:
+    primary: Ref
+  pronoun_sebya:
+    primary: Ref
+  noun_case_gen_partitive:
+    primary: Gov
+  noun_case_instr_pl:
+    primary: Infl
+  noun_number_gen_pl:
+    primary: Num
+  neg_genitive:
+    primary: Gov
+  root_vowel_after_sibilant:
+    primary: Ortho
+  adj_ending_vowel:
+    primary: Ortho
+  root_alternating:
+    primary: Ortho
+  root_unchecked:
+    primary: Ortho
   word_omission:
     primary: Syntax
     modifier: Miss

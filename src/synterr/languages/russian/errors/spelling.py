@@ -10,12 +10,16 @@ Error types:
 5. Double consonant errors
 6. Soft sign errors - deletion, ъ→ь confusion
 7. Keyboard typos - ЙЦУКЕН layout adjacency
+8. Alternating root vowels (Rozental §3) - гар/гор, кас/кос, бер/бир, etc.
+9. Unchecked root vowels (Rozental §2) - curated dictionary-word lexicon
 """
 
 from __future__ import annotations
 
+import json
 import random as random_module
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
@@ -242,6 +246,374 @@ KEYBOARD_ADJACENT = {
     "ю": ["д", "ж", "б"],
 }
 
+# =============================================================================
+# ALTERNATING ROOT VOWELS (§3)
+# Pairs of root spellings where the vowel varies by stress, following
+# consonant, or presence of a suffix -а- (учащиеся conflate the conditions
+# and pick the wrong alternant). Each tuple is:
+#   (variant_a, variant_b, vowel_idx, stress_checked, denied_lemmas)
+# vowel_idx = 0-based index, WITHIN the matched root string, of the vowel
+# that must be unstressed for the swap to be a plausible confusion.
+# stress_checked = False for the -а--suffix-conditioned group (бер/бир and
+# kin), which is governed by a following suffix, not by stress — no stress
+# lookup is needed or meaningful there.
+#
+# denied_lemmas: the morpheme dict tags ROOT purely by surface spelling, so
+# it doesn't distinguish these alternating roots from unrelated lexemes that
+# happen to share the identical root string (e.g. "гора" tags as ROOT "гор",
+# same as "загорать" — but "гора" has nothing to do with §3). These are
+# curated denylists (by lemma) for the homograph families found to collide,
+# discovered via corpus testing — most damagingly "читать" (read), which
+# shares "чит" with the счет/считать (count) alternation and would otherwise
+# fire on nearly every occurrence of that extremely common verb.
+# =============================================================================
+
+# гар/гор: "гора" (mountain) / "горе" (grief) family, unrelated to "гореть" (burn)
+_GOR_DENY = frozenset(
+    {
+        "гора",
+        "горе",
+        "горевать",
+        "горемыка",
+        "горемычный",
+        "горестный",
+        "горесть",
+        "горисполком",
+        "горком",
+        "горкомовский",
+        "гористый",
+        "горка",
+    }
+)
+
+# зар/зор: "зреть/зрение" (see) family (дозор, обзор, позор...), unrelated to
+# "заря" (dawn); "зарплата" (salary, unrelated abbreviation)
+_ZOR_DENY = frozenset(
+    {
+        "дозор",
+        "дозорщик",
+        "надзор",
+        "ветнадзор",
+        "рыбнадзор",
+        "обзор",
+        "обзорность",
+        "обзорный",
+        "позор",
+        "призор",
+        "подзор",
+        "подзорный",
+        "зазор",
+        "кругозор",
+        "беспризорный",
+        "беспризорник",
+        "беспризорница",
+        "беспризорность",
+        "беспризорничать",
+        "дальнозоркий",
+        "дальнозоркость",
+        "узор",
+        "узорчик",
+        "узорчатость",
+        "озорной",
+        "озорничать",
+        "созоровать",
+        "зарплата",
+        "виндзорский",
+        "азорский",
+        "резорцин",
+    }
+)
+
+# кас/кос: "косить/косой" (mow/squint/slant) family, unrelated to "касаться"
+# (touch); plus a handful of unrelated loanwords tagged ROOT "кос"
+_KOS_DENY = frozenset(
+    {
+        "коса",
+        "косая",
+        "косец",
+        "косилка",
+        "косина",
+        "косинка",
+        "косить",
+        "коситься",
+        "косица",
+        "косичка",
+        "косный",
+        "кособокий",
+        "кособочиться",
+        "косовица",
+        "косовище",
+        "косоворотка",
+        "косоглазие",
+        "косоглазый",
+        "косогор",
+        "косок",
+        "косолапить",
+        "выкос",
+        "выкосить",
+        "выкоситься",
+        "докосить",
+        "закосить",
+        "искоса",
+        "искосить",
+        "искоситься",
+        "искособочиться",
+        "камышекосилка",
+        "газонокосилка",
+        "абрикос",
+        "високос",
+        "високосный",
+        "дискос",
+        "икос",
+        "компрачикос",
+    }
+)
+
+# раст/рос: "роса" (dew) family, unrelated to "расти" (grow)
+_ROS_DENY = frozenset(
+    {
+        "роса",
+        "росинка",
+        "росистый",
+        "росить",
+        "росичка",
+        "росник",
+        "росный",
+        "росянка",
+        "росяной",
+        "росяный",
+        "броско",
+    }
+)
+
+# плав/плов: "плов" (pilaf, unrelated loanword) and a false segmentation hit;
+# пловец/пловчиха (the genuine lexicalized exception) are NOT denied
+_PLOV_DENY = frozenset({"плов", "сопловой"})
+
+# мер/мир: "мир" (peace/world) family, unrelated to the мереть (die) /
+# мерить (measure) alternation; "номер" (compound "но"+"мер", a loanword
+# for room/issue number, unrelated to measure)
+_MIR_DENY = frozenset(
+    {
+        "мировой",
+        "мирный",
+        "мировоззрение",
+        "мировоззренческий",
+        "миролюбивый",
+        "миролюбие",
+        "мироздание",
+        "миротворец",
+        "миротворный",
+        "миротворческий",
+        "миротворчество",
+        "мирок",
+        "мирволение",
+        "мирить",
+        "мириться",
+        "замирение",
+        "замирить",
+        "замириться",
+        "замирять",
+        "замиряться",
+        "казимир",
+        "кашемир",
+        "макромир",
+        "микромир",
+        "антимир",
+        "всемирный",
+        "всемирно",
+        "номер",
+    }
+)
+
+# пер/пир: "пир" (feast) family, греч. "пиро-" (fire) borrowings, and "перо"
+# (feather/pen) family — all unrelated to the переть (push/prop) alternation
+_PIR_DENY = frozenset(
+    {
+        "пир",
+        "пировать",
+        "пиршество",
+        "пиршественный",
+        "пирушка",
+        "ампир",
+        "вампир",
+        "пироскоп",
+        "пиротехник",
+        "пиротехника",
+        "пиротехнический",
+        "пироэлектричество",
+        "пирогравюра",
+        "пироплазма",
+        "пироплазмоз",
+        "перо",
+        "перина",
+        "перинка",
+        "перинный",
+        "перистый",
+        "оперение",
+        "оперенье",
+        "оперить",
+        "опериться",
+        "оперять",
+        "оперяться",
+        "неоперившийся",
+        "красноперка",
+    }
+)
+
+# тер/тир: "терять" (lose) family, unrelated to "тереть/тирать" (wipe/rub)
+_TER_DENY = frozenset(
+    {
+        "терять",
+        "потерять",
+        "потеря",
+        "потерянный",
+        "потерянно",
+        "утерять",
+        "утеря",
+        "растерять",
+        "растеряться",
+        "растерянный",
+        "растерянно",
+        "растерянность",
+        "теряться",
+        "теряющий",
+    }
+)
+
+# дер/дир: "дёргать" (tug/jerk) family, unrelated to "драть/деру" (tear)
+_DER_DENY = frozenset(
+    {
+        "вздернуть",
+        "вздернутый",
+        "выдернуть",
+        "дернуть",
+        "задернуть",
+        "одернуть",
+        "передернуть",
+        "поддернуть",
+        "подернуть",
+        "продернуть",
+        "раздернуть",
+        "сдернуть",
+    }
+)
+
+# стел/стил: "стиль" (style, French borrowing) family, unrelated to
+# "стелить/стилать" (spread/lay)
+_STIL_DENY = frozenset(
+    {
+        "стилист",
+        "стилистика",
+        "стилистический",
+        "стилизатор",
+        "стилизаторский",
+        "стилизация",
+        "стилизованный",
+        "стилизовать",
+        "стилевой",
+        "лингвостилистика",
+    }
+)
+
+# чет/чит: "читать" (read) family — shares ROOT "чит" with счет/считать
+# (count/reckon) but is not part of that alternation; no attested
+# читать→четать confusion. Also "четверть/четыре" (numeral "four" family)
+# on the чет side, an unrelated homograph of счет/отчет/вычет.
+_CHIT_DENY = frozenset(
+    {
+        "читать",
+        "прочитать",
+        "прочитывать",
+        "дочитать",
+        "дочитывать",
+        "зачитать",
+        "зачитывать",
+        "перечитать",
+        "перечитывать",
+        "начитать",
+        "начитывать",
+        "начитаться",
+        "начитанный",
+        "начитанность",
+        "вчитаться",
+        "вчитываться",
+        "зачитаться",
+        "перечитка",
+        "почитать",
+        "почитывать",
+        "почитай",
+        "нечитабельный",
+        "неудобочитаемый",
+        "непрочитанный",
+        "четверть",
+        "четвертак",
+        "четвертовать",
+        "четвертьфинал",
+        "вчетверо",
+        "четверик",
+        "начетверо",
+    }
+)
+
+ROOT_ALTERNATIONS: tuple[tuple[str, str, int, bool, frozenset[str]], ...] = (
+    ("гар", "гор", 1, True, _GOR_DENY),
+    ("зар", "зор", 1, True, _ZOR_DENY),
+    ("клан", "клон", 1, True, frozenset()),
+    ("твар", "твор", 1, True, frozenset()),
+    ("лаг", "лож", 1, True, frozenset()),
+    ("кас", "кос", 1, True, _KOS_DENY),
+    ("раст", "рос", 1, True, _ROS_DENY),
+    ("скак", "скоч", 2, True, frozenset()),
+    ("мак", "мок", 1, True, frozenset()),
+    ("равн", "ровн", 1, True, frozenset()),
+    ("плав", "плов", 2, True, _PLOV_DENY),
+    ("бер", "бир", 1, False, frozenset()),
+    ("дер", "дир", 1, False, _DER_DENY),
+    ("мер", "мир", 1, False, _MIR_DENY),
+    ("пер", "пир", 1, False, _PIR_DENY),
+    ("тер", "тир", 1, False, _TER_DENY),
+    ("блест", "блист", 2, False, frozenset()),
+    ("стел", "стил", 2, False, _STIL_DENY),
+    ("чет", "чит", 1, False, _CHIT_DENY),
+)
+
+
+def _load_root_unchecked_lexicon() -> dict[str, tuple[int, str, str]]:
+    """Load the curated unchecked-vowel lexicon (§2) as lemma -> (pos, orig, wrong).
+
+    File lives under src/synterr/data/russian/root_unchecked.json, alongside
+    the other hand-curated lexical resources (paronyms.json etc.), but is
+    loaded directly here (not via resources.py) since this handler owns it.
+    """
+    data_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "data"
+        / "russian"
+        / "root_unchecked.json"
+    )
+    if not data_path.exists():
+        return {}
+    with data_path.open(encoding="utf-8") as f:
+        raw = json.load(f)
+    result: dict[str, tuple[int, str, str]] = {}
+    for word, entry in raw.items():
+        if word.startswith("_"):
+            continue
+        result[word] = (entry["pos"], entry["vowel"], entry["wrong"])
+    return result
+
+
+_ROOT_UNCHECKED_LEXICON: dict[str, tuple[int, str, str]] | None = None
+
+
+def _root_unchecked_lexicon() -> dict[str, tuple[int, str, str]]:
+    """Lazy-cached accessor for the §2 lexicon (module-level singleton)."""
+    global _ROOT_UNCHECKED_LEXICON
+    if _ROOT_UNCHECKED_LEXICON is None:
+        _ROOT_UNCHECKED_LEXICON = _load_root_unchecked_lexicon()
+    return _ROOT_UNCHECKED_LEXICON
+
 
 class SpellingErrorHandler:
     """Russian spelling error handler using phonetic rules.
@@ -265,6 +637,8 @@ class SpellingErrorHandler:
         "double_consonant",
         "keyboard",
         "soft_sign",
+        "root_alternating",
+        "root_unchecked",
     ]
 
     # Default subtype weights (used if not overridden by config)
@@ -277,6 +651,8 @@ class SpellingErrorHandler:
         "double_consonant": 5,
         "keyboard": 3,
         "soft_sign": 2,
+        "root_alternating": 8,
+        "root_unchecked": 5,
     }
 
     def __init__(self):
@@ -435,6 +811,10 @@ class SpellingErrorHandler:
             return self._keyboard_typo(word, rng)
         elif method == "soft_sign":
             return self._soft_sign(word)
+        elif method == "root_alternating":
+            return self._root_alternating(word, lemma=lemma)
+        elif method == "root_unchecked":
+            return self._root_unchecked(word, lemma=lemma)
         return None
 
     def _vowel_reduction(
@@ -792,3 +1172,152 @@ class SpellingErrorHandler:
             return PhoneticError(word, corrupted, "soft_sign", pos)
 
         return None
+
+    def _root_alternating(
+        self, word: str, lemma: str | None = None
+    ) -> PhoneticError | None:
+        """Swap an alternating-root vowel to the wrong alternant (§3).
+
+        Confirms via the morpheme dict that the word actually has one of the
+        alternating roots (ROOT type, exact text match) — same helper
+        vowel_after_ts uses (orthographic_spelling.py). The corruption swaps
+        ONLY the single vowel at the alternation's position (e.g. лаг/лож
+        differ in both vowel AND final consonant, but the learner error is
+        just the vowel: предлагать → предлогать, not → предложать) — a
+        naive vowel-quality confusion, not the "correct" other allomorph.
+
+        For the stress-conditioned pairs (гар/гор, кас/кос, etc.), the
+        target vowel must be unstressed — a stressed occurrence is
+        definitionally the correct alternant, so vowel reduction can't
+        confuse it (mirrors vowel_reduction's own stressed-vowel skip). The
+        -а--suffix-conditioned pairs (бер/бир and kin) skip the stress check
+        entirely per §3 — their alternation is governed by a following
+        suffix, not stress.
+
+        Root-as-whole-word forms (мир, пир, тир) are skipped: those are
+        unrelated standalone lexemes that happen to spell like the verb
+        root, not an instance of the alternation. The output is also
+        rejected if it happens to be a real word (e.g. мер, genitive plural
+        of мера) — the swap must produce a genuine non-word.
+        """
+        word_lower = word.lower()
+        if len(word_lower) < 3:
+            return None
+
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+
+        morphemes = analyzer.get_morphemes(word_lower)
+        offsets_match_surface = True
+        if morphemes is None and lemma:
+            morphemes = analyzer.get_morphemes(lemma.lower())
+            offsets_match_surface = False
+        if morphemes is None:
+            return None
+
+        root_spans: list[tuple[int, str]] = []
+        offset = 0
+        for text, typ in morphemes:
+            if typ == "ROOT":
+                root_spans.append((offset, text))
+            offset += len(text)
+
+        lookup_lemma = (lemma or word).lower()
+
+        for root_offset, root_text in root_spans:
+            for (
+                variant_a,
+                variant_b,
+                vowel_idx,
+                stress_checked,
+                denied_lemmas,
+            ) in ROOT_ALTERNATIONS:
+                if root_text == variant_a:
+                    target_char = variant_b[vowel_idx]
+                elif root_text == variant_b:
+                    target_char = variant_a[vowel_idx]
+                else:
+                    continue
+
+                # The morpheme dict tags ROOT by spelling alone, so unrelated
+                # homograph lexemes (гора, читать, мир...) slip through —
+                # denylisted by lemma.
+                if lookup_lemma in denied_lemmas:
+                    continue
+
+                # Root spanning the entire (lemma or surface) word is a bare
+                # standalone lexeme (мир, пир, тир), not this derivational
+                # alternation.
+                whole_word_len = (
+                    len(word_lower) if offsets_match_surface else len(lemma or "")
+                )
+                if root_offset == 0 and len(root_text) == whole_word_len:
+                    continue
+
+                if offsets_match_surface:
+                    start = root_offset
+                else:
+                    start = word_lower.find(root_text)
+                if start < 0 or start + len(root_text) > len(word):
+                    continue
+
+                vowel_pos = start + vowel_idx
+                if vowel_pos >= len(word):
+                    continue
+
+                if stress_checked:
+                    stress_pos = self.stress_dict.get(word_lower, -1)
+                    if stress_pos < 0:
+                        continue  # can't verify unstressed — skip
+                    if stress_pos == vowel_pos:
+                        continue  # stressed here — this IS the correct alternant
+
+                replacement = (
+                    target_char.upper() if word[vowel_pos].isupper() else target_char
+                )
+                corrupted = word[:vowel_pos] + replacement + word[vowel_pos + 1 :]
+
+                if corrupted == word:
+                    continue
+                if self._is_known_word(corrupted):
+                    continue
+
+                return PhoneticError(word, corrupted, "root_alternating", vowel_pos)
+
+        return None
+
+    def _root_unchecked(
+        self, word: str, lemma: str | None = None
+    ) -> PhoneticError | None:
+        """Substitute a dictionary word's unchecked unstressed vowel (§2).
+
+        Guarded by an exact lemma match against a hand-curated lexicon of
+        common "непроверяемые" words (root_unchecked.json), each with a
+        known typical wrong-vowel substitution at a fixed position. A
+        defensive check re-verifies the expected vowel is still at that
+        position on the actual surface form (protects against unusual
+        inflections shifting the stem), and the result must not be a known
+        word.
+        """
+        if not lemma:
+            return None
+
+        entry = _root_unchecked_lexicon().get(lemma.lower())
+        if entry is None:
+            return None
+        pos, orig_vowel, wrong_vowel = entry
+
+        word_lower = word.lower()
+        if pos >= len(word_lower) or word_lower[pos] != orig_vowel:
+            return None
+
+        replacement = wrong_vowel.upper() if word[pos].isupper() else wrong_vowel
+        corrupted = word[:pos] + replacement + word[pos + 1 :]
+
+        if corrupted == word:
+            return None
+        if self._is_known_word(corrupted):
+            return None
+
+        return PhoneticError(word, corrupted, "root_unchecked", pos)

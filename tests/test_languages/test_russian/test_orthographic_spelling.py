@@ -10,12 +10,12 @@ from synterr.languages.russian.errors.orthographic_spelling import (
 )
 
 
-def _tok(text, pos="NOUN", lemma=None, idx=0):
+def _tok(text, pos="NOUN", lemma=None, idx=0, features=None):
     return AnalyzedToken(
         text=text,
         lemma=lemma or text.lower(),
         pos=pos,
-        features={},
+        features=features or {},
         idx=idx,
     )
 
@@ -36,7 +36,7 @@ class TestProtocol:
         assert self.handler.name == "orthographic_spelling"
         assert self.handler.category == "SPELL"
         assert self.handler.changes_length is False
-        assert len(self.handler.subtypes) == 10
+        assert len(self.handler.subtypes) == 12
 
     def test_set_subtype_weights(self):
         h = OrthographicSpellingHandler()
@@ -335,6 +335,232 @@ class TestVowelAfterSibilant:
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is not None
         assert sentence[0] == "щотка"
+
+
+class TestRootVowelAfterSibilant:
+    """и/ы after ц in ROOTS (§7) — root-position complement of vowel_after_ts."""
+
+    def test_regular_root_i_to_y(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цирк")]
+        sentence = ["цирк"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "цырк"
+        assert result.error_type == "orthographic_spelling_root_vowel_after_sibilant"
+
+    def test_regular_root_i_to_y_cifra(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цифра")]
+        sentence = ["цифра"]
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert sentence[0] == "цыфра"
+
+    def test_preserves_case(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("Цирк")]
+        sentence = ["Цирк"]
+        h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert sentence[0] == "Цырк"
+
+    def test_exception_tsygan_family_y_to_i(self):
+        """цыганский: ы is correct, error introduces и.
+
+        (The bare noun цыган/цыганка are skipped by the known-word guard —
+        pymorphy recognizes "циган"/"циганка" as attested spellings — but
+        derived forms like цыганский are not, so this is the clean example
+        for the цыган family.)
+        """
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цыганский", pos="ADJ")]
+        sentence = ["цыганский"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "циганский"
+
+    def test_exception_tsyplyonok_family(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цыплёнок")]
+        sentence = ["цыплёнок"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "циплёнок"
+
+    def test_exception_tsypochki_family(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цыпочки")]
+        sentence = ["цыпочки"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "ципочки"
+
+    def test_exception_tsyts_family(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цыц", pos="INTJ")]
+        sentence = ["цыц"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "циц"
+
+    def test_exception_tsykat_family(self):
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цыкать", pos="VERB")]
+        sentence = ["цыкать"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "цикать"
+
+    def test_suffix_position_not_swapped(self):
+        """лисица has ц+и at a SUFFIX boundary (лис-иц-а), not root — this
+        is vowel_after_ts / suffix_its_ets territory, not ours."""
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("лисица")]
+        sentence = ["лисица"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "лисица"
+
+    def test_suffix_position_not_swapped_ratsiya(self):
+        """рация: ц+и is inside the -циj- suffix, not the root."""
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("рация")]
+        sentence = ["рация"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "рация"
+
+    def test_unsegmented_word_skipped(self):
+        """Words absent from the unified-dict segmentation are skipped
+        rather than guessed at (precision-first)."""
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("мерцы", lemma="мерцы")]  # synthetic OOV token
+        sentence = ["мерцы"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "мерцы"
+
+    def test_known_word_result_skipped(self, monkeypatch):
+        """If the corrupted surface coincides with a real word, skip."""
+        from synterr.languages.russian.resources import MorphemeAnalyzer
+
+        monkeypatch.setattr(MorphemeAnalyzer, "word_is_known", lambda self, word: True)
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("цирк")]
+        sentence = ["цирк"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "цирк"
+
+
+class TestAdjEndingVowel:
+    """-ем/-им confusion in Ins/Loc singular soft-stem adjectives (§39)."""
+
+    def _adj(self, text, case, gender="Neut", number="Sing"):
+        return _tok(
+            text,
+            pos="ADJ",
+            features={"Case": case, "Number": number, "Gender": gender},
+        )
+
+    def _adp(self, text):
+        return _tok(text, pos="ADP")
+
+    def test_loc_to_ins_dalnem(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("в"), self._adj("дальнем", "Loc")]
+        sentence = ["в", "дальнем"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[1] == "дальним"
+
+    def test_ins_to_loc_prezhnim(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("с"), self._adj("прежним", "Ins")]
+        sentence = ["с", "прежним"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[1] == "прежнем"
+
+    def test_loc_to_ins_sinem(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("о"), self._adj("синем", "Loc")]
+        sentence = ["о", "синем"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[1] == "синим"
+
+    def test_preserves_case(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("в"), self._adj("Дальнем", "Loc")]
+        sentence = ["в", "Дальнем"]
+        h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert sentence[1] == "Дальним"
+
+    def test_no_governing_preposition_skipped(self):
+        """зимним утром: genuine Ins-of-time use with no preposition at
+        all — the context is ambiguous per our guard, so we skip rather
+        than risk mislabeling."""
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adj("зимним", "Ins"), _tok("утром")]
+        sentence = ["зимним", "утром"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "зимним"
+
+    def test_preposition_two_tokens_away_still_fires(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("о"), _tok("чём"), self._adj("синем", "Loc")]
+        sentence = ["о", "чём", "синем"]
+        result = h.apply(tokens, sentence, 2, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[2] == "синим"
+
+    def test_preposition_too_far_skipped(self):
+        """4 tokens back is outside the 3-token window."""
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [
+            self._adp("о"),
+            _tok("самом"),
+            _tok("этом"),
+            _tok("вот"),
+            self._adj("синем", "Loc"),
+        ]
+        sentence = ["о", "самом", "этом", "вот", "синем"]
+        result = h.apply(tokens, sentence, 4, set(), rng=Random(42))
+        assert result is None
+        assert sentence[4] == "синем"
+
+    def test_mismatched_preposition_case_skipped(self):
+        """с (Ins-governing) next to a Loc-tagged adjective: the guard
+        requires the ADP's licensed case to match the token's own Case."""
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("с"), self._adj("синем", "Loc")]
+        sentence = ["с", "синем"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is None
+        assert sentence[1] == "синем"
+
+    def test_feminine_skipped(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("в"), self._adj("дальнем", "Loc", gender="Fem")]
+        sentence = ["в", "дальнем"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is None
+
+    def test_plural_skipped(self):
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("в"), self._adj("дальнем", "Loc", number="Plur")]
+        sentence = ["в", "дальнем"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is None
+
+    def test_hard_stem_not_matched(self):
+        """новом (hard-stem Loc) doesn't end in -ем/-им — not this subtype."""
+        h = _force_subtype("adj_ending_vowel")
+        tokens = [self._adp("о"), self._adj("новом", "Loc")]
+        sentence = ["о", "новом"]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+        assert result is None
 
 
 class TestCanApplyEdgeCases:

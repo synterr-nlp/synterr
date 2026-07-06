@@ -38,17 +38,23 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
-28 handlers / 84 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+34 handlers / 94 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
 
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
-| spelling | vowel_reduction, devoicing, prefix_voicing, tsa_confusion, cluster, double_consonant, keyboard, soft_sign | Ortho, Misspell | SPELL |
+| spelling | vowel_reduction, devoicing, prefix_voicing, tsa_confusion, cluster, double_consonant, keyboard, soft_sign, root_alternating (§3), root_unchecked (§2) | Ortho, Misspell | SPELL |
 | function_spelling | ne_attachment, ne_detachment, conjunction_split, conjunction_merge, taki_hyphen, neg_pronoun_ne_ni | Ortho | SPELL |
-| orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant, nn_suffix | Ortho | SPELL |
+| orthographic_spelling | pre_pri, y_i_after_prefix, suffix_enk_onk, suffix_insk_ensk, suffix_its_ets, suffix_ek_ik, participle_suffix, vowel_after_ts, vowel_after_sibilant, nn_suffix, root_vowel_after_sibilant (§5 п.3), adj_ending_vowel | Ortho | SPELL |
 | compound_spelling | num_dash, pol_spelling, compound_adj | Ortho, Hyphen | SPELL |
 | adverb_spelling | solid_to_separate, separate_to_solid, hyphen_to_separate, separate_to_hyphen | Ortho | SPELL |
 | noun_case | noun_case_governed (obl/nmod/iobj/obj), noun_case_subject (nsubj), noun_case_other (appos/conj/…) | Gov, Nominative, Infl | MORPH |
 | noun_case_prep | noun_case_prep_e_u (second locative в лесу→в лесе) | Gov | MORPH |
+| noun_case_gen_partitive | §150 partitive gen -а/-у (история народа→народу) | Gov | MORPH |
+| noun_case_instr_pl | §155 instr pl -ями/-ьми (дверями→дверьми) | Infl | MORPH |
+| noun_number_gen_pl | §154 nonstandard gen pl (носков→носок) | Num | MORPH |
+| neg_genitive | §201 Acc↔Gen under negation (не читал книгу↔книги; dep-arc) | Gov | MORPH |
+| pronoun_svoy | §167 свой→personal possessive (нашёл свою→мою книгу) | Ref | OTHER |
+| pronoun_sebya | §168 себя→personal pronoun (купил себе→ему) | Ref | OTHER |
 | noun_number | noun_number | Num | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
 | adj_form | adj_short_full (готовы→готовые) | Infl | MORPH |

@@ -7,6 +7,9 @@ from synterr.languages.russian.errors.lexical import (
     ConjunctionErrorHandler,
     ParonymErrorHandler,
     PrepositionErrorHandler,
+    PronounSebyaErrorHandler,
+    PronounSvoyErrorHandler,
+    _is_sebya_set_phrase,
 )
 from synterr.languages.russian.resources import get_preposition_list
 
@@ -754,3 +757,814 @@ class TestConjunctionErrorHandler:
         result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
         assert result is not None
         assert result.corrupted == "как"
+
+
+class TestPronounSvoyErrorHandler:
+    handler = PronounSvoyErrorHandler()
+
+    def test_implements_protocol(self):
+        """Test PronounSvoyErrorHandler implements protocol."""
+        assert hasattr(self.handler, "name")
+        assert hasattr(self.handler, "subtypes")
+        assert hasattr(self.handler, "category")
+        assert hasattr(self.handler, "changes_length")
+        assert hasattr(self.handler, "can_apply")
+        assert hasattr(self.handler, "apply")
+        assert self.handler.name == "pronoun_svoy"
+        assert self.handler.subtypes == ["pronoun_svoy"]
+        assert self.handler.category == "OTHER"
+        assert self.handler.changes_length is False
+
+    def test_can_apply_requires_svoy_lemma(self):
+        """Only свой (DET/PRON) is a corruption source."""
+        tokens = [
+            AnalyzedToken(text="Я", lemma="я", pos="PRON", features={}, idx=0),
+            AnalyzedToken(text="нашёл", lemma="найти", pos="VERB", features={}, idx=1),
+            AnalyzedToken(
+                text="свою",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                idx=2,
+                dep_rel="det",
+                head_idx=3,
+            ),
+            AnalyzedToken(
+                text="книгу",
+                lemma="книга",
+                pos="NOUN",
+                features={
+                    "Animacy": "Inan",
+                    "Case": "Acc",
+                    "Gender": "Fem",
+                    "Number": "Sing",
+                },
+                idx=3,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+        ]
+        # nsubj of the root supplies the referent -> свой fires.
+        tokens[0] = AnalyzedToken(
+            text="Я",
+            lemma="я",
+            pos="PRON",
+            features={"Case": "Nom", "Number": "Sing", "Person": "1"},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+        )
+        assert self.handler.can_apply(tokens, 0) is False  # я
+        assert self.handler.can_apply(tokens, 1) is False  # нашёл
+        assert self.handler.can_apply(tokens, 2) is True  # свою
+        assert self.handler.can_apply(tokens, 3) is False  # книгу
+
+    def test_apply_first_person_singular(self):
+        """'Я нашёл свою книгу.' -> 'Я нашёл мою книгу.' (Rozental §167)."""
+        tokens = [
+            AnalyzedToken(
+                text="Я",
+                lemma="я",
+                pos="PRON",
+                features={"Case": "Nom", "Number": "Sing", "Person": "1"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="нашёл",
+                lemma="найти",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="свою",
+                lemma="свой",
+                pos="DET",
+                features={
+                    "Case": "Acc",
+                    "Gender": "Fem",
+                    "Number": "Sing",
+                    "Poss": "Yes",
+                    "PronType": "Prs",
+                    "Reflex": "Yes",
+                },
+                idx=2,
+                dep_rel="det",
+                head_idx=3,
+            ),
+            AnalyzedToken(
+                text="книгу",
+                lemma="книга",
+                pos="NOUN",
+                features={
+                    "Animacy": "Inan",
+                    "Case": "Acc",
+                    "Gender": "Fem",
+                    "Number": "Sing",
+                },
+                idx=3,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+        ]
+        sentence = ["Я", "нашёл", "свою", "книгу"]
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.corrupted == "мою"
+        assert result.fix_tag == "$REPLACE_свою"
+        assert sentence[2] == "мою"
+
+    def _svoy_tokens(self, subject_text, subject_lemma, subject_pos, subject_features):
+        """Build 'X <verb> своей работой' with 'X' as the nsubj."""
+        return [
+            AnalyzedToken(
+                text=subject_text,
+                lemma=subject_lemma,
+                pos=subject_pos,
+                features=subject_features,
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="гордится",
+                lemma="гордиться",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="своей",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Ins", "Gender": "Fem", "Number": "Sing"},
+                idx=2,
+                dep_rel="det",
+                head_idx=3,
+            ),
+            AnalyzedToken(
+                text="работой",
+                lemma="работа",
+                pos="NOUN",
+                features={
+                    "Animacy": "Inan",
+                    "Case": "Ins",
+                    "Gender": "Fem",
+                    "Number": "Sing",
+                },
+                idx=3,
+                dep_rel="obl",
+                head_idx=1,
+            ),
+        ]
+
+    def test_apply_declinable_persons(self):
+        """1st/2nd-person subjects inflect мой/твой/наш/ваш to свой's own
+        case/number/gender (here Ins/Fem/Sing, matching 'своей работой')."""
+        cases = [
+            ("Ты", "ты", {"Case": "Nom", "Number": "Sing", "Person": "2"}, "твоей"),
+            ("Мы", "мы", {"Case": "Nom", "Number": "Plur", "Person": "1"}, "нашей"),
+        ]
+        for subject_text, subject_lemma, feats, expected in cases:
+            tokens = self._svoy_tokens(subject_text, subject_lemma, "PRON", feats)
+            tokens[2] = AnalyzedToken(
+                text="своей",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Ins", "Gender": "Fem", "Number": "Sing"},
+                idx=2,
+                dep_rel="det",
+                head_idx=3,
+            )
+            sentence = [subject_text, "гордится", "своей", "работой"]
+            result = self.handler.apply(tokens, sentence, 2, set())
+            assert result is not None, subject_lemma
+            assert result.corrupted == expected, subject_lemma
+
+    def test_apply_invariable_third_person(self):
+        """3rd-person subjects (pronoun or noun) map to invariable его/её/их."""
+        cases = [
+            (
+                "Он",
+                "он",
+                "PRON",
+                {"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                "его",
+            ),
+            (
+                "Она",
+                "она",
+                "PRON",
+                {"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                "её",
+            ),
+            ("Они", "они", "PRON", {"Case": "Nom", "Number": "Plur"}, "их"),
+            (
+                "Мальчик",
+                "мальчик",
+                "NOUN",
+                {"Case": "Nom", "Gender": "Masc", "Number": "Sing", "Animacy": "Anim"},
+                "его",
+            ),
+            (
+                "Девочки",
+                "девочка",
+                "NOUN",
+                {"Case": "Nom", "Gender": "Fem", "Number": "Plur", "Animacy": "Anim"},
+                "их",
+            ),
+        ]
+        for subject_text, subject_lemma, pos, feats, expected in cases:
+            tokens = self._svoy_tokens(subject_text, subject_lemma, pos, feats)
+            sentence = [subject_text, "гордится", "своей", "работой"]
+            result = self.handler.apply(tokens, sentence, 2, set())
+            assert result is not None, subject_lemma
+            assert result.corrupted == expected, subject_lemma
+            # Invariable forms never inflect, regardless of свой's own case.
+            assert sentence[2] == expected
+
+    def test_idiom_head_noun_skipped(self):
+        """'не в своей тарелке' -- свой is lexicalized, not a referential slot."""
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="не", lemma="не", pos="PART", features={}, idx=1, head_idx=2
+            ),
+            AnalyzedToken(
+                text="в",
+                lemma="в",
+                pos="ADP",
+                features={},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="своей",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Loc", "Gender": "Fem", "Number": "Sing"},
+                idx=3,
+                dep_rel="det",
+                head_idx=4,
+            ),
+            AnalyzedToken(
+                text="тарелке",
+                lemma="тарелка",
+                pos="NOUN",
+                features={"Case": "Loc", "Gender": "Fem", "Number": "Sing"},
+                idx=4,
+                dep_rel="obl",
+                head_idx=2,
+            ),
+        ]
+        sentence = ["Он", "не", "в", "своей", "тарелке"]
+        assert self.handler.can_apply(tokens, 3) is False
+        result = self.handler.apply(tokens, sentence, 3, set())
+        assert result is None
+        assert sentence[3] == "своей"
+
+    def test_degenerate_subject_is_own_head_skipped(self):
+        """'Свой дом лучше.' -- свой modifies the subject itself: no distinct
+        referent to borrow person/number from, so the handler must skip."""
+        tokens = [
+            AnalyzedToken(
+                text="Свой",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=0,
+                dep_rel="det",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="дом",
+                lemma="дом",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Masc", "Number": "Sing"},
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="лучше",
+                lemma="хороший",
+                pos="ADJ",
+                features={},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+            ),
+        ]
+        sentence = ["Свой", "дом", "лучше"]
+        assert self.handler.can_apply(tokens, 0) is False
+        result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is None
+        assert sentence[0] == "Свой"
+
+    def test_no_dep_info_fallback_to_first_second_person(self):
+        """Without depparse, fall back to the nearest preceding я/ты/мы/вы."""
+        tokens = [
+            AnalyzedToken(
+                text="Я", lemma="я", pos="PRON", features={"Person": "1"}, idx=0
+            ),
+            AnalyzedToken(text="читаю", lemma="читать", pos="VERB", features={}, idx=1),
+            AnalyzedToken(
+                text="свою",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                idx=2,
+            ),
+            AnalyzedToken(text="книгу", lemma="книга", pos="NOUN", features={}, idx=3),
+        ]
+        sentence = ["Я", "читаю", "свою", "книгу"]
+        assert self.handler.can_apply(tokens, 2) is True
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.corrupted == "мою"
+
+    def test_no_dep_info_third_person_not_guessed(self):
+        """Without depparse, a 3rd-person antecedent is too ambiguous to
+        guess by scanning -- only 1st/2nd person get the no-parse fallback."""
+        tokens = [
+            AnalyzedToken(
+                text="Мальчик", lemma="мальчик", pos="NOUN", features={}, idx=0
+            ),
+            AnalyzedToken(text="нашёл", lemma="найти", pos="VERB", features={}, idx=1),
+            AnalyzedToken(
+                text="свою",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                idx=2,
+            ),
+            AnalyzedToken(text="книгу", lemma="книга", pos="NOUN", features={}, idx=3),
+        ]
+        sentence = ["Мальчик", "нашёл", "свою", "книгу"]
+        assert self.handler.can_apply(tokens, 2) is False
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is None
+        assert sentence[2] == "свою"
+
+    def test_clause_boundary_not_crossed_for_control_verb(self):
+        """'Мама попросила Петю привести своего друга.' -- своего attaches
+        inside the xcomp infinitive controlled by Петя (object control), not
+        by the matrix subject Мама. Climbing past the xcomp boundary without
+        a local nsubj would wrongly resolve to Мама; the handler must skip
+        instead of guessing.
+        """
+        tokens = [
+            AnalyzedToken(
+                text="Мама",
+                lemma="мама",
+                pos="NOUN",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="попросила",
+                lemma="попросить",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="Петю",
+                lemma="Петя",
+                pos="PROPN",
+                features={"Case": "Acc"},
+                idx=2,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="привести",
+                lemma="привести",
+                pos="VERB",
+                features={"VerbForm": "Inf"},
+                idx=3,
+                dep_rel="xcomp",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="своего",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Acc", "Gender": "Masc", "Number": "Sing"},
+                idx=4,
+                dep_rel="det",
+                head_idx=5,
+            ),
+            AnalyzedToken(
+                text="друга",
+                lemma="друг",
+                pos="NOUN",
+                features={
+                    "Animacy": "Anim",
+                    "Case": "Acc",
+                    "Gender": "Masc",
+                    "Number": "Sing",
+                },
+                idx=5,
+                dep_rel="obj",
+                head_idx=3,
+            ),
+        ]
+        sentence = ["Мама", "попросила", "Петю", "привести", "своего", "друга"]
+        assert self.handler.can_apply(tokens, 4) is False
+        result = self.handler.apply(tokens, sentence, 4, set())
+        assert result is None
+        assert sentence[4] == "своего"
+
+    def test_replacement_token_tag_consistent(self):
+        """Single $REPLACE, one token in, one token out."""
+        tokens = [
+            AnalyzedToken(
+                text="Я",
+                lemma="я",
+                pos="PRON",
+                features={"Case": "Nom", "Number": "Sing", "Person": "1"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="люблю",
+                lemma="любить",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="свою",
+                lemma="свой",
+                pos="DET",
+                features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                idx=2,
+                dep_rel="det",
+                head_idx=3,
+            ),
+            AnalyzedToken(
+                text="работу",
+                lemma="работа",
+                pos="NOUN",
+                features={"Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+                idx=3,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+        ]
+        sentence = ["Я", "люблю", "свою", "работу"]
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.fix_tag == "$REPLACE_свою"
+        assert result.start_idx == 2
+        assert result.end_idx == 3
+        assert len(" ".join(sentence).split()) == len(sentence)
+
+
+class TestPronounSebyaErrorHandler:
+    handler = PronounSebyaErrorHandler()
+
+    def test_implements_protocol(self):
+        """Test PronounSebyaErrorHandler implements protocol."""
+        assert hasattr(self.handler, "name")
+        assert hasattr(self.handler, "subtypes")
+        assert hasattr(self.handler, "category")
+        assert hasattr(self.handler, "changes_length")
+        assert hasattr(self.handler, "can_apply")
+        assert hasattr(self.handler, "apply")
+        assert self.handler.name == "pronoun_sebya"
+        assert self.handler.subtypes == ["pronoun_sebya"]
+        assert self.handler.category == "OTHER"
+        assert self.handler.changes_length is False
+
+    def test_can_apply_requires_sebya_lemma(self):
+        """Only себя (PRON) is a corruption source."""
+        tokens = [
+            AnalyzedToken(
+                text="Она",
+                lemma="она",
+                pos="PRON",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="довольна",
+                lemma="довольный",
+                pos="ADJ",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="собой",
+                lemma="себя",
+                pos="PRON",
+                features={"Case": "Ins", "PronType": "Prs", "Reflex": "Yes"},
+                idx=2,
+                dep_rel="iobj",
+                head_idx=1,
+            ),
+        ]
+        assert self.handler.can_apply(tokens, 0) is False  # она
+        assert self.handler.can_apply(tokens, 1) is False  # довольна
+        assert self.handler.can_apply(tokens, 2) is True  # собой
+
+    def test_apply_reflexive_to_personal_pronoun(self):
+        """'Она довольна собой.' -> 'Она довольна ей.' (Rozental §168)."""
+        tokens = [
+            AnalyzedToken(
+                text="Она",
+                lemma="она",
+                pos="PRON",
+                features={"Case": "Nom", "Gender": "Fem", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="довольна",
+                lemma="довольный",
+                pos="ADJ",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="собой",
+                lemma="себя",
+                pos="PRON",
+                features={"Case": "Ins", "PronType": "Prs", "Reflex": "Yes"},
+                idx=2,
+                dep_rel="iobj",
+                head_idx=1,
+            ),
+        ]
+        sentence = ["Она", "довольна", "собой"]
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.corrupted == "ей"
+        assert result.fix_tag == "$REPLACE_собой"
+        assert sentence[2] == "ей"
+
+    def _sebya_tokens(
+        self, subject_text, subject_lemma, subject_pos, subject_feats, case
+    ):
+        """Build 'X купил <sebya-form> квартиру' with X as the nsubj of купил."""
+        surface = {"Acc": "себя", "Gen": "себя", "Dat": "себе", "Ins": "собой"}[case]
+        return [
+            AnalyzedToken(
+                text=subject_text,
+                lemma=subject_lemma,
+                pos=subject_pos,
+                features=subject_feats,
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="купил",
+                lemma="купить",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text=surface,
+                lemma="себя",
+                pos="PRON",
+                features={"Case": case, "PronType": "Prs", "Reflex": "Yes"},
+                idx=2,
+                dep_rel="iobj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="квартиру",
+                lemma="квартира",
+                pos="NOUN",
+                features={"Case": "Acc"},
+                idx=3,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+        ], surface
+
+    def test_apply_all_persons_and_cases(self):
+        """Subject person/number/gender maps to the matching personal
+        pronoun, inflected to себя's own case."""
+        cases = [
+            ("Я", "я", "PRON", {"Person": "1", "Number": "Sing"}, "Acc", "меня"),
+            ("Ты", "ты", "PRON", {"Person": "2", "Number": "Sing"}, "Dat", "тебе"),
+            ("Мы", "мы", "PRON", {"Person": "1", "Number": "Plur"}, "Ins", "нами"),
+            ("Вы", "вы", "PRON", {"Person": "2", "Number": "Plur"}, "Acc", "вас"),
+            ("Он", "он", "PRON", {"Gender": "Masc", "Number": "Sing"}, "Dat", "ему"),
+            ("Они", "они", "PRON", {"Number": "Plur"}, "Ins", "ими"),
+            (
+                "Мальчик",
+                "мальчик",
+                "NOUN",
+                {"Gender": "Masc", "Number": "Sing", "Animacy": "Anim"},
+                "Acc",
+                "его",
+            ),
+            (
+                "Девочка",
+                "девочка",
+                "NOUN",
+                {"Gender": "Fem", "Number": "Sing", "Animacy": "Anim"},
+                "Dat",
+                "ей",
+            ),
+        ]
+        for subject_text, subject_lemma, pos, feats, case, expected in cases:
+            tokens, surface = self._sebya_tokens(
+                subject_text, subject_lemma, pos, feats, case
+            )
+            sentence = [subject_text, "купил", surface, "квартиру"]
+            result = self.handler.apply(tokens, sentence, 2, set())
+            assert result is not None, subject_lemma
+            assert result.corrupted == expected, (subject_lemma, case)
+
+    def test_set_phrase_helper(self):
+        """Direct check of the neighbor-lemma idiom gate."""
+
+        def tok(lemma):
+            return AnalyzedToken(text=lemma, lemma=lemma, pos="X", features={}, idx=0)
+
+        # так себе
+        assert _is_sebya_set_phrase([tok("так"), tok("себя")], 1) is True
+        # само собой
+        assert _is_sebya_set_phrase([tok("сам"), tok("себя")], 1) is True
+        # сам по себе
+        assert _is_sebya_set_phrase([tok("сам"), tok("по"), tok("себя")], 2) is True
+        # между собой
+        assert _is_sebya_set_phrase([tok("между"), tok("себя")], 1) is True
+        # прийти в себя
+        assert _is_sebya_set_phrase([tok("прийти"), tok("в"), tok("себя")], 2) is True
+        # ordinary usage is not flagged
+        assert _is_sebya_set_phrase([tok("он"), tok("любит"), tok("себя")], 2) is False
+
+    def test_set_phrase_skipped_end_to_end(self):
+        """'Они гуляли между собой полдня.' -- собой is part of the fixed
+        reciprocal idiom, not a referential slot, even though the subject
+        (они) would otherwise be resolvable via the dep tree."""
+        tokens = [
+            AnalyzedToken(
+                text="Они",
+                lemma="они",
+                pos="PRON",
+                features={"Number": "Plur"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="гуляли",
+                lemma="гулять",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="между",
+                lemma="между",
+                pos="ADP",
+                features={},
+                idx=2,
+                dep_rel="case",
+                head_idx=3,
+            ),
+            AnalyzedToken(
+                text="собой",
+                lemma="себя",
+                pos="PRON",
+                features={"Case": "Ins", "PronType": "Prs", "Reflex": "Yes"},
+                idx=3,
+                dep_rel="obl",
+                head_idx=1,
+            ),
+        ]
+        sentence = ["Они", "гуляли", "между", "собой"]
+        assert self.handler.can_apply(tokens, 3) is False
+        result = self.handler.apply(tokens, sentence, 3, set())
+        assert result is None
+        assert sentence[3] == "собой"
+
+    def test_no_subject_skipped_without_dep_info(self):
+        """Without depparse, only a *clause-initial* pronoun counts as the
+        subject; a non-pronoun sentence-initial noun is not enough."""
+        tokens = [
+            AnalyzedToken(
+                text="Мальчик", lemma="мальчик", pos="NOUN", features={}, idx=0
+            ),
+            AnalyzedToken(text="любит", lemma="любить", pos="VERB", features={}, idx=1),
+            AnalyzedToken(
+                text="себя",
+                lemma="себя",
+                pos="PRON",
+                features={"Case": "Acc", "PronType": "Prs", "Reflex": "Yes"},
+                idx=2,
+            ),
+        ]
+        sentence = ["Мальчик", "любит", "себя"]
+        assert self.handler.can_apply(tokens, 2) is False
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is None
+        assert sentence[2] == "себя"
+
+    def test_no_dep_info_clause_initial_fallback(self):
+        """Without depparse, a clause-initial personal pronoun is used."""
+        tokens = [
+            AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
+            AnalyzedToken(text="любит", lemma="любить", pos="VERB", features={}, idx=1),
+            AnalyzedToken(
+                text="себя",
+                lemma="себя",
+                pos="PRON",
+                features={"Case": "Acc", "PronType": "Prs", "Reflex": "Yes"},
+                idx=2,
+            ),
+        ]
+        sentence = ["Он", "любит", "себя"]
+        assert self.handler.can_apply(tokens, 2) is True
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.corrupted == "его"
+
+    def test_replacement_token_tag_consistent(self):
+        """Single $REPLACE, one token in, one token out."""
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={"Gender": "Masc", "Number": "Sing"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="взял",
+                lemma="брать",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="себе",
+                lemma="себя",
+                pos="PRON",
+                features={"Case": "Dat", "PronType": "Prs", "Reflex": "Yes"},
+                idx=2,
+                dep_rel="iobj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="выходной",
+                lemma="выходной",
+                pos="NOUN",
+                features={"Case": "Acc"},
+                idx=3,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+        ]
+        sentence = ["Он", "взял", "себе", "выходной"]
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert result.fix_tag == "$REPLACE_себе"
+        assert result.start_idx == 2
+        assert result.end_idx == 3
+        assert len(" ".join(sentence).split()) == len(sentence)

@@ -958,6 +958,36 @@ mappings:
     l2_tag: gv_prep_choice
   conjunction:
     primary: sy_construction
+  pronoun_svoy:
+    primary: mo_pronoun
+    l2_tag: mo_pronoun_svoy
+  pronoun_sebya:
+    primary: mo_pronoun
+    l2_tag: mo_pronoun_sebya
+  noun_case_gen_partitive:
+    primary: mo_noun_case
+    l2_tag: mo_noun_case_gen_a_u
+  noun_case_instr_pl:
+    primary: mo_noun_case
+    l2_tag: mo_noun_case_instr
+  noun_number_gen_pl:
+    primary: mo_noun_number
+    l2_tag: mo_noun_num_gen_pl
+  neg_genitive:
+    primary: gv_government
+    l2_tag: gv_neg_genitive
+  root_vowel_after_sibilant:
+    primary: sp_root
+    l2_tag: sp_root_vowel_after
+  adj_ending_vowel:
+    primary: sp_pos
+    l2_tag: sp_adj_endings
+  root_alternating:
+    primary: sp_root
+    l2_tag: sp_root_alternating
+  root_unchecked:
+    primary: sp_root
+    l2_tag: sp_root_unchecked
   word_insertion:
     primary: lx_structural
     modifier: Extra

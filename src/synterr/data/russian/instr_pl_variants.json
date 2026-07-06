@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "description": "Third-declension feminine nouns with a competing instrumental-plural form: neutral -ями vs stylistically marked -(ь)ми (Rozental §155). Default direction corrupts the neutral -ями form into the marked -ьми form (дверями -> дверьми). 'кость' is idiom_reversed: -ьми is itself the norm inside the fixed idiom 'лечь костьми', so there the corruption goes the other way (-ьми -> -ями) when one of idiom_triggers immediately precedes the noun; outside that context 'кость' follows the default direction (-ями -> -ьми).",
+    "source": "manual curation; Rozental grammar tradition (§155 instrumental plural variants)",
+    "rozental_paragraph": "155",
+    "version": "1.0"
+  },
+  "lexemes": {
+    "дверь": {
+      "norm": "дверями",
+      "marked": "дверьми"
+    },
+    "лошадь": {
+      "norm": "лошадями",
+      "marked": "лошадьми"
+    },
+    "дочь": {
+      "norm": "дочерями",
+      "marked": "дочерьми"
+    },
+    "плеть": {
+      "norm": "плетями",
+      "marked": "плетьми"
+    },
+    "кость": {
+      "norm": "костями",
+      "marked": "костьми",
+      "idiom_reversed": true,
+      "idiom_triggers": ["лечь", "полечь", "ложиться"]
+    }
+  }
+}

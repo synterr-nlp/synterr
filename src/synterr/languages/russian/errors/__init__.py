@@ -26,6 +26,8 @@ def get_all_handlers() -> list[ErrorHandler]:
         ConjunctionErrorHandler,
         ParonymErrorHandler,
         PrepositionErrorHandler,
+        PronounSebyaErrorHandler,
+        PronounSvoyErrorHandler,
     )
     from synterr.languages.russian.errors.morphological import (
         AdjCaseErrorHandler,
@@ -33,9 +35,13 @@ def get_all_handlers() -> list[ErrorHandler]:
         AdjGenderErrorHandler,
         AdjNumberErrorHandler,
         DoubleComparativeHandler,
+        NegGenitiveErrorHandler,
         NounCaseErrorHandler,
+        NounCaseGenPartitiveHandler,
+        NounCaseInstrPlHandler,
         NounCasePrepErrorHandler,
         NounNumberErrorHandler,
+        NounNumberGenPlHandler,
         NumeralDeclensionHandler,
         VerbPersonNumberErrorHandler,
         VerbTenseErrorHandler,
@@ -69,7 +75,11 @@ def get_all_handlers() -> list[ErrorHandler]:
         # Morphological - Nouns
         NounCaseErrorHandler(),
         NounCasePrepErrorHandler(),
+        NounCaseGenPartitiveHandler(),
+        NounCaseInstrPlHandler(),
         NounNumberErrorHandler(),
+        NounNumberGenPlHandler(),
+        NegGenitiveErrorHandler(),
         # Morphological - Adjectives
         AdjCaseErrorHandler(),
         AdjNumberErrorHandler(),
@@ -85,6 +95,8 @@ def get_all_handlers() -> list[ErrorHandler]:
         ParonymErrorHandler(),
         PrepositionErrorHandler(),
         ConjunctionErrorHandler(),
+        PronounSvoyErrorHandler(),
+        PronounSebyaErrorHandler(),
         # Semantics
         PleonasmHandler(),
         CollocationHandler(),

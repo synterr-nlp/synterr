@@ -90,6 +90,8 @@ subtype_weights:
     cluster: 0
     double_consonant: 0
     keyboard: 0
+    root_alternating: 0   # §3 — not a LoRuGEC rule
+    root_unchecked: 0     # §2 — not a LoRuGEC rule
 
   function_spelling:
     ne_attachment: 25     # не+сущ, не+прил, не+прич, не+глаг (4 rules)
@@ -116,6 +118,9 @@ subtype_weights:
     vowel_after_ts: 10
     vowel_after_sibilant: 10
     nn_suffix: 10
+    # New root/ending subtypes are NOT LoRuGEC rules — zero explicitly
+    root_vowel_after_sibilant: 0  # §5 п.3 roots
+    adj_ending_vowel: 0           # -ем/-им adjective endings
 
   compound_spelling:
     num_dash: 33

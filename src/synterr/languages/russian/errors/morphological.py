@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import random as random_module
+from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
@@ -16,6 +19,7 @@ from synterr.languages.russian.inflector import (
     UD_TO_PYMORPHY_PERSON,
     UD_TO_PYMORPHY_TENSE,
     inflect_word,
+    match_capitalization,
     sample_confused_grammeme,
 )
 
@@ -73,6 +77,40 @@ def _find_dependent(
         if token.head_idx == head_idx and token.dep_rel == dep_rel:
             return token
     return None
+
+
+# Small hand-curated lexicons for §150/§154/§155 handlers, bundled under
+# synterr/data/russian/ alongside the other language resources (paronyms,
+# collocations, ...). Loaded lazily and cached: these files are tiny and
+# rarely change, so a process-lifetime cache is appropriate.
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "russian"
+
+
+def _load_json_resource(filename: str) -> dict:
+    """Load a bundled JSON data file, or {} if it is missing."""
+    path = _DATA_DIR / filename
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+@lru_cache(maxsize=1)
+def _gen_partitive_lexicon() -> frozenset[str]:
+    """Masculine mass nouns with a colloquial partitive genitive in -у/-ю."""
+    return frozenset(_load_json_resource("gen_partitive_nouns.json").get("nouns", []))
+
+
+@lru_cache(maxsize=1)
+def _instr_pl_lexicon() -> dict[str, dict]:
+    """Nouns with a norm/marked instrumental-plural variant (-ями vs -ьми)."""
+    return _load_json_resource("instr_pl_variants.json").get("lexemes", {})
+
+
+@lru_cache(maxsize=1)
+def _gen_pl_nonstandard_lexicon() -> dict[str, dict]:
+    """Nouns with a frequent nonstandard genitive-plural variant."""
+    return _load_json_resource("gen_pl_nonstandard.json").get("lexemes", {})
 
 
 class NounCaseErrorHandler:
@@ -1518,4 +1556,405 @@ class NumeralDeclensionHandler:
             original=word,
             corrupted=new_word,
             fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Genitive partitive -у/-ю error (история народа -> история народу, §150)
+# =============================================================================
+
+# Heads that license a genuine partitive/quantitative genitive: quantity
+# nouns/adverbs and verbs that take a partitive object. Corrupting the
+# standard -а/-я genitive to -у/-ю under one of these heads would land on an
+# accepted (if colloquial) variant rather than an error, so such contexts are
+# skipped — only the residual, non-partitive government contexts fire
+# ("история народа" -> "история народу").
+_PARTITIVE_QUANTITY_HEADS = {
+    "стакан",
+    "чашка",
+    "кружка",
+    "ложка",
+    "кусок",
+    "ломоть",
+    "литр",
+    "килограмм",
+    "грамм",
+    "банка",
+    "бутылка",
+    "пачка",
+    "горсть",
+    "щепотка",
+    "капля",
+    "глоток",
+    "немного",
+    "много",
+    "мало",
+    "немало",
+    "чуть",
+    "чуточка",
+    "сколько",
+    "столько",
+}
+_PARTITIVE_VERB_HEADS = {
+    "выпить",
+    "налить",
+    "добавить",
+    "насыпать",
+    "подсыпать",
+    "долить",
+    "плеснуть",
+    "хлебнуть",
+    "глотнуть",
+    "отведать",
+    "попробовать",
+}
+_PARTITIVE_CONTEXT_LEMMAS = _PARTITIVE_QUANTITY_HEADS | _PARTITIVE_VERB_HEADS
+
+
+class NounCaseGenPartitiveHandler:
+    """Corrupt the standard genitive -а/-я into the colloquial partitive -у/-ю.
+
+    A closed set of masculine mass nouns (чай, сахар, народ, ...) accepts a
+    colloquial partitive genitive in -у/-ю (Rozental §150) alongside the
+    standard -а/-я form. That variant is only licensed in a genuine partitive
+    context (a quantity head or a partitive-taking verb); everywhere else the
+    -у/-ю form reads as a case error.
+    """
+
+    name = "noun_case_gen_partitive"
+    subtypes = ["noun_case_gen_partitive"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "NOUN":
+            return False
+        if token.get_feature("Case") != "Gen" or token.get_feature("Number") != "Sing":
+            return False
+        if token.lemma.lower() not in _gen_partitive_lexicon():
+            return False
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return False
+        return not self._is_partitive_context(tokens, idx)
+
+    @staticmethod
+    def _is_partitive_context(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        """True when a quantity/partitive-verb head licenses the -у/-ю form."""
+        token = tokens[idx]
+        if token.head_idx is not None:
+            head = _get_token_safe(tokens, token.head_idx)
+            if head is None:
+                return False
+            head_lemma = (head.lemma or head.text or "").lower()
+            return head_lemma in _PARTITIVE_CONTEXT_LEMMAS
+        # No dep info: fall back to scanning the 1-2 preceding tokens (covers
+        # both an adjacent quantity noun and a verb separated by a dative
+        # reflexive, e.g. "налил себе чая").
+        for back in (1, 2):
+            prev = _get_token_safe(tokens, idx - back)
+            if prev is None:
+                break
+            prev_lemma = (prev.lemma or prev.text or "").lower()
+            if prev_lemma in _PARTITIVE_CONTEXT_LEMMAS:
+                return True
+        return False
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+        if self._is_partitive_context(tokens, idx):
+            return None
+
+        new_word = inflect_word(parse, {"gen2"}, word)
+        if not new_word or new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="noun_case_gen_partitive",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Instrumental plural -ями/-(ь)ми variant (дверями <-> дверьми, §155)
+# =============================================================================
+
+
+class NounCaseInstrPlHandler:
+    """Corrupt the instrumental-plural -ями/-(ь)ми variant (Rozental §155).
+
+    A small set of third-declension nouns (дверь, лошадь, дочь, плеть, кость)
+    alternate between a neutral -ями instrumental plural and a stylistically
+    marked -(ь)ми form. Substituting the marked form in neutral prose reads as
+    an error (дверями -> дверьми); for кость the polarity flips inside the
+    fixed idiom "лечь костьми", where -ьми is itself the norm and -ями is the
+    error — encoded per-lexeme via the ``idiom_reversed``/``idiom_triggers``
+    fields in the data file.
+    """
+
+    name = "noun_case_instr_pl"
+    subtypes = ["noun_case_instr_pl"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "NOUN":
+            return False
+        if token.get_feature("Case") != "Ins" or token.get_feature("Number") != "Plur":
+            return False
+        entry = _instr_pl_lexicon().get(token.lemma.lower())
+        if entry is None:
+            return False
+        return self._target_form(tokens, idx, entry) is not None
+
+    @staticmethod
+    def _target_form(
+        tokens: Sequence[AnalyzedToken], idx: int, entry: dict
+    ) -> str | None:
+        """Corrupted surface form for this token, or None if the token's
+        surface text does not match either known variant."""
+        word_lower = tokens[idx].text.lower()
+        norm, marked = entry["norm"], entry["marked"]
+        if entry.get("idiom_reversed"):
+            prev = _get_token_safe(tokens, idx - 1)
+            prev_lemma = (prev.lemma or prev.text or "").lower() if prev else ""
+            in_idiom = prev_lemma in entry.get("idiom_triggers", [])
+            if word_lower == marked and in_idiom:
+                return norm
+            if word_lower == norm and not in_idiom:
+                return marked
+            return None
+        if word_lower == norm:
+            return marked
+        return None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        entry = _instr_pl_lexicon().get(token.lemma.lower())
+        if entry is None:
+            return None
+        target = self._target_form(tokens, idx, entry)
+        if target is None:
+            return None
+
+        new_word = match_capitalization(word, target)
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="noun_case_instr_pl",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Genitive-plural nonstandard variant (пять апельсинов -> пять апельсин, §154)
+# =============================================================================
+
+
+class NounNumberGenPlHandler:
+    """Corrupt a genitive-plural noun to its frequent nonstandard variant.
+
+    Rozental §154 catalogs a closed confusion set of two competing patterns:
+    nouns that take -ов/-ев in the genitive plural but are frequently
+    zero-ended by analogy (апельсинов -> апельсин), and nouns that take a
+    zero ending but are frequently hypercorrected with -ов (мест -> местов,
+    чулок -> чулков) — the classic "пять носков, но пять чулок" confusion.
+    """
+
+    name = "noun_number_gen_pl"
+    subtypes = ["noun_number_gen_pl"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "NOUN":
+            return False
+        if token.get_feature("Case") != "Gen" or token.get_feature("Number") != "Plur":
+            return False
+        entry = _gen_pl_nonstandard_lexicon().get(token.lemma.lower())
+        if entry is None:
+            return False
+        return token.text.lower() == entry["norm"]
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        entry = _gen_pl_nonstandard_lexicon().get(token.lemma.lower())
+        if entry is None or word.lower() != entry["norm"]:
+            return None
+
+        new_word = match_capitalization(word, entry["error"])
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="noun_number_gen_pl",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Genitive vs accusative under negation (не читал книги / не читал книгу, §201)
+# =============================================================================
+
+_NEG_PARTICLE_TEXT = "не"
+
+
+def _has_neg_particle(tokens: Sequence[AnalyzedToken], head_idx: int) -> bool:
+    """True when the verb at head_idx has an overt «не» (PART, advmod) child."""
+    for t in tokens:
+        if (
+            t.head_idx == head_idx
+            and t.pos == "PART"
+            and (t.dep_rel or "") == "advmod"
+            and t.text.lower() == _NEG_PARTICLE_TEXT
+        ):
+            return True
+    return False
+
+
+def _neg_genitive_needs_animacy(token: AnalyzedToken) -> bool:
+    """Acc is animacy-ambiguous for masc singular and any plural target."""
+    number = token.get_feature("Number")
+    if number == "Plur":
+        return True
+    return number == "Sing" and token.get_feature("Gender") == "Masc"
+
+
+class NegGenitiveErrorHandler:
+    """Flip Acc<->Gen on the direct object of a negated verb (Rozental §201).
+
+    Under negation Russian allows both the genitive ("не читал книги") and
+    the accusative ("не читал книгу") for a transitive verb's direct object;
+    the choice is governed by aspect/definiteness factors a learner often
+    gets backwards. Requires dep info: without an ``obj`` arc whose head verb
+    has an overt «не» dependent there is no evidence a case flip is
+    recoverable as an error, so both ``can_apply`` and ``apply`` return
+    False/None when depparse is unavailable.
+    """
+
+    name = "neg_genitive"
+    subtypes = ["neg_genitive"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        parse = _get_pymorphy_parse(tokens[idx])
+        if parse is None:
+            return False
+        return self._target_grammemes(tokens, idx) is not None
+
+    @staticmethod
+    def _target_grammemes(
+        tokens: Sequence[AnalyzedToken], idx: int
+    ) -> tuple[str, set[str]] | None:
+        """(original_case_ud, target_grammemes) for a qualifying negated
+        direct object, or None if this token doesn't qualify."""
+        token = tokens[idx]
+        if token.pos != "NOUN":
+            return None
+        if token.dep_rel != "obj" or token.head_idx is None:
+            return None
+        head = _get_token_safe(tokens, token.head_idx)
+        if head is None or head.pos not in {"VERB", "AUX"}:
+            return None
+        if not _has_neg_particle(tokens, token.head_idx):
+            return None
+
+        case = token.get_feature("Case")
+        if case == "Acc":
+            return "Acc", {"gent"}
+        if case == "Gen":
+            if _neg_genitive_needs_animacy(token):
+                animacy = _animacy_grammeme(token, None)
+                if animacy is None:
+                    return None
+                return "Gen", {"accs", animacy}
+            return "Gen", {"accs"}
+        return None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+
+        found = self._target_grammemes(tokens, idx)
+        if found is None:
+            return None
+        original_case, grammemes = found
+
+        new_word = inflect_word(parse, grammemes, word)
+        if not new_word or new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="neg_genitive",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$TRANSFORM_CASE_{original_case}",
         )
