@@ -119,6 +119,40 @@ PAIR_DEPRELS = {
     "amod": "pair_participle",  # isolated adjectival/participial modifier
 }
 
+# Speech verbs heading «..., сообщает источник» attribution clauses. A short
+# trailing parataxis clause with such a head is a вводное предложение
+# (§99–100 parenthetical), not a §116 БСП clause.
+SPEECH_VERB_LEMMAS = frozenset(
+    {
+        "сообщать",
+        "сообщить",
+        "заявлять",
+        "заявить",
+        "отмечать",
+        "отметить",
+        "утверждать",
+        "передавать",
+        "передать",
+        "писать",
+        "написать",
+        "говорить",
+        "сказать",
+        "рассказывать",
+        "рассказать",
+        "уточнять",
+        "уточнить",
+        "добавлять",
+        "добавить",
+        "подчеркивать",
+        "подчеркнуть",
+        "пояснять",
+        "пояснить",
+        "объявлять",
+        "объявить",
+        "свидетельствовать",
+    }
+)
+
 
 def _get_head(
     tokens: Sequence[AnalyzedToken], tok: AnalyzedToken
@@ -149,6 +183,30 @@ def _is_clausal(tokens: Sequence[AnalyzedToken], tok: AnalyzedToken) -> bool:
     if _has_own_subject(tokens, tok.idx):
         return True
     return tok.dep_rel == "root"
+
+
+def _is_predicate_token(tok: AnalyzedToken) -> bool:
+    """A token that anchors a clause as its predicate: a finite verb/aux, or
+    a short participle («расположены», «убеждён») — the predicative forms."""
+    if tok.pos not in FINITE_POS:
+        return False
+    verb_form = tok.get_feature("VerbForm")
+    if verb_form in (None, "Fin"):
+        return True
+    return verb_form == "Part" and tok.get_feature("Variant") == "Short"
+
+
+def _segment_has_predicate(tokens: Sequence[AnalyzedToken], lo: int, hi: int) -> bool:
+    """Any predicate token in tokens[lo:hi]."""
+    return any(_is_predicate_token(t) for t in tokens[lo:hi])
+
+
+def _clause_start(tokens: Sequence[AnalyzedToken], idx: int) -> int:
+    """Index of the first token after the last , ; : before `idx` (else 0)."""
+    for i in range(idx - 1, -1, -1):
+        if tokens[i].pos == "PUNCT" and tokens[i].text in (",", ";", ":"):
+            return i + 1
+    return 0
 
 
 def _junction_has_conjunction(
@@ -182,12 +240,39 @@ def _is_asyndetic_parataxis(
         return False
     if _junction_has_conjunction(tokens, idx, comma_head):
         return False
+    # «..., сообщает газета» — a short trailing attribution clause headed by
+    # a speech verb is a вводное предложение (parenthetical), not БСП.
+    if comma_head.lemma in SPEECH_VERB_LEMMAS:
+        att_left, att_right = _get_subtree_span(tokens, comma_head.idx)
+        if att_right - att_left <= 5:
+            return False
     first_head = _get_head(tokens, comma_head)
     if first_head is None or not _is_clausal(tokens, first_head):
         return False
     span_left, span_right = _get_subtree_span(tokens, comma_head.idx)
     last_content = max((t.idx for t in tokens if t.pos != "PUNCT"), default=-1)
     return span_left == idx + 1 and span_right == last_content
+
+
+def _is_finite_relative_clause(
+    tokens: Sequence[AnalyzedToken], head: AnalyzedToken
+) -> bool:
+    """The acl/acl:relcl phrase headed by `head` is a finite relative or
+    complement clause (который/где/куда…, «утверждение, что…») — СПП, not a
+    participial оборот. A participial head never carries its own subject, a
+    relative pronoun, or a mark dependent."""
+    if head.get_feature("VerbForm") == "Fin":
+        return True
+    if _has_own_subject(tokens, head.idx):
+        return True
+    span_left, span_right = _get_subtree_span(tokens, head.idx)
+    for i in range(span_left, span_right + 1):
+        t = tokens[i]
+        if t.get_feature("PronType") == "Rel":
+            return True
+        if t.head_idx == head.idx and t.dep_rel == "mark":
+            return True
+    return False
 
 
 def _vocative_boundary(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
@@ -244,28 +329,38 @@ def _is_repetition_construction(
 
 def _find_comma_partner(
     tokens: Sequence[AnalyzedToken], idx: int
-) -> tuple[int | None, str] | None:
-    """Detect an isolation construction whose boundary comma is at `idx`.
+) -> tuple[int, str] | None:
+    """Detect a PAIRED isolation construction whose OPENING comma is at `idx`.
 
-    Returns (partner_idx_or_None, subtype) or None.
-
-    `partner_idx is None` indicates a sentence-boundary case: the
-    construction's phrase touches the sentence edge so only ONE comma exists
-    (e.g., "Высушенные, они..." has only a closing comma).
+    Returns (partner_idx, subtype) or None. Both commas must exist: a
+    sentence-edge phrase with a single comma («Высушенные, они...») belongs
+    to single-comma handlers (comma_delete:comma_isolation), so this
+    handler always deletes exactly two commas.
 
     Approach: iterate over every token whose dep_rel is in PAIR_DEPRELS,
-    compute its non-punct subtree span, and check whether `idx` is one of
-    the phrase's boundary commas (immediately left or right of the span).
-    This is robust to stanza's habit of attaching opening and closing
-    commas of a pair to different heads in complex sentences.
-
-    Triggers only at the LEFTMOST boundary comma of the construction.
+    compute its non-punct subtree span, and check whether `idx` is the
+    phrase's opening boundary comma (immediately left of the span). This is
+    robust to stanza's habit of attaching opening and closing commas of a
+    pair to different heads in complex sentences.
     """
     comma = tokens[idx]
     if comma.text != "," or comma.pos != "PUNCT":
         return None
 
     n = len(tokens)
+
+    # «после того, как…» / «до тех пор, пока…»: the comma splits a compound
+    # subordinating conjunction — a §108 junction, never a paired isolation.
+    right = tokens[idx + 1] if idx + 1 < n else None
+    left = tokens[idx - 1] if idx > 0 else None
+    if (
+        right is not None
+        and left is not None
+        and (right.lemma or right.text).lower() in ("как", "пока", "чтобы", "что")
+        and (left.lemma or left.text).lower()
+        in ("тот", "то", "тем", "того", "этот", "это", "весь")
+    ):
+        return None
 
     # Collect every PAIR_DEPRELS head whose boundary comma touches `idx`, then
     # prefer the largest enclosing span and demote bare `amod`. A leading
@@ -280,8 +375,31 @@ def _find_comma_partner(
         # Full subord clauses (VerbForm=Fin) belong to single comma_delete.
         if head.dep_rel == "advcl" and head.get_feature("VerbForm") != "Conv":
             continue
+        # acl/acl:relcl parsed pairs that are finite clauses go to
+        # pair_relative via acl:relcl; a finite clause behind bare `acl`
+        # («утверждение, что…») is a complement clause, not an оборот.
+        if head.dep_rel == "acl" and _is_finite_relative_clause(tokens, head):
+            continue
 
         span_left, span_right = _get_subtree_span(tokens, head.idx)
+
+        # «..., что должно сказаться...» — a parataxis clause opened by
+        # «что» is a присоединительное придаточное (§110), not a
+        # parenthetical pair.
+        if head.dep_rel == "parataxis":
+            first_tok = next(
+                (
+                    tokens[i]
+                    for i in range(span_left, span_right + 1)
+                    if tokens[i].pos != "PUNCT"
+                ),
+                None,
+            )
+            if (
+                first_tok is not None
+                and (first_tok.lemma or first_tok.text).lower() == "что"
+            ):
+                continue
 
         left_comma_idx: int | None = None
         if span_left > 0:
@@ -309,32 +427,24 @@ def _find_comma_partner(
                 continue
 
         subtype = PAIR_DEPRELS[head.dep_rel]
+        # A "participle" span actually anchored by a gerund («Будучи убеждён
+        # в том, ...») is a деепричастный оборот.
+        if subtype == "pair_participle" and any(
+            tokens[i].get_feature("VerbForm") == "Conv"
+            for i in range(span_left, span_right + 1)
+        ):
+            subtype = "pair_gerund"
         span_size = span_right - span_left
 
-        if left_comma_idx is not None and idx == left_comma_idx:
-            if right_comma_idx is None:
-                # Closing comma unconfirmed. Legitimate only when the phrase
-                # truly runs to the sentence end with no comma left of the
-                # final punctuation ("Он шёл, напевая песню."). When the
-                # parser absorbed trailing material into the subtree ("Он
-                # шёл, напевая песню, по улице." — "по улице" attached to
-                # the gerund), a stray comma remains inside the span and a
-                # single-comma deletion would orphan it → skip.
-                last_content = max(
-                    (t.idx for t in tokens if t.pos != "PUNCT"), default=-1
-                )
-                stray_comma = any(
-                    t.text == "," and t.pos == "PUNCT" and t.idx > idx for t in tokens
-                )
-                if span_right < last_content or stray_comma:
-                    continue
-            candidates.append((span_size, right_comma_idx, subtype, is_amod))
-        elif (
-            left_comma_idx is None
+        # Both boundary commas must exist — sentence-edge single-comma
+        # isolations belong to comma_delete, and deleting one comma under a
+        # pair label breaks the handler's contract.
+        if (
+            left_comma_idx is not None
             and right_comma_idx is not None
-            and idx == right_comma_idx
+            and idx == left_comma_idx
         ):
-            candidates.append((span_size, None, subtype, is_amod))
+            candidates.append((span_size, right_comma_idx, subtype, is_amod))
 
     if not candidates:
         return None
@@ -430,6 +540,31 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
                 and comma_head.get_feature("VerbForm") != "Conv"
             ):
                 return "comma_subordinate"
+            # Finite relative/complement clauses parsed as acl/acl:relcl are
+            # СПП (§107–110), not обособление.
+            if comma_head.dep_rel in (
+                "acl",
+                "acl:relcl",
+            ) and _is_finite_relative_clause(tokens, comma_head):
+                return "comma_subordinate"
+            return "comma_isolation"
+
+        # Приложение (§93): the comma bounds an appos-headed phrase —
+        # обособление, not a homogeneous list («с Уго Чавесом, президентом
+        # Венесуэлы»).
+        if comma_head.dep_rel == "appos":
+            return "comma_isolation"
+
+        # Postposed attributive phrase («источников, близких к ТВЦ») —
+        # обособленное определение: an amod adjective whose head noun
+        # precedes the comma.
+        if (
+            right is not None
+            and right.pos == "ADJ"
+            and right.dep_rel == "amod"
+            and right.head_idx is not None
+            and right.head_idx < idx
+        ):
             return "comma_isolation"
 
         # Subordinate/compound/asyndetic: comma's head is a conj node.
@@ -541,7 +676,14 @@ def _is_connective_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     right = tokens[idx + 1] if idx + 1 < len(tokens) else None
     if left is None or right is None:
         return False
-    return left.pos == right.pos and left.pos in ("PROPN", "NUM")
+    if left.pos != right.pos or left.pos not in ("PROPN", "NUM"):
+        return False
+    # «столица Исландии — Рейкьявик» is an apposition to the NP head, not a
+    # §82 route: a genitive left endpoint disqualifies the route reading
+    # («Голицыно — Звенигород» stays connective).
+    if left.pos == "PROPN" and left.get_feature("Case") == "Gen":
+        return False
+    return True
 
 
 def _has_parallel_pron_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
@@ -586,11 +728,11 @@ def _is_esto_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     )
     if not left_is_subject:
         return False
-    # No finite verb left of the dash → the left side is a subject NP,
-    # not a first clause of a БСП.
-    for t in tokens:
-        if t.idx >= idx:
-            break
+    # No finite verb in the dash's own clause left of the dash → the left
+    # side is a subject NP, not a first clause of a БСП. Scan from the last
+    # clause boundary, not the sentence start: «..., ведь любовь — это не
+    # преступление» has finite verbs only in earlier clauses.
+    for t in tokens[_clause_start(tokens, idx) : idx]:
         if t.pos in FINITE_POS and t.get_feature("VerbForm") not in (
             "Part",
             "Conv",
@@ -707,16 +849,35 @@ def _is_optional_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bo
 
 def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     """Classify a dash by context. Returns subtype name, or None when the
-    dash is optional/authorial (§79 exceptions) so deletion is a non-error."""
+    dash is not a §79–96 punctuation-rule dash (ranges, direct speech,
+    authorial/intonational dashes) so deletion must not be generated."""
     n = len(tokens)
     left = tokens[idx - 1] if idx > 0 else None
     right = tokens[idx + 1] if idx + 1 < n else None
 
-    # §82 connective dash — must run before the apposition check because
+    # Attribution dash of direct speech («..., — сказала Майя») and edge
+    # dashes: a dash directly preceded by punctuation is quotation plumbing,
+    # not a clause dash.
+    if left is None or right is None or left.pos == "PUNCT":
+        return None
+
+    # §82 connective dash — ranges and routes (2004 — 2005, Голицыно —
+    # Звенигород). Deleting it is a typography change, not a §79–96
+    # punctuation error: skip. Must run before the apposition check because
     # stanza tags "Казань" as appos of "Москва" in "поезд Москва — Казань".
-    # dash_other maps to pu_dash_other (§81–82), the correct attribution.
     if _is_connective_dash(tokens, idx):
-        return "dash_other"
+        return None
+
+    # Clarifying numeric range after the dash («понизить — с 250 метров до
+    # 150», «вверх — до 35,75 — 42,75 рубля») — уточнение, not a clause
+    # dash; likewise the closing dash of such a range («за семь часов —
+    # с 07.00 до 14.00 — выпала...»).
+    if right.pos == "ADP" and any(t.pos == "NUM" for t in tokens[idx + 1 : idx + 5]):
+        return None
+    if left.pos == "NUM" and any(
+        t.pos == "PUNCT" and t.text in DASH_CHARS for t in tokens[:idx]
+    ):
+        return None
 
     # §79 это/вот predicate connector («Мир — это счастье») — the canonical
     # obligatory subj-pred dash. Must run before the surface-pattern checks:
@@ -747,10 +908,41 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     if _is_optional_subj_pred_dash(tokens, idx):
         return None
 
+    clause_lo = _clause_start(tokens, idx)
+    left_clause_pred = _segment_has_predicate(tokens, clause_lo, idx)
+    right_end = next(
+        (
+            t.idx
+            for t in tokens[idx + 1 :]
+            if t.pos == "PUNCT" and (t.text == "," or t.text in DASH_CHARS)
+        ),
+        n,
+    )
+    right_main_pred = _segment_has_predicate(tokens, idx + 1, right_end)
+    right_any_pred = _segment_has_predicate(tokens, idx + 1, n)
+    left_any_pred = _segment_has_predicate(tokens, 0, idx)
+
+    # §80 тире в неполном предложении: the dash's own clause is verbless on
+    # both sides, but an earlier parallel clause has a predicate («…могут
+    # отдыхать 35 суток, а обычные госслужащие — 30 суток»). A clause
+    # opened by a subordinator is СПП («…, что пострадавший — безработный»),
+    # not an ellipsis.
+    if (
+        clause_lo > 0
+        and not left_clause_pred
+        and not right_any_pred
+        and _segment_has_predicate(tokens, 0, clause_lo - 1)
+    ):
+        first = next((t for t in tokens[clause_lo:idx] if t.pos != "PUNCT"), None)
+        if first is None or not (first.pos == "SCONJ" or first.dep_rel == "mark"):
+            return "dash_ellipsis"
+
     # Subject–predicate dash, restricted to the §79 obligatory
     # configurations: nominal — nominal/NUM (an amod/det right neighbor is
-    # resolved to its NP head), and Inf — Inf.
-    if left and right:
+    # resolved to its NP head), and Inf — Inf. The §79 dash replaces a
+    # copula, so neither side of it may already have a predicate («запускает
+    # этим летом — авиакомпанию…» is not subj—pred).
+    if not left_clause_pred and not right_main_pred:
         left_ok = left.pos in ("NOUN", "PRON", "PROPN")
         right_eff = right
         if right.pos in ("ADJ", "DET") and right.dep_rel in ("amod", "det"):
@@ -769,19 +961,15 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
         ):
             return "dash_subj_pred"
 
-    # Asyndetic dash: immediate neighbors are finite verbs or clause-final/initial
-    # Rozental §116-118: бессоюзное сложное предложение
-    # Heuristic: left neighbor is VERB (clause end) or right neighbor is VERB (clause start)
-    if left and right:
-        left_is_verb = left.pos in ("VERB", "AUX") and left.get_feature(
-            "VerbForm"
-        ) not in ("Part", "Conv", "Inf")
-        right_is_verb = right.pos in ("VERB", "AUX") and right.get_feature(
-            "VerbForm"
-        ) not in ("Part", "Conv", "Inf")
-        # At least one side is a finite verb — strong signal for asyndetic
-        if left_is_verb or right_is_verb:
-            return "dash_asyndetic"
+    # §116–118 БСП: full clauses (predicates) on both sides of the dash
+    # («Сергей поднял глаза — такой фразы он не слышал никогда»).
+    if left_any_pred and right_any_pred:
+        return "dash_asyndetic"
+
+    # Authorial/intonational dash right after a finite verb with no clause
+    # following («формируется — арендный план») — deletion is normative.
+    if _is_predicate_token(left) and not right_any_pred:
+        return None
 
     return "dash_other"
 
@@ -899,6 +1087,7 @@ class DashDeleteHandler:
         "dash_subj_pred",
         "dash_asyndetic",
         "dash_apposition",
+        "dash_ellipsis",
         "dash_other",
     ]
     category = "PUNCT"
@@ -910,6 +1099,7 @@ class DashDeleteHandler:
         "dash_subj_pred": 25,
         "dash_asyndetic": 25,
         "dash_apposition": 25,
+        "dash_ellipsis": 15,
         "dash_other": 25,
     }
 
@@ -1144,21 +1334,7 @@ class CommaPairDeleteHandler:
         if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
             return None
 
-        if partner_idx is None:
-            # Sentence-boundary single-comma case (phrase at sentence start
-            # has no opening comma; trigger comma here is the closing one).
-            del sentence[idx]
-            return ErrorResult(
-                error_type=subtype,
-                category=self.category,
-                start_idx=idx - 1,
-                end_idx=idx - 1,
-                original=",",
-                corrupted="",
-                fix_tag="$APPEND_,",
-            )
-
-        # Standard two-comma pair: delete partner first (higher index) to
+        # Two-comma pair: delete partner first (higher index) to
         # preserve `idx` while modifying the list.
         del sentence[partner_idx]
         del sentence[idx]

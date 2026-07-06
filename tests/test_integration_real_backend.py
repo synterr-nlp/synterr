@@ -55,7 +55,7 @@ PAIR_CASES = [
     ),
     (
         "comma_pair_delete:pair_participle",
-        "Высушенные, они становятся синеватыми и сладкими.",
+        "Книга, прочитанная им вчера, лежала на столе.",
         "pair_participle",
     ),
     (
@@ -71,8 +71,8 @@ def test_comma_pair_delete_fires_on_real_sentences(pipeline, error, text, expect
     fired, etype, corrupted = _apply(pipeline, error, text)
     assert fired, f"{error} did not fire on: {text}"
     assert etype == expected, f"expected {expected}, got {etype}"
-    # A pair delete must remove at least one comma
-    assert corrupted.count(",") < text.count(",")
+    # A pair delete always removes exactly two commas
+    assert corrupted.count(",") == text.count(",") - 2
 
 
 # ── Comma-delete subtype classification on real text ────────────────────────

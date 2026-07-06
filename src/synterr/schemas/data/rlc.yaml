@@ -419,6 +419,9 @@ mappings:
   dash_apposition:
     primary: Syntax
     modifier: Miss
+  dash_ellipsis:
+    primary: Syntax
+    modifier: Miss
   dash_other:
     primary: Syntax
     modifier: Miss

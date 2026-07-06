@@ -153,4 +153,5 @@ subtype_weights:
     dash_subj_pred: 25
     dash_asyndetic: 25
     dash_apposition: 25     # §93 тире при приложении (specific)
+    dash_ellipsis: 0        # §80 — not a LoRuGEC rule
     dash_other: 25

@@ -811,7 +811,7 @@ class TestDashDeleteHandler:
         assert self.handler.name == "dash_delete"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 4
+        assert len(self.handler.subtypes) == 5
 
     def test_can_apply_dash_only(self):
         tokens = [
@@ -882,12 +882,13 @@ class TestClassifyDash:
         ]
         assert _classify_dash(tokens, 1) == "dash_asyndetic"
 
-    def test_other_at_end(self):
+    def test_sentence_final_dash_skipped(self):
+        # A dash with nothing after it is not a clause dash — skip.
         tokens = [
             _tok("слово", "NOUN", idx=0),
             _tok("—", "PUNCT", idx=1),
         ]
-        assert _classify_dash(tokens, 1) == "dash_other"
+        assert _classify_dash(tokens, 1) is None
 
     def test_inf_inf_dash_subj_pred(self):
         # §79: both main members are infinitives → dash is obligatory.
@@ -1023,24 +1024,50 @@ class TestConnectiveDash:
             _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=5),
         ]
 
-    def test_propn_route_classifies_dash_other(self):
-        # dash_other maps to pu_dash_other (§81–82) — correct attribution.
-        assert _classify_dash(self._route_tokens(), 2) == "dash_other"
+    def test_propn_route_skipped(self):
+        # §82 connective dash: deleting it is a typography change, not a
+        # punctuation-rule error — skip entirely.
+        assert _classify_dash(self._route_tokens(), 2) is None
 
     def test_propn_route_excluded_from_dash_to_comma(self):
         handler = DashToCommaHandler()
         assert handler.can_apply(self._route_tokens(), 2) is False
 
-    def test_num_range_classifies_dash_other(self):
-        # "страницы 5 — 10" — §82 range, not subj_pred/apposition.
+    def test_num_range_skipped(self):
+        # "страницы 5 — 10" — §82 range: skipped, not corrupted.
         tokens = [
             _tok("страницы", "NOUN", idx=0, dep_rel="root", head_idx=None),
             _tok("5", "NUM", idx=1, dep_rel="nummod", head_idx=0),
             _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
             _tok("10", "NUM", idx=3, dep_rel="appos", head_idx=1),
         ]
-        assert _classify_dash(tokens, 2) == "dash_other"
+        assert _classify_dash(tokens, 2) is None
         assert DashToCommaHandler().can_apply(tokens, 2) is False
+
+    def test_genitive_propn_apposition_not_a_route(self):
+        # «столица Исландии — Рейкьявик»: the genitive left endpoint makes
+        # this an apposition to the NP head, not a §82 route.
+        tokens = [
+            _tok("столица", "NOUN", idx=0, dep_rel="root", head_idx=None),
+            _tok(
+                "Исландии",
+                "PROPN",
+                idx=1,
+                dep_rel="nmod",
+                head_idx=0,
+                features={"Case": "Gen"},
+            ),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "Рейкьявик",
+                "PROPN",
+                idx=3,
+                dep_rel="appos",
+                head_idx=0,
+                features={"Case": "Nom"},
+            ),
+        ]
+        assert _classify_dash(tokens, 2) == "dash_apposition"
 
 
 # ── CommaPairDeleteHandler ──────────────────────────────────────────────────
@@ -1166,12 +1193,13 @@ class TestFindCommaPair:
         ]
         assert _find_comma_partner(tokens, 1) is None
 
-    # ── Single-comma at sentence boundary (post-fix) ───────────────────────
+    # ── Single-comma at sentence boundary: NOT a pair ──────────────────────
 
-    def test_sentence_start_preposed_participle_single_comma(self):
+    def test_sentence_start_preposed_participle_not_a_pair(self):
         # "Высушенные, они становятся синеватыми." — preposed adj/participle
-        # at sentence start. Only ONE comma exists (the closing one); stanza
-        # tags isolated adjectives as amod.
+        # at sentence start has only ONE comma. Single-comma isolations
+        # belong to comma_delete:comma_isolation; the pair handler must
+        # always delete exactly two commas.
         tokens = [
             _tok("Высушенные", "ADJ", idx=0, dep_rel="amod", head_idx=2),
             _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
@@ -1179,8 +1207,7 @@ class TestFindCommaPair:
             _tok("становятся", "VERB", idx=3, dep_rel="root", head_idx=None),
             _tok("синеватыми", "ADJ", idx=4, dep_rel="obl", head_idx=3),
         ]
-        result = _find_comma_partner(tokens, 1)
-        assert result == (None, "pair_participle")
+        assert _find_comma_partner(tokens, 1) is None
 
     def test_amod_isolation_two_commas(self):
         # "Она, чистая, имеет вид." — postnominal isolated adj, two commas.
@@ -1296,9 +1323,9 @@ class TestFindCommaPair:
         tokens = self._absorbed_trailing_material_tokens()
         assert _find_comma_partner(tokens, 2) is None
 
-    def test_sentence_final_gerund_single_comma_still_fires(self):
-        # "Он шёл, напевая песню." — the phrase genuinely runs to the
-        # sentence end and no stray comma remains: single-comma deletion OK.
+    def test_sentence_final_gerund_single_comma_not_a_pair(self):
+        # "Он шёл, напевая песню." — only one comma exists, so this is a
+        # single-comma isolation for comma_delete, never a pair.
         tokens = [
             _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
             _tok("шёл", "VERB", idx=1, dep_rel="root", head_idx=None),
@@ -1314,7 +1341,9 @@ class TestFindCommaPair:
             _tok("песню", "NOUN", idx=4, dep_rel="obj", head_idx=3),
             _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=1),
         ]
-        assert _find_comma_partner(tokens, 2) == (None, "pair_gerund")
+        assert _find_comma_partner(tokens, 2) is None
+        # ...and _classify_comma still recognizes it as an isolation comma.
+        assert _classify_comma(tokens, 2) == "comma_isolation"
 
     def test_no_pair_no_boundary_commas(self):
         # Isolation head exists but has no commas adjacent to its span.
@@ -1846,3 +1875,299 @@ class TestRealStanzaCommaAuditFixes:
         )
         if result is not None:
             assert "," not in result.corrupted_tokens
+
+
+# ── Regressions from the 2026-07 native-annotation pass ─────────────────────
+# Fake-token reconstructions of mislabeled records from Artem's verification
+# (synterr-internal/docs/research/annotations/): each case below was flagged
+# wrong_tag/non_error at commit 7562674.
+
+
+class TestAnnotationRegressionsComma:
+    def test_finite_relative_clause_is_subordinate_not_isolation(self):
+        # «...с землёй, на которой он стоит, ...» — finite relative clause
+        # (own subject + relative pronoun) is СПП, not обособление.
+        tokens = [
+            _tok("землёй", "NOUN", idx=0, dep_rel="obl", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=5),
+            _tok("на", "ADP", idx=2, dep_rel="case", head_idx=3),
+            _tok(
+                "которой",
+                "PRON",
+                idx=3,
+                dep_rel="obl",
+                head_idx=5,
+                features={"PronType": "Rel"},
+            ),
+            _tok("он", "PRON", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "стоит",
+                "VERB",
+                idx=5,
+                dep_rel="acl:relcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_subordinate"
+
+    def test_acl_complement_clause_is_subordinate(self):
+        # «утверждение, что Ганеев заставлял...» — a mark-introduced finite
+        # complement clause behind bare acl is СПП.
+        tokens = [
+            _tok("утверждение", "NOUN", idx=0, dep_rel="obj", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=4),
+            _tok("что", "SCONJ", idx=2, dep_rel="mark", head_idx=4),
+            _tok("Ганеев", "PROPN", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok(
+                "заставлял",
+                "VERB",
+                idx=4,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_subordinate"
+
+    def test_participial_phrase_stays_isolation(self):
+        # «двигатели, вызвавшие критику» — bare participial оборот.
+        tokens = [
+            _tok("двигатели", "NOUN", idx=0, dep_rel="nsubj", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok(
+                "вызвавшие",
+                "VERB",
+                idx=2,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part"},
+            ),
+            _tok("критику", "NOUN", idx=3, dep_rel="obj", head_idx=2),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_isolation"
+
+    def test_apposition_comma_is_isolation_not_homogeneous(self):
+        # «с Уго Чавесом, президентом Венесуэлы» — приложение (§93).
+        tokens = [
+            _tok("с", "ADP", idx=0, dep_rel="case", head_idx=1),
+            _tok("Чавесом", "PROPN", idx=1, dep_rel="obl", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("президентом", "NOUN", idx=3, dep_rel="appos", head_idx=1),
+            _tok("Венесуэлы", "PROPN", idx=4, dep_rel="nmod", head_idx=3),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_isolation"
+
+    def test_postposed_attributive_adjective_is_isolation(self):
+        # «источников, близких к ТВЦ» — обособленное определение.
+        tokens = [
+            _tok("источников", "NOUN", idx=0, dep_rel="nmod", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("близких", "ADJ", idx=2, dep_rel="amod", head_idx=0),
+            _tok("к", "ADP", idx=3, dep_rel="case", head_idx=4),
+            _tok("ТВЦ", "PROPN", idx=4, dep_rel="obl", head_idx=2),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_isolation"
+
+    def test_speech_attribution_is_parenthetical_not_asyndetic(self):
+        # «На место прибыл начальник, сообщает "Дейта.Ru"» — вводное
+        # предложение-атрибуция, не БСП.
+        tokens = [
+            _tok("Прибыл", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("начальник", "NOUN", idx=1, dep_rel="nsubj", head_idx=0),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "сообщает",
+                "VERB",
+                idx=3,
+                lemma="сообщать",
+                dep_rel="parataxis",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("газета", "NOUN", idx=4, dep_rel="nsubj", head_idx=3),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_parenthetical"
+
+
+class TestAnnotationRegressionsDash:
+    def test_direct_speech_attribution_dash_skipped(self):
+        # «..., — Майя протянула термос» — quotation plumbing, skip.
+        tokens = [
+            _tok("проголодался", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("Майя", "PROPN", idx=3, dep_rel="parataxis", head_idx=0),
+            _tok("протянула", "VERB", idx=4, dep_rel="parataxis", head_idx=0),
+        ]
+        assert _classify_dash(tokens, 2) is None
+
+    def test_clarifying_numeric_range_skipped(self):
+        # «понизить — с 250 метров до 150» — уточнение, not a clause dash.
+        tokens = [
+            _tok(
+                "понизить",
+                "VERB",
+                idx=0,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Inf"},
+            ),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("с", "ADP", idx=2, dep_rel="case", head_idx=3),
+            _tok("250", "NUM", idx=3, dep_rel="obl", head_idx=0),
+            _tok("метров", "NOUN", idx=4, dep_rel="nmod", head_idx=3),
+        ]
+        assert _classify_dash(tokens, 1) is None
+
+    def test_bsp_clauses_both_sides_is_asyndetic(self):
+        # «Сергей поднял глаза — такой фразы он не слышал» — БСП.
+        tokens = [
+            _tok("Сергей", "PROPN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("поднял", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok("глаза", "NOUN", idx=2, dep_rel="obj", head_idx=1),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=7),
+            _tok("фразы", "NOUN", idx=4, dep_rel="obj", head_idx=7),
+            _tok("он", "PRON", idx=5, dep_rel="nsubj", head_idx=7),
+            _tok("не", "PART", idx=6, dep_rel="advmod", head_idx=7),
+            _tok(
+                "слышал",
+                "VERB",
+                idx=7,
+                dep_rel="parataxis",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert _classify_dash(tokens, 3) == "dash_asyndetic"
+
+    def test_subj_pred_in_subordinate_clause_detected(self):
+        # «Ранее сообщалось, что пострадавший — безработный» — the dash's
+        # clause is verbless on both sides: §79 subj—pred, not ellipsis
+        # (the clause opens with a subordinator).
+        tokens = [
+            _tok("сообщалось", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=4),
+            _tok("что", "SCONJ", idx=2, dep_rel="mark", head_idx=4),
+            _tok("пострадавший", "NOUN", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok("—", "PUNCT", idx=4, dep_rel="punct", head_idx=5),
+            _tok("безработный", "NOUN", idx=5, dep_rel="ccomp", head_idx=0),
+        ]
+        assert _classify_dash(tokens, 4) == "dash_subj_pred"
+
+    def test_ellipsis_conjunct_detected(self):
+        # «Чиновники могут отдыхать 35 суток, а госслужащие — 30 суток» —
+        # §80 verbless parallel conjunct.
+        tokens = [
+            _tok("Чиновники", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("могут", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok(
+                "отдыхать",
+                "VERB",
+                idx=2,
+                dep_rel="xcomp",
+                head_idx=1,
+                features={"VerbForm": "Inf"},
+            ),
+            _tok("35", "NUM", idx=3, dep_rel="nummod", head_idx=4),
+            _tok("суток", "NOUN", idx=4, dep_rel="obl", head_idx=2),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=7),
+            _tok("а", "CCONJ", idx=6, dep_rel="cc", head_idx=7),
+            _tok("госслужащие", "NOUN", idx=7, dep_rel="conj", head_idx=1),
+            _tok("—", "PUNCT", idx=8, dep_rel="punct", head_idx=10),
+            _tok("30", "NUM", idx=9, dep_rel="nummod", head_idx=10),
+            _tok("суток", "NOUN", idx=10, dep_rel="orphan", head_idx=7),
+        ]
+        assert _classify_dash(tokens, 8) == "dash_ellipsis"
+
+    def test_authorial_dash_after_verb_skipped(self):
+        # «На основании плана формируется — арендный план» — deleting the
+        # dash yields normative text.
+        tokens = [
+            _tok("формируется", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("арендный", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("план", "NOUN", idx=3, dep_rel="nsubj", head_idx=0),
+        ]
+        assert _classify_dash(tokens, 1) is None
+
+
+class TestAnnotationRegressionsPair:
+    def test_split_compound_conjunction_is_not_a_pair(self):
+        # «после того, как жюри удалилось, ...» — §108 junction, never a
+        # paired isolation.
+        tokens = [
+            _tok("после", "ADP", idx=0, dep_rel="case", head_idx=1),
+            _tok("того", "PRON", idx=1, lemma="то", dep_rel="obl", head_idx=None),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=5),
+            _tok("как", "SCONJ", idx=3, dep_rel="mark", head_idx=5),
+            _tok("жюри", "NOUN", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "удалилось",
+                "VERB",
+                idx=5,
+                dep_rel="acl",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=5),
+        ]
+        assert _find_comma_partner(tokens, 2) is None
+
+    def test_chto_parataxis_is_not_a_parenthetical_pair(self):
+        # «..., что должно сказаться на прибыли, ...» — присоединительное
+        # придаточное (§110), not a вводное.
+        tokens = [
+            _tok("конкуренция", "NOUN", idx=0, dep_rel="nsubj", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok(
+                "что",
+                "PRON",
+                idx=2,
+                lemma="что",
+                dep_rel="nsubj",
+                head_idx=3,
+                features={"PronType": "Rel"},
+            ),
+            _tok(
+                "должно",
+                "ADJ",
+                idx=3,
+                dep_rel="parataxis",
+                head_idx=0,
+                features={"Variant": "Short"},
+            ),
+            _tok("сказаться", "VERB", idx=4, dep_rel="xcomp", head_idx=3),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
+        ]
+        assert _find_comma_partner(tokens, 1) is None
+
+    def test_gerund_anchored_span_relabeled_pair_gerund(self):
+        # «Будучи убеждён в том, ...» — a "participle" span anchored by a
+        # gerund is a деепричастный оборот.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=6),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok(
+                "будучи",
+                "AUX",
+                idx=2,
+                lemma="быть",
+                dep_rel="cop",
+                head_idx=3,
+                features={"VerbForm": "Conv"},
+            ),
+            _tok(
+                "убеждён",
+                "VERB",
+                idx=3,
+                dep_rel="acl",
+                head_idx=0,
+                features={"VerbForm": "Part", "Variant": "Short"},
+            ),
+            _tok("твёрдо", "ADV", idx=4, dep_rel="advmod", head_idx=3),
+            _tok(",", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
+            _tok("настаивал", "VERB", idx=6, dep_rel="root", head_idx=None),
+        ]
+        result = _find_comma_partner(tokens, 1)
+        assert result == (5, "pair_gerund")

@@ -751,6 +751,11 @@ fine_grained_tags:
     description: "Dash with isolated appositions"
     paras: "§93"
     l2_applicability: full
+  pu_dash_ellipsis:
+    parent: pu_dash
+    description: "Dash in an elliptical (incomplete) clause"
+    paras: "§80"
+    l2_applicability: full
   pu_dash_other:
     parent: pu_dash
     description: "Other dash usage"
@@ -1099,6 +1104,9 @@ mappings:
   dash_apposition:
     primary: pu_dash
     l2_tag: pu_dash_apposition
+  dash_ellipsis:
+    primary: pu_dash
+    l2_tag: pu_dash_ellipsis
   dash_to_comma_apposition:
     primary: pu_dash
     l2_tag: pu_dash_apposition

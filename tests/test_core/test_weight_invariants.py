@@ -257,17 +257,37 @@ BATTERY: list[list[AnalyzedToken]] = [
     _seq(("Он", "PRON"), ("говорит", "VERB"), ("по-русски", "ADV")),
     _seq(("Он", "PRON"), ("пошёл", "VERB"), ("в", "ADP"), ("верх", "NOUN")),
     _seq(("сказал", "VERB"), ("по", "ADP"), ("русски", "ADV")),
-    # dash_delete: subj_pred + connective (dash_other)
+    # dash_delete: subj_pred + asyndetic + ellipsis + fallback (dash_other)
     [
         _tok("Москва", "PROPN", idx=0, dep_rel="nsubj", head_idx=2),
         _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
         _tok("столица", "NOUN", idx=2, dep_rel="root"),
     ],
+    # asyndetic: full clauses on both sides («Пришёл — увидел»)
     [
-        _tok("поезд", "NOUN", idx=0, dep_rel="root"),
-        _tok("Москва", "PROPN", idx=1, dep_rel="appos", head_idx=0),
-        _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
-        _tok("Казань", "PROPN", idx=3, dep_rel="conj", head_idx=1),
+        _tok("Пришёл", "VERB", idx=0, dep_rel="root"),
+        _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+        _tok("увидел", "VERB", idx=2, dep_rel="parataxis", head_idx=0),
+    ],
+    # ellipsis (§80): verbless second conjunct («Я пошёл направо, а он — налево»)
+    [
+        _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+        _tok("пошёл", "VERB", idx=1, dep_rel="root"),
+        _tok("направо", "ADV", idx=2, dep_rel="advmod", head_idx=1),
+        _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+        _tok("а", "CCONJ", idx=4, dep_rel="cc", head_idx=5),
+        _tok("он", "PRON", idx=5, dep_rel="conj", head_idx=1),
+        _tok("—", "PUNCT", idx=6, dep_rel="punct", head_idx=7),
+        _tok("налево", "ADV", idx=7, dep_rel="orphan", head_idx=5),
+    ],
+    # dash_other fallback: nominal — clause without a left predicate
+    # («Победа — так считали все»)
+    [
+        _tok("Победа", "NOUN", idx=0, dep_rel="root"),
+        _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+        _tok("так", "ADV", idx=2, dep_rel="advmod", head_idx=3),
+        _tok("считали", "VERB", idx=3, dep_rel="parataxis", head_idx=0),
+        _tok("все", "PRON", idx=4, dep_rel="nsubj", head_idx=3),
     ],
     # comma_delete: subordinate (ccomp)
     [
@@ -524,8 +544,10 @@ EXPECTED_FIRED: dict[str, set[str]] = {
     },
     "dash_delete": {
         "dash_subj_pred",
+        "dash_asyndetic",
+        "dash_ellipsis",
         "dash_other",
-        # dash_asyndetic / dash_apposition: no battery example yet
+        # dash_apposition: no battery example yet
     },
     "noun_case": {
         "noun_case_governed",
