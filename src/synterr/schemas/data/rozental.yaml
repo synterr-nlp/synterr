@@ -967,6 +967,15 @@ mappings:
   pronoun_n_form:
     primary: mo_pronoun
     l2_tag: mo_pronoun_forms
+  ag_mn_apposition:
+    primary: ag_modifier_noun
+    l2_tag: ag_mn_apposition
+  ag_mn_compound_term:
+    primary: ag_modifier_noun
+    l2_tag: ag_mn_compound_term
+  ag_mn_special:
+    primary: ag_modifier_noun
+    l2_tag: ag_mn_special
   noun_case_gen_partitive:
     primary: mo_noun_case
     l2_tag: mo_noun_case_gen_a_u

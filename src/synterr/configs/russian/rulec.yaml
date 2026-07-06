@@ -26,6 +26,9 @@ weights:
   pronoun_svoy: 0.015 # §167 свой vs personal possessive (Ref; estimated)
   pronoun_sebya: 0.01 # §168 себя vs personal pronoun (Ref; estimated)
   pronoun_n_form: 0.008 # §169–170 н-augment after prepositions (Ref; estimated)
+  agr_mn_apposition: 0.004 # §195–197 toponym apposition case-freeze (estimated)
+  agr_mn_compound_term: 0.003 # §196–197 hyphenated compound case-freeze (estimated)
+  agr_mn_numeral_adj: 0.008 # §193 два/три/четыре + adj + noun (estimated)
   noun_number: 0.053    # 2.4%
 
   # Morphological - Adjectives: 5.4% total

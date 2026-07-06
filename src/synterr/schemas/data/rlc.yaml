@@ -272,6 +272,12 @@ mappings:
     primary: Ref
   pronoun_n_form:
     primary: Ref
+  ag_mn_apposition:
+    primary: AgrCase
+  ag_mn_compound_term:
+    primary: AgrCase
+  ag_mn_special:
+    primary: AgrCase
   noun_case_gen_partitive:
     primary: Gov
   noun_case_instr_pl:

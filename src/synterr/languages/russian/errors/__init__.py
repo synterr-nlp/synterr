@@ -30,6 +30,11 @@ def get_all_handlers() -> list[ErrorHandler]:
         PronounSebyaErrorHandler,
         PronounSvoyErrorHandler,
     )
+    from synterr.languages.russian.errors.agreement_mn import (
+        AgrMnAppositionErrorHandler,
+        AgrMnCompoundTermErrorHandler,
+        AgrMnNumeralAdjErrorHandler,
+    )
     from synterr.languages.russian.errors.morphological import (
         AdjCaseErrorHandler,
         AdjFormErrorHandler,
@@ -81,6 +86,10 @@ def get_all_handlers() -> list[ErrorHandler]:
         NounNumberErrorHandler(),
         NounNumberGenPlHandler(),
         NegGenitiveErrorHandler(),
+        # Agreement - Modifier-Noun
+        AgrMnAppositionErrorHandler(),
+        AgrMnCompoundTermErrorHandler(),
+        AgrMnNumeralAdjErrorHandler(),
         # Morphological - Adjectives
         AdjCaseErrorHandler(),
         AdjNumberErrorHandler(),
