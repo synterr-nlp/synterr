@@ -952,8 +952,14 @@ class TestDashSubjPredExceptions:
         # "Он — мой лучший друг." — §79: personal-pronoun subject,
         # dash is normally absent; deletion is the norm, not an error.
         return [
-            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=4,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "Он",
+                "PRON",
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=4,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=4),
             _tok("мой", "DET", idx=2, dep_rel="det", head_idx=4),
             _tok("лучший", "ADJ", idx=3, dep_rel="amod", head_idx=4),
@@ -971,13 +977,25 @@ class TestDashSubjPredExceptions:
         # "Я — фабрикант, ты — судовладелец" (Rozental's own §79 example):
         # parallel pronoun-subject clauses → contrast → dash IS required.
         tokens = [
-            _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=2,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "Я",
+                "PRON",
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
             _tok("фабрикант", "NOUN", idx=2, dep_rel="root", head_idx=None),
             _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
-            _tok("ты", "PRON", idx=4, dep_rel="nsubj", head_idx=6,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "ты",
+                "PRON",
+                idx=4,
+                dep_rel="nsubj",
+                head_idx=6,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=5, dep_rel="punct", head_idx=6),
             _tok("судовладелец", "NOUN", idx=6, dep_rel="parataxis", head_idx=2),
         ]
@@ -1374,8 +1392,14 @@ class TestEstoConnectorDash:
         tokens = [
             _tok("Мир", "NOUN", idx=0, dep_rel="nsubj", head_idx=3),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
-            _tok("это", "PRON", idx=2, dep_rel="expl", head_idx=3,
-                 features={"PronType": "Dem"}),
+            _tok(
+                "это",
+                "PRON",
+                idx=2,
+                dep_rel="expl",
+                head_idx=3,
+                features={"PronType": "Dem"},
+            ),
             _tok("счастье", "NOUN", idx=3, dep_rel="root", head_idx=None),
             _tok(".", "PUNCT", idx=4, dep_rel="punct", head_idx=3),
         ]
@@ -1387,11 +1411,23 @@ class TestEstoConnectorDash:
         # not apply to the connector construction: the dash stays required,
         # so classification must NOT return None.
         tokens = [
-            _tok("Мы", "PRON", idx=0, dep_rel="nsubj", head_idx=3,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "Мы",
+                "PRON",
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=3,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
-            _tok("это", "PRON", idx=2, dep_rel="expl", head_idx=3,
-                 features={"PronType": "Dem"}),
+            _tok(
+                "это",
+                "PRON",
+                idx=2,
+                dep_rel="expl",
+                head_idx=3,
+                features={"PronType": "Dem"},
+            ),
             _tok("будущее", "NOUN", idx=3, dep_rel="root", head_idx=None),
             _tok("страны", "NOUN", idx=4, dep_rel="nmod", head_idx=3),
             _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=3),
@@ -1402,8 +1438,14 @@ class TestEstoConnectorDash:
     def test_vot_connector_with_infinitive_subject(self):
         # "Понять — вот задача." — §79 «вот» connector, infinitive subject.
         tokens = [
-            _tok("Понять", "VERB", idx=0, dep_rel="csubj", head_idx=3,
-                 features={"VerbForm": "Inf"}),
+            _tok(
+                "Понять",
+                "VERB",
+                idx=0,
+                dep_rel="csubj",
+                head_idx=3,
+                features={"VerbForm": "Inf"},
+            ),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
             _tok("вот", "PART", idx=2, dep_rel="advmod", head_idx=3),
             _tok("задача", "NOUN", idx=3, dep_rel="root", head_idx=None),
@@ -1417,13 +1459,31 @@ class TestEstoConnectorDash:
         # not a subject NP, so the connector rule must not fire.
         tokens = [
             _tok("Дверь", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
-            _tok("открылась", "VERB", idx=1, dep_rel="root", head_idx=None,
-                 features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"}),
+            _tok(
+                "открылась",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"},
+            ),
             _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
-            _tok("это", "PRON", idx=3, dep_rel="expl", head_idx=4,
-                 features={"PronType": "Dem"}),
-            _tok("пришёл", "VERB", idx=4, dep_rel="parataxis", head_idx=1,
-                 features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"}),
+            _tok(
+                "это",
+                "PRON",
+                idx=3,
+                dep_rel="expl",
+                head_idx=4,
+                features={"PronType": "Dem"},
+            ),
+            _tok(
+                "пришёл",
+                "VERB",
+                idx=4,
+                dep_rel="parataxis",
+                head_idx=1,
+                features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"},
+            ),
             _tok("отец", "NOUN", idx=5, dep_rel="nsubj", head_idx=4),
             _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=1),
         ]
@@ -1442,14 +1502,26 @@ class TestPairedAppositionDash:
         # parse: the apposition is promoted to root, the matrix verb is
         # conj, and NO appos/parataxis arc bridges either dash.
         return [
-            _tok("Мы", "PRON", idx=0, dep_rel="nsubj", head_idx=3,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "Мы",
+                "PRON",
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=3,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
             _tok("весёлая", "ADJ", idx=2, dep_rel="amod", head_idx=3),
             _tok("детвора", "NOUN", idx=3, dep_rel="root", head_idx=None),
             _tok("—", "PUNCT", idx=4, dep_rel="punct", head_idx=5),
-            _tok("шли", "VERB", idx=5, dep_rel="conj", head_idx=3,
-                 features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"}),
+            _tok(
+                "шли",
+                "VERB",
+                idx=5,
+                dep_rel="conj",
+                head_idx=3,
+                features={"VerbForm": "Fin", "Mood": "Ind", "Tense": "Past"},
+            ),
             _tok("домой", "ADV", idx=6, dep_rel="advmod", head_idx=5),
             _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=3),
         ]
@@ -1476,13 +1548,25 @@ class TestPairedAppositionDash:
         # stay dash_subj_pred. Deps mirror the live stanza parse
         # (судовладелец = conj).
         tokens = [
-            _tok("Я", "PRON", idx=0, dep_rel="nsubj", head_idx=2,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "Я",
+                "PRON",
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
             _tok("фабрикант", "NOUN", idx=2, dep_rel="root", head_idx=None),
             _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
-            _tok("ты", "PRON", idx=4, dep_rel="nsubj", head_idx=6,
-                 features={"PronType": "Prs"}),
+            _tok(
+                "ты",
+                "PRON",
+                idx=4,
+                dep_rel="nsubj",
+                head_idx=6,
+                features={"PronType": "Prs"},
+            ),
             _tok("—", "PUNCT", idx=5, dep_rel="punct", head_idx=4),
             _tok("судовладелец", "NOUN", idx=6, dep_rel="conj", head_idx=2),
             _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=2),

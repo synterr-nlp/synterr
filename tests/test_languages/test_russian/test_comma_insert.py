@@ -503,7 +503,13 @@ class TestCommaSubjPred:
         sentence = [t.text for t in tokens]
         result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
         assert result is not None
-        assert sentence == ["Прибывшие", "участники", "конференции", ",", "разместились"]
+        assert sentence == [
+            "Прибывшие",
+            "участники",
+            "конференции",
+            ",",
+            "разместились",
+        ]
         assert result.fix_tag == "$DELETE"
 
     def test_refuses_light_subject(self):
@@ -755,7 +761,9 @@ class TestCommaAfterOdnako:
 
     def test_fires_after_semicolon(self):
         tokens = [
-            _tok("шёл", pos="VERB", idx=0, dep_rel="root", features={"VerbForm": "Fin"}),
+            _tok(
+                "шёл", pos="VERB", idx=0, dep_rel="root", features={"VerbForm": "Fin"}
+            ),
             _tok(";", pos="PUNCT", idx=1),
             _tok("однако", pos="ADV", idx=2, dep_rel="advmod", head_idx=4),
             _tok("мы", pos="PRON", idx=3, dep_rel="nsubj", head_idx=4),
@@ -848,13 +856,10 @@ class TestCommaCompoundConjSplit:
             _tok("то", pos="DET", idx=1, dep_rel="det", head_idx=2),
             _tok("время", idx=2, dep_rel="obl", head_idx=4),
             _tok("года", idx=3, dep_rel="nmod", head_idx=2),
-            _tok(
-                "холодно", pos="ADV", idx=4, dep_rel="root"
-            ),
+            _tok("холодно", pos="ADV", idx=4, dep_rel="root"),
         ]
-        assert (
-            "comma_compound_conj_split"
-            not in CommaInsertHandler()._detect_subtypes(tokens, 0)
+        assert "comma_compound_conj_split" not in CommaInsertHandler()._detect_subtypes(
+            tokens, 0
         )
 
     def test_refuses_kak_phrase_continuation(self):
@@ -871,9 +876,8 @@ class TestCommaCompoundConjSplit:
                 features={"VerbForm": "Fin"},
             ),
         ]
-        assert (
-            "comma_compound_conj_split"
-            not in CommaInsertHandler()._detect_subtypes(tokens, 0)
+        assert "comma_compound_conj_split" not in CommaInsertHandler()._detect_subtypes(
+            tokens, 0
         )
 
 

@@ -65,9 +65,7 @@ def _has_confusion(groups: dict[str, list[str]], word: str) -> bool:
     return bool(_all_confusion_candidates(groups, word))
 
 
-def _pick_confusion(
-    groups: dict[str, list[str]], word: str, rng: Random
-) -> str | None:
+def _pick_confusion(groups: dict[str, list[str]], word: str, rng: Random) -> str | None:
     candidates = _all_confusion_candidates(groups, word)
     if candidates:
         return rng.choice(candidates)
@@ -101,17 +99,43 @@ def _context_grammemes(token: AnalyzedToken) -> set[str]:
 # behind — the partner lexeme often lacks them, which would make inflection
 # fail spuriously (e.g. практичный is Qual but практический is not).
 _TRANSFER_POS = {
-    "NOUN", "ADJF", "ADJS", "COMP", "VERB", "INFN",
-    "PRTF", "PRTS", "GRND", "NUMR", "ADVB",
+    "NOUN",
+    "ADJF",
+    "ADJS",
+    "COMP",
+    "VERB",
+    "INFN",
+    "PRTF",
+    "PRTS",
+    "GRND",
+    "NUMR",
+    "ADVB",
 }
 _TRANSFER_FORM = {
-    "nomn", "gent", "datv", "accs", "ablt", "loct", "voct", "gen2", "loc2",
-    "sing", "plur",
-    "masc", "femn", "neut",
-    "1per", "2per", "3per",
-    "past", "pres", "futr",
-    "actv", "pssv",
-    "indc", "impr",
+    "nomn",
+    "gent",
+    "datv",
+    "accs",
+    "ablt",
+    "loct",
+    "voct",
+    "gen2",
+    "loc2",
+    "sing",
+    "plur",
+    "masc",
+    "femn",
+    "neut",
+    "1per",
+    "2per",
+    "3per",
+    "past",
+    "pres",
+    "futr",
+    "actv",
+    "pssv",
+    "indc",
+    "impr",
 }
 _ANIMACY = {"anim", "inan"}
 

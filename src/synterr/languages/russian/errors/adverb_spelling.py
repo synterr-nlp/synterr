@@ -354,9 +354,7 @@ class AdverbSpellingHandler:
         # Dep-tree guard (requires use_depparse): a noun with dependents of
         # its own ("в начале осени") heads a live NP — merging may produce
         # sanctioned spelling or destroy government; skip.
-        return not any(
-            t.head_idx == idx + 1 for i, t in enumerate(tokens) if i != idx
-        )
+        return not any(t.head_idx == idx + 1 for i, t in enumerate(tokens) if i != idx)
 
     @staticmethod
     def _to_merge_blocked(tokens: Sequence[AnalyzedToken], idx: int) -> bool:

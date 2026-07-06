@@ -299,9 +299,7 @@ class FunctionSpellingHandler:
         "никого не видел" → True  (correct pronoun is ни-)
         "некого спросить" → False (no negated finite verb; correct pronoun is не-)
         """
-        verb_positions = [
-            i for i, t in enumerate(tokens) if self._is_finite_verb(t)
-        ]
+        verb_positions = [i for i, t in enumerate(tokens) if self._is_finite_verb(t)]
         if not verb_positions:
             return False
         for vp in verb_positions:

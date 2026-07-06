@@ -736,9 +736,7 @@ def _can_insert_after_odnako(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     if nxt.pos == "PUNCT" or nxt.text == ",":
         return False
     # «Однако, какой ветер!» — interjection exception
-    if nxt.lemma in ("какой", "как") and any(
-        t.text == "!" for t in tokens[idx + 1 :]
-    ):
+    if nxt.lemma in ("какой", "как") and any(t.text == "!" for t in tokens[idx + 1 :]):
         return False
     # fragment guard: require some clausal content after «однако»
     return sum(1 for t in tokens[idx + 1 :] if t.pos != "PUNCT") >= 2
@@ -1136,9 +1134,7 @@ class CommaInsertHandler:
             fix_tag="$DELETE",
         )
 
-    def _insert_after_odnako(
-        self, sentence: list[str], idx: int
-    ) -> ErrorResult | None:
+    def _insert_after_odnako(self, sentence: list[str], idx: int) -> ErrorResult | None:
         """§99 п.7: Однако переговоры → Однако , переговоры."""
         sentence.insert(idx + 1, ",")
         return ErrorResult(

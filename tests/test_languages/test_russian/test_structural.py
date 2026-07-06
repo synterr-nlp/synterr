@@ -98,9 +98,7 @@ class TestWordOmissionHandler:
         ('Он устал, мы продолжили работу' — Rozental §116), a non-error."""
         tokens = [
             AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
-            AnalyzedToken(
-                text="устал", lemma="устать", pos="VERB", features={}, idx=1
-            ),
+            AnalyzedToken(text="устал", lemma="устать", pos="VERB", features={}, idx=1),
             AnalyzedToken(text=",", lemma=",", pos="PUNCT", features={}, idx=2),
             AnalyzedToken(text="но", lemma="но", pos="CCONJ", features={}, idx=3),
             AnalyzedToken(text="мы", lemma="мы", pos="PRON", features={}, idx=4),

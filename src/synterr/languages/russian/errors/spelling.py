@@ -566,9 +566,7 @@ class SpellingErrorHandler:
                 prefix_len = len(voiced_prefix)
                 if prefix_len >= len(word):
                     continue
-                if not self._is_real_prefix(
-                    word_lower, voiced_prefix.lower(), lemma
-                ):
+                if not self._is_real_prefix(word_lower, voiced_prefix.lower(), lemma):
                     continue
 
                 # Get the consonant after the prefix

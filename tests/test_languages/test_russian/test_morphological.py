@@ -140,8 +140,17 @@ class TestMorphologicalErrorHandlers:
 
         # Dep-attached nouns of every class → should apply (default weights
         # enable all three subtypes)
-        for dep_rel in ("obl", "nmod", "iobj", "obj", "nsubj", "nsubj:pass",
-                        "conj", "root", "appos"):
+        for dep_rel in (
+            "obl",
+            "nmod",
+            "iobj",
+            "obj",
+            "nsubj",
+            "nsubj:pass",
+            "conj",
+            "root",
+            "appos",
+        ):
             token = AnalyzedToken(text="книга", idx=0, dep_rel=dep_rel, **base)
             assert handler.can_apply([token], 0) is True, f"should apply for {dep_rel}"
 
@@ -1412,13 +1421,19 @@ class TestVerbTenseRequiresTemporalAnchor:
                 extra={"pymorphy_parse": morph.parse("был")[0]},
             ),
             AnalyzedToken(
-                text="дома", lemma="дома", pos="ADV", features={}, idx=2,
-                dep_rel="root", head_idx=None,
+                text="дома",
+                lemma="дома",
+                pos="ADV",
+                features={},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
             ),
         ]
         assert handler.can_apply(tokens, 1) is False
-        result = handler.apply(tokens, ["Он", "был", "дома"], 1, set(),
-                               rng=random.Random(0))
+        result = handler.apply(
+            tokens, ["Он", "был", "дома"], 1, set(), rng=random.Random(0)
+        )
         assert result is None
 
     def test_anchor_on_copula_head_fires(self):
@@ -1446,8 +1461,13 @@ class TestVerbTenseRequiresTemporalAnchor:
                 extra={"pymorphy_parse": morph.parse("был")[0]},
             ),
             AnalyzedToken(
-                text="дома", lemma="дома", pos="ADV", features={}, idx=3,
-                dep_rel="root", head_idx=None,
+                text="дома",
+                lemma="дома",
+                pos="ADV",
+                features={},
+                idx=3,
+                dep_rel="root",
+                head_idx=None,
             ),
         ]
         assert handler.can_apply(tokens, 2) is True

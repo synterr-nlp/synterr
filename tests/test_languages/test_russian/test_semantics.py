@@ -314,9 +314,7 @@ class TestCollocationHandler:
         # and pick the adjective lexeme.
         from synterr.languages.russian.errors.semantics import _inflect_to_match
 
-        adj_parse = next(
-            p for p in _morph.parse("высокой") if p.tag.POS == "ADJF"
-        )
+        adj_parse = next(p for p in _morph.parse("высокой") if p.tag.POS == "ADJF")
         result = _inflect_to_match("дорогой", adj_parse, same_pos=True)
         # Any feminine singular oblique form of the adjective is "дорогой";
         # the noun homograph would have given "дороги"/"дороге".
@@ -342,16 +340,26 @@ class TestCollocationHandler:
         # принять→сделать corruption must not fire on lemma co-occurrence.
         tokens = [
             _tok("Он", pos="PRON", lemma="он", idx=0, head_idx=1, dep_rel="nsubj"),
-            _tok("принял", pos="VERB", lemma="принять", idx=1, head_idx=-1,
-                 dep_rel="root"),
+            _tok(
+                "принял",
+                pos="VERB",
+                lemma="принять",
+                idx=1,
+                head_idx=-1,
+                dep_rel="root",
+            ),
             _tok("гостей", lemma="гость", idx=2, head_idx=1, dep_rel="obj"),
-            _tok(",", pos="PUNCT", lemma=",", idx=3, head_idx=4,
-                 dep_rel="punct"),
-            _tok("обсуждавших", pos="VERB", lemma="обсуждать", idx=4,
-                 head_idx=2, dep_rel="acl"),
+            _tok(",", pos="PUNCT", lemma=",", idx=3, head_idx=4, dep_rel="punct"),
+            _tok(
+                "обсуждавших",
+                pos="VERB",
+                lemma="обсуждать",
+                idx=4,
+                head_idx=2,
+                dep_rel="acl",
+            ),
             _tok("решение", lemma="решение", idx=5, head_idx=4, dep_rel="obj"),
-            _tok(".", pos="PUNCT", lemma=".", idx=6, head_idx=1,
-                 dep_rel="punct"),
+            _tok(".", pos="PUNCT", lemma=".", idx=6, head_idx=1, dep_rel="punct"),
         ]
         assert self.handler.can_apply(tokens, 1) is False
         sentence = [t.text for t in tokens]
@@ -362,10 +370,17 @@ class TestCollocationHandler:
         # With dep info, a non-adjacent but directly linked object still
         # triggers: "принял важное решение" (решение ← obj ← принял).
         tokens = [
-            _tok("принял", pos="VERB", lemma="принять", idx=0, head_idx=-1,
-                 dep_rel="root"),
-            _tok("важное", pos="ADJ", lemma="важный", idx=1, head_idx=2,
-                 dep_rel="amod"),
+            _tok(
+                "принял",
+                pos="VERB",
+                lemma="принять",
+                idx=0,
+                head_idx=-1,
+                dep_rel="root",
+            ),
+            _tok(
+                "важное", pos="ADJ", lemma="важный", idx=1, head_idx=2, dep_rel="amod"
+            ),
             _tok("решение", lemma="решение", idx=2, head_idx=0, dep_rel="obj"),
         ]
         assert self.handler.can_apply(tokens, 0) is True

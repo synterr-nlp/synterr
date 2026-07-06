@@ -216,7 +216,13 @@ def _seq(*specs):
 BATTERY: list[list[AnalyzedToken]] = [
     # spelling: tsa_confusion / vowel_reduction / soft_sign / devoicing /
     # double_consonant / keyboard / prefix_voicing / cluster
-    _seq(("Он", "PRON"), ("хочет", "VERB"), ("учиться", "VERB"), ("в", "ADP"), ("школе", "NOUN")),
+    _seq(
+        ("Он", "PRON"),
+        ("хочет", "VERB"),
+        ("учиться", "VERB"),
+        ("в", "ADP"),
+        ("школе", "NOUN"),
+    ),
     _seq(("молоко", "NOUN"), ("стоит", "VERB"), ("на", "ADP"), ("столе", "NOUN")),
     _seq(("весь", "DET"), ("класс", "NOUN"), ("пришёл", "VERB")),
     _seq(("сказка", "NOUN"), ("про", "ADP"), ("коньки", "NOUN")),
@@ -348,13 +354,17 @@ BATTERY: list[list[AnalyzedToken]] = [
     # comma_insert: frozen phrase ни ... ни
     _seq(("ни", "PART"), ("слуху", "NOUN"), ("ни", "PART"), ("духу", "NOUN")),
     # comma_insert: adjacent conjunctions with correlative
-    _seq(("и", "CCONJ"), ("когда", "SCONJ"), ("мы", "PRON"), ("пришли", "VERB"), ("то", "PART")),
+    _seq(
+        ("и", "CCONJ"),
+        ("когда", "SCONJ"),
+        ("мы", "PRON"),
+        ("пришли", "VERB"),
+        ("то", "PART"),
+    ),
     # comma_insert: homogeneous members joined by single и (§86 п.1)
     [
         _tok("Мама", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
-        _tok(
-            "купила", "VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}
-        ),
+        _tok("купила", "VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}),
         _tok("яблоки", "NOUN", idx=2, dep_rel="obj", head_idx=1),
         _tok("и", "CCONJ", idx=3, dep_rel="cc", head_idx=4),
         _tok("груши", "NOUN", idx=4, dep_rel="conj", head_idx=2),

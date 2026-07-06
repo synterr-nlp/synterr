@@ -65,7 +65,9 @@ def _pos_class(pos: str | None) -> str | None:
     return _POS_CLASSES.get(str(pos), str(pos)) if pos else None
 
 
-def _inflect_to_match(wrong_lemma: str, original_parse, *, same_pos: bool = False) -> str | None:
+def _inflect_to_match(
+    wrong_lemma: str, original_parse, *, same_pos: bool = False
+) -> str | None:
     """Inflect `wrong_lemma` (a citation form) to match original_parse's
     grammemes. Returns the inflected surface form, or None if inflection
     failed at every fallback level.
@@ -400,9 +402,7 @@ class CollocationHandler:
         return self._collocations
 
     @staticmethod
-    def _collocate_linked(
-        tokens: Sequence[AnalyzedToken], idx: int, j: int
-    ) -> bool:
+    def _collocate_linked(tokens: Sequence[AnalyzedToken], idx: int, j: int) -> bool:
         """Whether the collocate at `j` is syntactically tied to the word
         at `idx`.
 

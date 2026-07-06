@@ -197,12 +197,18 @@ class TestParonymErrorHandler:
           умелый/умственный, удобный/удобоваримый.
         """
         for word in (
-            "старый", "старинный",
-            "целый", "цельный",
-            "выбирать", "избирать",
-            "народный", "народничий",
-            "умелый", "умственный",
-            "удобный", "удобоваримый",
+            "старый",
+            "старинный",
+            "целый",
+            "цельный",
+            "выбирать",
+            "избирать",
+            "народный",
+            "народничий",
+            "умелый",
+            "умственный",
+            "удобный",
+            "удобоваримый",
         ):
             assert word not in self.handler.paronyms, word
         # And no surviving entry offers one of the removed words as a target.
@@ -322,7 +328,16 @@ class TestPrepositionErrorHandler:
         """
         preps = get_preposition_list()
         all_preps = {w for group in preps.values() for w in group}
-        for synonym in ("около", "возле", "у", "при", "подле", "сквозь", "через", "после"):
+        for synonym in (
+            "около",
+            "возле",
+            "у",
+            "при",
+            "подле",
+            "сквозь",
+            "через",
+            "после",
+        ):
             assert synonym not in all_preps
 
         # Repro from the audit: 'Мы гуляли около дома.' -> 'возле дома'.
@@ -355,8 +370,15 @@ class TestPrepositionErrorHandler:
         preps = get_preposition_list()
         all_preps = {w for group in preps.values() for w in group}
         for non_prep in (
-            "хотя", "если", "откуда", "изнутри",
-            "более", "менее", "приблизительно", "порядка", "из-подо",
+            "хотя",
+            "если",
+            "откуда",
+            "изнутри",
+            "более",
+            "менее",
+            "приблизительно",
+            "порядка",
+            "из-подо",
         ):
             assert non_prep not in all_preps
 
@@ -477,11 +499,17 @@ class TestPrepositionErrorHandler:
         """
         # о (+Loc) may only become об (+Loc), never про (+Acc).
         tokens = [
-            AnalyzedToken(text="говорил", lemma="говорить", pos="VERB",
-                          features={}, idx=0),
+            AnalyzedToken(
+                text="говорил", lemma="говорить", pos="VERB", features={}, idx=0
+            ),
             AnalyzedToken(text="о", lemma="о", pos="ADP", features={}, idx=1),
-            AnalyzedToken(text="поездке", lemma="поездка", pos="NOUN",
-                          features={"Case": "Loc"}, idx=2),
+            AnalyzedToken(
+                text="поездке",
+                lemma="поездка",
+                pos="NOUN",
+                features={"Case": "Loc"},
+                idx=2,
+            ),
         ]
         for seed in range(30):
             sentence = ["говорил", "о", "поездке"]
@@ -493,11 +521,11 @@ class TestPrepositionErrorHandler:
 
         # до (+Gen) has no same-frame partner (к governs Dat) -> inert.
         tokens = [
-            AnalyzedToken(text="дошли", lemma="дойти", pos="VERB",
-                          features={}, idx=0),
+            AnalyzedToken(text="дошли", lemma="дойти", pos="VERB", features={}, idx=0),
             AnalyzedToken(text="до", lemma="до", pos="ADP", features={}, idx=1),
-            AnalyzedToken(text="дома", lemma="дом", pos="NOUN",
-                          features={"Case": "Gen"}, idx=2),
+            AnalyzedToken(
+                text="дома", lemma="дом", pos="NOUN", features={"Case": "Gen"}, idx=2
+            ),
         ]
         sentence = ["дошли", "до", "дома"]
         assert self.handler.can_apply(tokens, 1) is False
@@ -510,10 +538,12 @@ class TestPrepositionErrorHandler:
 
         # благодаря (+Dat) has no same-frame partner (из-за governs Gen).
         tokens = [
-            AnalyzedToken(text="Благодаря", lemma="благодаря", pos="ADP",
-                          features={}, idx=0),
-            AnalyzedToken(text="дождю", lemma="дождь", pos="NOUN",
-                          features={"Case": "Dat"}, idx=1),
+            AnalyzedToken(
+                text="Благодаря", lemma="благодаря", pos="ADP", features={}, idx=0
+            ),
+            AnalyzedToken(
+                text="дождю", lemma="дождь", pos="NOUN", features={"Case": "Dat"}, idx=1
+            ),
         ]
         sentence = ["Благодаря", "дождю"]
         assert self.handler.can_apply(tokens, 0) is False
@@ -532,11 +562,11 @@ class TestPrepositionErrorHandler:
         an Ins complement means a different sense, so the handler must skip.
         """
         tokens = [
-            AnalyzedToken(text="гулял", lemma="гулять", pos="VERB",
-                          features={}, idx=0),
+            AnalyzedToken(text="гулял", lemma="гулять", pos="VERB", features={}, idx=0),
             AnalyzedToken(text="с", lemma="с", pos="ADP", features={}, idx=1),
-            AnalyzedToken(text="другом", lemma="друг", pos="NOUN",
-                          features={"Case": "Ins"}, idx=2),
+            AnalyzedToken(
+                text="другом", lemma="друг", pos="NOUN", features={"Case": "Ins"}, idx=2
+            ),
         ]
         sentence = ["гулял", "с", "другом"]
         assert self.handler.can_apply(tokens, 1) is False
@@ -555,8 +585,9 @@ class TestPrepositionErrorHandler:
         """
         tokens = [
             AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0),
-            AnalyzedToken(text="спешке", lemma="спешка", pos="NOUN",
-                          features={}, idx=1),  # no Case feature
+            AnalyzedToken(
+                text="спешке", lemma="спешка", pos="NOUN", features={}, idx=1
+            ),  # no Case feature
         ]
         sentence = ["в", "спешке"]
         assert self.handler.can_apply(tokens, 0) is False
@@ -568,12 +599,21 @@ class TestPrepositionErrorHandler:
         """With depparse the ADP's head (UD case relation) supplies the frame,
         even when the complement is not adjacent."""
         tokens = [
-            AnalyzedToken(text="в", lemma="в", pos="ADP", features={}, idx=0,
-                          dep_rel="case", head_idx=2),
-            AnalyzedToken(text="ближайшую", lemma="ближайший", pos="ADJ",
-                          features={}, idx=1),
-            AnalyzedToken(text="среду", lemma="среда", pos="NOUN",
-                          features={"Case": "Acc"}, idx=2),
+            AnalyzedToken(
+                text="в",
+                lemma="в",
+                pos="ADP",
+                features={},
+                idx=0,
+                dep_rel="case",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="ближайшую", lemma="ближайший", pos="ADJ", features={}, idx=1
+            ),
+            AnalyzedToken(
+                text="среду", lemma="среда", pos="NOUN", features={"Case": "Acc"}, idx=2
+            ),
         ]
         sentence = ["в", "ближайшую", "среду"]
         assert self.handler.can_apply(tokens, 0) is True
@@ -707,14 +747,10 @@ class TestConjunctionErrorHandler:
         assert self.handler.can_apply(tokens, 1) is False
 
         sentence = ["чем", "как"]
-        result = self.handler.apply(
-            tokens, sentence, 1, set(), rng=random.Random(0)
-        )
+        result = self.handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
         assert result is None
         assert sentence[1] == "как"
 
-        result = self.handler.apply(
-            tokens, sentence, 0, set(), rng=random.Random(0)
-        )
+        result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
         assert result is not None
         assert result.corrupted == "как"

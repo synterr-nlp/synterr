@@ -41,7 +41,9 @@ class FineGrainedTag:
     parent: str
     description: str = ""
     paras: str = ""
-    l2_applicability: str = ""  # full | partial | none — does the native Rozental § describe the L2 error
+    l2_applicability: str = (
+        ""  # full | partial | none — does the native Rozental § describe the L2 error
+    )
     l2_note: str = ""
 
 

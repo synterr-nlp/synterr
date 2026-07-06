@@ -708,15 +708,23 @@ main.add_command(cmd_generate_sft, name="generate-bea-paper")
 @main.command("survey")
 @click.option("--lang", "-l", default="ru", help="Language code")
 @click.option(
-    "--input", "-i", "input_file", required=True,
+    "--input",
+    "-i",
+    "input_file",
+    required=True,
     type=click.Path(exists=True, dir_okay=False),
     help="Text file, one sentence per line",
 )
 @click.option("--limit", "-n", type=int, default=2000, help="Max sentences")
-@click.option("--tries", type=int, default=3,
-              help="apply() attempts per applicable token")
-@click.option("--starving-below", type=float, default=5.0,
-              help="Flag subtypes below this many emissions per 1k sentences")
+@click.option(
+    "--tries", type=int, default=3, help="apply() attempts per applicable token"
+)
+@click.option(
+    "--starving-below",
+    type=float,
+    default=5.0,
+    help="Flag subtypes below this many emissions per 1k sentences",
+)
 @click.option("--output", "-o", type=click.Path(), help="JSON report path")
 @click.option("--seed", type=int, default=42)
 def cmd_survey(
@@ -743,7 +751,10 @@ def cmd_survey(
     click.echo(f"Read {len(sentences)} sentences from {input_file}")
 
     report = survey(
-        sentences, lang=lang, tries=tries, seed=seed,
+        sentences,
+        lang=lang,
+        tries=tries,
+        seed=seed,
         starving_below=starving_below,
         progress=lambda m: click.echo(m, err=True),
     )
@@ -771,12 +782,21 @@ def cmd_survey(
 
 @main.command("mine-pools")
 @click.option(
-    "--source", "-s", "sources", multiple=True, required=True,
+    "--source",
+    "-s",
+    "sources",
+    multiple=True,
+    required=True,
     type=click.Path(exists=True, dir_okay=False),
     help="Text source (one sentence per line); repeatable",
 )
-@click.option("--outdir", "-o", type=click.Path(file_okay=False),
-              default="data/pools", help="Pool output directory")
+@click.option(
+    "--outdir",
+    "-o",
+    type=click.Path(file_okay=False),
+    default="data/pools",
+    help="Pool output directory",
+)
 @click.option("--cap", type=int, default=2000, help="Max sentences per class")
 @click.option("--seed", type=int, default=42)
 def cmd_mine_pools(sources: tuple[str, ...], outdir: str, cap: int, seed: int) -> None:
@@ -792,13 +812,15 @@ def cmd_mine_pools(sources: tuple[str, ...], outdir: str, cap: int, seed: int) -
     from synterr.discovery import mine_pools
 
     meta = mine_pools(
-        [Path(s) for s in sources], Path(outdir), cap=cap, seed=seed,
+        [Path(s) for s in sources],
+        Path(outdir),
+        cap=cap,
+        seed=seed,
         progress=lambda m: click.echo(m, err=True),
     )
     for name in sorted(meta["sampled"]):
         click.echo(
-            f"  {name:32s} seen={meta['seen'][name]:>7}  "
-            f"pooled={meta['sampled'][name]}"
+            f"  {name:32s} seen={meta['seen'][name]:>7}  pooled={meta['sampled'][name]}"
         )
     click.echo(f"Wrote {outdir}/pools.meta.json")
 
