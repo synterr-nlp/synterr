@@ -471,6 +471,97 @@ def _get_subtree_span(
     return (min(visited), max(visited)) if visited else (root_idx, root_idx)
 
 
+def _is_chem_comparative_boundary(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """The comma at `idx` bounds a «чем»-comparative clause INSERTED
+    between an attributive adjective and the noun it modifies («в иных,
+    чем указанные в статье 1, формах») — сравнительный оборот, not a
+    homogeneous list. Stanza tends to parse the чем-clause as a `conj` of
+    the modified adjective, which otherwise wins the generic "conj →
+    homogeneous" branch below.
+
+    This is deliberately narrower than "any comma next to «чем»": an
+    ordinary comparative clause ("Она умнее, чем он думал.") is already
+    correctly comma_subordinate and must not be caught here. The
+    discontinuous-NP insertion always has TWO commas — the чем-clause's
+    own dep-subtree is immediately followed by a second comma — so that
+    is the signal we require for the opening boundary; the closing
+    boundary mirrors it (comma immediately follows the чем-clause's own
+    subtree). Firing on only one of the pair is a dubious, half-formed
+    edit anyway.
+    """
+    n = len(tokens)
+
+    def _chem_head_span(mark: AnalyzedToken) -> tuple[int, int] | None:
+        if (
+            (mark.lemma or mark.text).lower() != "чем"
+            or mark.head_idx is None
+            or not (0 <= mark.head_idx < n)
+        ):
+            return None
+        return _get_subtree_span(tokens, mark.head_idx)
+
+    right = tokens[idx + 1] if idx + 1 < n else None
+    if right is not None and (right.pos == "SCONJ" or right.dep_rel == "mark"):
+        span = _chem_head_span(right)
+        if span is not None:
+            _, span_right = span
+            if span_right + 1 < n and tokens[span_right + 1].text == ",":
+                return True
+
+    for mark in tokens:
+        if mark.dep_rel != "mark":
+            continue
+        span = _chem_head_span(mark)
+        if span is not None and idx == span[1] + 1:
+            return True
+    return False
+
+
+_VOCATIVE_NAME_FEATURES = frozenset({"Giv", "Sur"})
+
+
+def _is_bare_person_propn(
+    tokens: Sequence[AnalyzedToken], propn: AnalyzedToken
+) -> bool:
+    """A PROPN candidate for the §101 vocative fallback: a given/surname
+    feature if stanza tags it, else a PROPN with no non-punctuation
+    dependents of its own (punctuation routinely attaches to a nearby
+    content word as its dep-tree head and doesn't count). Excludes
+    ordinary PROPN subjects/objects that carry modifiers or coordination
+    (e.g. "Зырянов и Денисов искали пути" — "Зырянов" heads a `conj`
+    dependent, so it isn't a bare address)."""
+    if propn.get_feature("NameType") in _VOCATIVE_NAME_FEATURES:
+        return True
+    return not any(t.head_idx == propn.idx and t.pos != "PUNCT" for t in tokens)
+
+
+def _has_person2_verb(tokens: Sequence[AnalyzedToken]) -> bool:
+    """A 2nd-person verb anywhere in the sentence — the surface marker of
+    direct address that gates the §101 vocative fallback below."""
+    return any(t.pos == "VERB" and t.get_feature("Person") == "2" for t in tokens)
+
+
+def _vocative_fallback_boundary(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§101 fallback: stanza sometimes tags an обращение as `parataxis`
+    instead of `vocative` (e.g. a name closing a directly-addressed
+    question — "хотите посмотреть, Эдуард?"). Detect a comma immediately
+    followed by a bare person-name PROPN that is itself followed by
+    another comma or sentence-final `!`/`?`, gated on a 2nd-person verb
+    somewhere in the sentence to avoid catching ordinary PROPN subjects
+    ("..., Зырянов и Денисов искали пути" has no 2nd-person verb at all).
+    """
+    n = len(tokens)
+    right = tokens[idx + 1] if idx + 1 < n else None
+    if right is None or right.pos != "PROPN":
+        return False
+    after = tokens[right.idx + 1] if right.idx + 1 < n else None
+    if after is None or after.text not in (",", "!", "?"):
+        return False
+    if not _is_bare_person_propn(tokens, right):
+        return False
+    return _has_person2_verb(tokens)
+
+
 def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
     """Classify a comma by syntactic context using the dependency tree.
 
@@ -491,9 +582,19 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
 
     # §101 — Обращение: comma bounds a dep_rel=vocative token/subtree.
     # Runs first: the comma between an INTJ/response word and an обращение
-    # ("Привет, Маша") is the §101 boundary.
-    if _vocative_boundary(tokens, idx):
+    # ("Привет, Маша") is the §101 boundary. The fallback catches обращения
+    # stanza mis-tagged as parataxis (see _vocative_fallback_boundary).
+    if _vocative_boundary(tokens, idx) or _vocative_fallback_boundary(tokens, idx):
         return "comma_vocative"
+
+    # Сравнительный оборот («в иных, чем указанные..., формах»): a bare
+    # comparative-clause boundary, not a homogeneous list — and this
+    # construction always has two commas, so a single-sided delete is
+    # dubious regardless. Not a real subtype: weights.get() defaults to 0
+    # and set_enabled_subtypes() rejects it (not in self.subtypes), so
+    # apply() always skips rather than mislabels. See CommaDeleteHandler.
+    if _is_chem_comparative_boundary(tokens, idx):
+        return "comma_skip_chem_comparative"
 
     # §102 — Interjection: INTJ neighbor is a strong signal
     if (left and left.pos == "INTJ") or (right and right.pos == "INTJ"):
@@ -1168,6 +1269,34 @@ class DashDeleteHandler:
 _APPOS_DEPRELS = frozenset({"appos", "parataxis"})
 
 
+def _is_elided_parallel_series(
+    tokens: Sequence[AnalyzedToken], head: AnalyzedToken
+) -> bool:
+    """`head` is itself an `appos` dependent AND its own head (the
+    grandparent) is the subject of a verb that is itself coordinated
+    (`conj`) with an earlier verb — the signature of a parallel-clause
+    series with an elided final predicate ("серебро завоевал Игорь
+    Чарторыйский, бронзу — Юрий Гейзенблас": each position gets
+    appos-chained to the previous one by stanza because the repeated verb
+    is dropped). That is a §80 ellipsis, not a genuine nested apposition
+    like "Лиги чемпионов УЕФА «Зенит»" (whose head is not itself the
+    subject of a coordinated verb).
+    """
+    if head.dep_rel != "appos" or head.head_idx is None:
+        return False
+    gp_idx = head.head_idx
+    if not (0 <= gp_idx < len(tokens)):
+        return False
+    return any(
+        t.dep_rel in ("nsubj", "nsubj:pass")
+        and t.idx == gp_idx
+        and t.head_idx is not None
+        and 0 <= t.head_idx < len(tokens)
+        and tokens[t.head_idx].dep_rel == "conj"
+        for t in tokens
+    )
+
+
 def _appositional_dash_arcs(
     tokens: Sequence[AnalyzedToken], idx: int
 ) -> list[AnalyzedToken]:
@@ -1179,7 +1308,8 @@ def _appositional_dash_arcs(
     to be nominal (NOUN/PROPN/PRON) to avoid catching parataxis on
     interjections or sentence-level discourse markers. §82 connective arcs
     (PROPN—PROPN routes/matches, NUM—NUM ranges) are excluded — they are
-    not appositions.
+    not appositions. `_is_elided_parallel_series` excludes the specific
+    elided-verb-series misparse described above.
     """
     nominal_pos = ("NOUN", "PROPN", "PRON")
     arcs: list[AnalyzedToken] = []
@@ -1198,8 +1328,11 @@ def _appositional_dash_arcs(
         # designation, not an apposition.
         if t.pos == "PROPN" and head.pos == "PROPN":
             continue
-        if (head_idx < idx < t.idx) or (t.idx < idx < head_idx):
-            arcs.append(t)
+        if not ((head_idx < idx < t.idx) or (t.idx < idx < head_idx)):
+            continue
+        if _is_elided_parallel_series(tokens, head):
+            continue
+        arcs.append(t)
     return arcs
 
 

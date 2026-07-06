@@ -6,6 +6,7 @@ from synterr.languages.russian.errors.punctuation import (
     CommaPairDeleteHandler,
     DashDeleteHandler,
     DashToCommaHandler,
+    _appositional_dash_arcs,
     _classify_comma,
     _classify_dash,
     _find_comma_partner,
@@ -2171,3 +2172,233 @@ class TestAnnotationRegressionsPair:
         ]
         result = _find_comma_partner(tokens, 1)
         assert result == (5, "pair_gerund")
+
+
+# ── Regressions from the 2026-07 native-annotation pass, wave S5 ───────────
+# Fake-token reconstructions of records flagged wrong_tag/non_error in
+# scratchpad/artem_s5_leftovers.jsonl (finishing the wave started above).
+
+
+class TestChemComparativeGuard:
+    """«в иных, чем указанные в пункте 1 настоящей статьи, формах» was
+    labeled comma_homogeneous — a «чем»-comparative clause insertion, not
+    a homogeneous list. Both boundary commas must skip (never mislabel),
+    since firing on only one of the pair is a dubious, half-formed edit.
+    """
+
+    def _tokens(self):
+        # "...в иных, чем указанные в статье, формах ..." (trimmed to the
+        # load-bearing span; mirrors the real record's dep shapes).
+        return [
+            _tok("иных", "ADJ", idx=0, dep_rel="amod", head_idx=6),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("чем", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok(
+                "указанные",
+                "VERB",
+                idx=3,
+                dep_rel="conj",
+                head_idx=0,
+                features={"VerbForm": "Part", "Voice": "Pass"},
+            ),
+            _tok("в", "ADP", idx=4, dep_rel="case", head_idx=5),
+            _tok("статье", "NOUN", idx=5, dep_rel="obl", head_idx=3),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=3),
+            _tok("формах", "NOUN", idx=7, dep_rel="nmod", head_idx=None),
+        ]
+
+    def test_opening_comma_skips(self):
+        tokens = self._tokens()
+        assert _classify_comma(tokens, 1) == "comma_skip_chem_comparative"
+
+    def test_closing_comma_skips(self):
+        tokens = self._tokens()
+        assert _classify_comma(tokens, 6) == "comma_skip_chem_comparative"
+
+    def test_apply_never_fires_regardless_of_weights(self):
+        # Not a real subtype: weights.get() defaults to 0, so apply() must
+        # skip even though nothing explicitly zeroes it out.
+        tokens = self._tokens()
+        sentence = [t.text for t in tokens]
+        handler = CommaDeleteHandler()
+        assert handler.apply(tokens, sentence, 1, set()) is None
+        assert handler.apply(tokens, sentence, 6, set()) is None
+        assert sentence == [t.text for t in tokens]
+
+    def test_apply_never_fires_even_with_explicit_targeting(self):
+        # set_enabled_subtypes rejects unknown subtypes outright, so this
+        # skip sentinel can never be explicitly re-enabled either.
+        tokens = self._tokens()
+        sentence = [t.text for t in tokens]
+        handler = CommaDeleteHandler()
+        handler.set_enabled_subtypes({"comma_homogeneous", "comma_subordinate"})
+        assert handler.apply(tokens, sentence, 1, set()) is None
+        assert handler.apply(tokens, sentence, 6, set()) is None
+
+    def test_ordinary_chem_subordinate_clause_unaffected(self):
+        # "Она умнее, чем он думал." — plain сравнительный оборот with no
+        # discontinuous NP on the other side: still comma_subordinate.
+        tokens = [
+            _tok("умнее", "ADJ", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=4),
+            _tok("чем", "SCONJ", idx=2, dep_rel="mark", head_idx=4),
+            _tok("он", "PRON", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok(
+                "думал",
+                "VERB",
+                idx=4,
+                dep_rel="advcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_subordinate"
+
+
+class TestVocativeFallback:
+    """§101 fallback: stanza sometimes tags an обращение as `parataxis`
+    instead of `vocative` (e.g. a name closing a directly-addressed
+    question). «хотите посмотреть, Эдуард?» — the comma bounding «Эдуард»
+    must reclassify comma_parenthetical -> comma_vocative.
+    """
+
+    def test_propn_before_sentence_final_question_mark_is_vocative(self):
+        # "...хотите посмотреть, Эдуард?" — Эдуард parsed as parataxis
+        # (not vocative), directly bounded by the comma at idx=1.
+        tokens = [
+            _tok(
+                "хотите",
+                "VERB",
+                idx=0,
+                dep_rel="root",
+                head_idx=None,
+                features={"Person": "2"},
+            ),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Эдуард", "PROPN", idx=2, dep_rel="parataxis", head_idx=0),
+            _tok("?", "PUNCT", idx=3, dep_rel="punct", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_vocative"
+
+    def test_propn_before_comma_then_exclamation_is_vocative(self):
+        # A name followed by "," then "!" also qualifies.
+        tokens = [
+            _tok(
+                "Стойте",
+                "VERB",
+                idx=0,
+                dep_rel="root",
+                head_idx=None,
+                features={"Person": "2"},
+            ),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Олег", "PROPN", idx=2, dep_rel="parataxis", head_idx=0),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=0),
+            _tok("!", "PUNCT", idx=4, dep_rel="punct", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_vocative"
+
+    def test_propn_subject_with_conjunct_not_vocative(self):
+        # "..., Зырянов и Денисов искали пути" — a coordinated PROPN
+        # SUBJECT, not an address: "Зырянов" heads a conj dependent, and
+        # there is no 2nd-person verb anywhere in the sentence.
+        tokens = [
+            _tok("отвечать", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Зырянов", "PROPN", idx=2, dep_rel="nsubj", head_idx=5),
+            _tok("и", "CCONJ", idx=3, dep_rel="cc", head_idx=4),
+            _tok("Денисов", "PROPN", idx=4, dep_rel="conj", head_idx=2),
+            _tok(
+                "искали",
+                "VERB",
+                idx=5,
+                dep_rel="conj",
+                head_idx=0,
+                features={"Person": "3"},
+            ),
+            _tok("пути", "NOUN", idx=6, dep_rel="obj", head_idx=5),
+        ]
+        assert _classify_comma(tokens, 1) != "comma_vocative"
+
+    def test_propn_subject_no_person2_verb_not_vocative(self):
+        # Same bare-PROPN-then-comma surface shape, but no 2nd-person verb
+        # anywhere in the sentence gates the fallback off even if the name
+        # itself has no dependents.
+        tokens = [
+            _tok(
+                "пришёл",
+                "VERB",
+                idx=0,
+                dep_rel="root",
+                head_idx=None,
+                features={"Person": "3"},
+            ),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Олег", "PROPN", idx=2, dep_rel="parataxis", head_idx=0),
+            _tok(".", "PUNCT", idx=3, dep_rel="punct", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 1) != "comma_vocative"
+
+    def test_propn_not_followed_by_terminator_not_vocative(self):
+        # Bare PROPN followed by ordinary continuation text, not , / ! / ? —
+        # not an address boundary.
+        tokens = [
+            _tok(
+                "видите",
+                "VERB",
+                idx=0,
+                dep_rel="root",
+                head_idx=None,
+                features={"Person": "2"},
+            ),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=2),
+            _tok("Эдуард", "PROPN", idx=2, dep_rel="parataxis", head_idx=0),
+            _tok("здесь", "ADV", idx=3, dep_rel="advmod", head_idx=0),
+            _tok(".", "PUNCT", idx=4, dep_rel="punct", head_idx=0),
+        ]
+        assert _classify_comma(tokens, 1) != "comma_vocative"
+
+
+class TestDashToCommaEllipsisGuard:
+    """DashToCommaHandler over-fired on «бронзу — Юрий Гейзенблас»: stanza
+    chains each position of a parallel, elided-verb clause series
+    ("...стал Вадим Вирный, серебро завоевал Игорь Чарторыйский, бронзу —
+    Юрий Гейзенблас") as appos-of-appos, which is a §80 ellipsis, not a
+    genuine nested apposition.
+    """
+
+    def test_elided_parallel_series_arc_excluded(self):
+        tokens = [
+            _tok("стал", "VERB", idx=0, dep_rel="root", head_idx=None),
+            _tok("Вадим", "PROPN", idx=1, dep_rel="nsubj", head_idx=0),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("серебро", "NOUN", idx=3, dep_rel="obj", head_idx=4),
+            _tok("завоевал", "VERB", idx=4, dep_rel="conj", head_idx=0),
+            _tok("Игорь", "PROPN", idx=5, dep_rel="nsubj", head_idx=4),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=7),
+            _tok("бронзу", "NOUN", idx=7, dep_rel="appos", head_idx=5),
+            _tok("—", "PUNCT", idx=8, dep_rel="punct", head_idx=9),
+            _tok("Юрий", "PROPN", idx=9, dep_rel="appos", head_idx=7),
+            _tok("Гейзенблас", "PROPN", idx=10, dep_rel="flat:name", head_idx=9),
+            _tok(".", "PUNCT", idx=11, dep_rel="punct", head_idx=0),
+        ]
+        assert _appositional_dash_arcs(tokens, 8) == []
+        assert DashToCommaHandler().can_apply(tokens, 8) is False
+
+    def test_match_pairing_dash_excluded(self):
+        # "Лиги чемпионов УЕФА «Зенит» — «Порту»": a PROPN — PROPN match
+        # pairing is a §82 connective dash (the native annotation pass
+        # flagged exactly this sentence as wrong_tag for apposition) — a
+        # comma would turn the pairing into a list, so dash_to_comma must
+        # not fire. Genitive-left nested appositions («столица Исландии —
+        # Рейкьявик») remain in via the connective-dash Gen exclusion.
+        tokens = [
+            _tok("встреча", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("завершилась", "VERB", idx=1, dep_rel="root", head_idx=None),
+            _tok("Лиги", "NOUN", idx=2, dep_rel="nmod", head_idx=0),
+            _tok("Зенит", "PROPN", idx=3, dep_rel="appos", head_idx=2),
+            _tok("—", "PUNCT", idx=4, dep_rel="punct", head_idx=5),
+            _tok("Порту", "PROPN", idx=5, dep_rel="appos", head_idx=3),
+            _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=1),
+        ]
+        assert DashToCommaHandler().can_apply(tokens, 4) is False
