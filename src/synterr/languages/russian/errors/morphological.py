@@ -40,6 +40,11 @@ def _is_adj_or_participle(token: AnalyzedToken) -> bool:
 # dep_rels used by participles/adjectives pointing at their head noun
 _MODIFIER_DEPRELS = {"amod", "acl", "acl:relcl"}
 
+# UD Animacy → pymorphy grammeme. The inflector has no animacy map, but the
+# Acc slot of masc-singular and plural adjectives is animacy-ambiguous
+# (взрывотехнический/взрывотехнического), so agreement handlers must pin it.
+_UD_TO_PYMORPHY_ANIMACY = {"Anim": "anim", "Inan": "inan"}
+
 # dep_rels where the head governs the noun's case (government relation)
 _GOVERNED_DEPRELS = {"obl", "nmod", "iobj", "obj"}
 
@@ -325,6 +330,99 @@ class NounNumberErrorHandler:
         return None
 
 
+def _amod_head_noun(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
+    """The adjective's amod head, when dep info points at a NOUN/PROPN."""
+    token = tokens[idx]
+    if token.dep_rel == "amod" and token.head_idx is not None:
+        head = _get_token_safe(tokens, token.head_idx)
+        if head is not None and head.pos in {"NOUN", "PROPN"}:
+            return head
+    return None
+
+
+def _passes_adj_agreement_guards(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Precision guards for adj_gender/adj_number (native-annotation pass).
+
+    - pymorphy Apro (pronominal adjectives: иного, данный, другим) — their
+      flips read as lexical substitutions, not agreement errors
+    - PRTF/PRTS parses (participles, often stanza-mistagged ADJ: вызванного)
+      — their agreement is licensed by the verbal frame, and short forms
+      inflect into non-words (убеждённы)
+    - with dep info present, only amod modifiers of a NOUN/PROPN head fire:
+      predicatives (нужно, очевидно, должен) and substantivized idioms
+      (пойти на попятную) carry no amod arc and corrupting them is a
+      non-error
+    """
+    token = tokens[idx]
+    parse = _get_pymorphy_parse(token)
+    if parse is None:
+        return False
+    tag = str(parse.tag)
+    if "Apro" in tag or "PRTF" in tag or "PRTS" in tag:
+        return False
+    if token.dep_rel:
+        return _amod_head_noun(tokens, idx) is not None
+    return True
+
+
+def _noun_gender_grammeme(noun: AnalyzedToken) -> str | None:
+    """Noun's gender as a pymorphy grammeme.
+
+    UD feature first; plural nouns carry no UD Gender, so fall back to the
+    noun's own pymorphy tag (неполадок → femn).
+    """
+    gender_ud = noun.get_feature("Gender")
+    if gender_ud:
+        return UD_TO_PYMORPHY_GENDER.get(gender_ud)
+    parse = _get_pymorphy_parse(noun)
+    if parse is not None:
+        return getattr(parse.tag, "gender", None)
+    return None
+
+
+def _animacy_grammeme(token: AnalyzedToken, head: AnalyzedToken | None) -> str | None:
+    """Animacy grammeme for Acc agreement, from the head noun or the token."""
+    for source in (head, token):
+        if source is None:
+            continue
+        animacy = _UD_TO_PYMORPHY_ANIMACY.get(source.get_feature("Animacy"))
+        if animacy is None:
+            parse = _get_pymorphy_parse(source)
+            animacy = getattr(parse.tag, "animacy", None) if parse else None
+        if animacy:
+            return animacy
+    return None
+
+
+def _preserved_case_grammemes(
+    token: AnalyzedToken,
+    head: AnalyzedToken | None,
+    *,
+    target_gender: str | None,
+    target_number: str | None,
+) -> set[str] | None:
+    """Grammemes pinning the token's original case through the inflection.
+
+    Without an explicit case pymorphy drifts to whatever paradigm slot comes
+    first (взрывотехническую + masc → animate-Acc/Gen взрывотехнического).
+    The Acc slot is animacy-ambiguous for masc-singular and plural targets,
+    so those also carry an animacy grammeme; unknown animacy there → None
+    (precision-first skip). Fem/neut Acc forms carry no animacy in pymorphy,
+    so adding one would make the inflection fail — it is omitted.
+    """
+    case_ud = token.get_feature("Case")
+    py_case = UD_TO_PYMORPHY_CASE.get(case_ud) if case_ud else None
+    if py_case is None:
+        return set()
+    grammemes = {py_case}
+    if case_ud == "Acc" and (target_number == "plur" or target_gender == "masc"):
+        animacy = _animacy_grammeme(token, head)
+        if animacy is None:
+            return None
+        grammemes.add(animacy)
+    return grammemes
+
+
 class AdjCaseErrorHandler:
     """Change adjective/participle case."""
 
@@ -408,7 +506,15 @@ class AdjCaseErrorHandler:
 
 
 class AdjNumberErrorHandler:
-    """Change adjective/participle number."""
+    """Change adjective/participle number.
+
+    Precision guards (native-annotation pass): pronominal adjectives (Apro),
+    participle parses (PRTF/PRTS) and non-amod tokens are skipped — see
+    ``_passes_adj_agreement_guards``. Pl→Sg additionally requires the head
+    noun's gender (plural adjectives carry none, and pymorphy would default
+    the singular to masculine), and the original case (with animacy for Acc)
+    is pinned through the inflection.
+    """
 
     name = "adj_number"
     subtypes = ["adj_number"]
@@ -425,7 +531,22 @@ class AdjNumberErrorHandler:
         if not _is_adj_or_participle(token):
             return False
         parse = _get_pymorphy_parse(token)
-        return parse is not None and token.has_feature("Number")
+        if parse is None or not token.has_feature("Number"):
+            return False
+        if not _passes_adj_agreement_guards(tokens, idx):
+            return False
+        return not self._head_is_indeclinable(tokens, idx)
+
+    @staticmethod
+    def _head_is_indeclinable(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        """Indeclinable heads (интервью, кафе: pymorphy Fixd) license both
+        modifier numbers ("в эксклюзивных интервью" is correct) — a number
+        flip against them is a non-error."""
+        head = _amod_head_noun(tokens, idx)
+        if head is None:
+            return False
+        head_parse = _get_pymorphy_parse(head)
+        return head_parse is not None and "Fixd" in str(head_parse.tag)
 
     def apply(
         self,
@@ -442,16 +563,39 @@ class AdjNumberErrorHandler:
 
         if parse is None:
             return None
+        if not _passes_adj_agreement_guards(tokens, idx):
+            return None
+        if self._head_is_indeclinable(tokens, idx):
+            return None
+
+        head = _amod_head_noun(tokens, idx)
 
         # Reference number: prefer head noun's number (dep tree) if available
         ref_number_ud = token.get_feature("Number")
-        if token.dep_rel in _MODIFIER_DEPRELS and token.head_idx is not None:
-            head = _get_token_safe(tokens, token.head_idx)
-            if head and head.has_feature("Number"):
-                ref_number_ud = head.get_feature("Number")
+        if head is not None and head.has_feature("Number"):
+            ref_number_ud = head.get_feature("Number")
 
         target_num = "plur" if ref_number_ud == "Sing" else "sing"
-        new_word = inflect_word(parse, {target_num}, word)
+        grammemes = {target_num}
+
+        target_gender = None
+        if target_num == "sing":
+            # Plural adjectives carry no gender, so the singular must take
+            # the head noun's (технических неполадок → технической, not the
+            # pymorphy-default masc технического). No gender evidence → skip.
+            target_gender = _noun_gender_grammeme(head) if head is not None else None
+            if target_gender is None:
+                return None
+            grammemes.add(target_gender)
+
+        case_grammemes = _preserved_case_grammemes(
+            token, head, target_gender=target_gender, target_number=target_num
+        )
+        if case_grammemes is None:
+            return None
+        grammemes |= case_grammemes
+
+        new_word = inflect_word(parse, grammemes, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -472,7 +616,15 @@ class AdjNumberErrorHandler:
 
 
 class AdjGenderErrorHandler:
-    """Change adjective/participle gender."""
+    """Change adjective/participle gender.
+
+    Precision guards (native-annotation pass): pronominal adjectives (Apro),
+    participle parses (PRTF/PRTS) and non-amod tokens are skipped — see
+    ``_passes_adj_agreement_guards``. The original case (with animacy for
+    Acc) is pinned through the inflection so a gender flip cannot drift into
+    a case error (взрывотехническую → взрывотехнический, not the animate-Acc
+    взрывотехнического).
+    """
 
     name = "adj_gender"
     subtypes = ["adj_gender"]
@@ -490,11 +642,13 @@ class AdjGenderErrorHandler:
             return False
         parse = _get_pymorphy_parse(token)
         # Gender only applies to singular adjectives/participles
-        return (
-            parse is not None
-            and token.has_feature("Gender")
-            and token.get_feature("Number") == "Sing"
-        )
+        if (
+            parse is None
+            or not token.has_feature("Gender")
+            or token.get_feature("Number") != "Sing"
+        ):
+            return False
+        return _passes_adj_agreement_guards(tokens, idx)
 
     def apply(
         self,
@@ -512,13 +666,15 @@ class AdjGenderErrorHandler:
 
         if parse is None:
             return None
+        if not _passes_adj_agreement_guards(tokens, idx):
+            return None
+
+        head = _amod_head_noun(tokens, idx)
 
         # Reference gender: prefer head noun's gender (dep tree) if available
         ref_gender_ud = token.get_feature("Gender")
-        if token.dep_rel in _MODIFIER_DEPRELS and token.head_idx is not None:
-            head = _get_token_safe(tokens, token.head_idx)
-            if head and head.has_feature("Gender"):
-                ref_gender_ud = head.get_feature("Gender")
+        if head is not None and head.has_feature("Gender"):
+            ref_gender_ud = head.get_feature("Gender")
 
         current_gender = UD_TO_PYMORPHY_GENDER.get(token.get_feature("Gender"))
 
@@ -538,7 +694,15 @@ class AdjGenderErrorHandler:
             other_genders = [g for g in GENDERS if g != current_gender]
             target_gender = rng.choice(other_genders)
 
-        new_word = inflect_word(parse, {target_gender}, word)
+        grammemes = {target_gender}
+        case_grammemes = _preserved_case_grammemes(
+            token, head, target_gender=target_gender, target_number=None
+        )
+        if case_grammemes is None:
+            return None
+        grammemes |= case_grammemes
+
+        new_word = inflect_word(parse, grammemes, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -772,10 +936,20 @@ class VerbTenseErrorHandler:
         token = tokens[idx]
         if token.pos not in {"VERB", "AUX"}:
             return False
+        if not self._is_finite(token):
+            return False
         parse = _get_pymorphy_parse(token)
         if parse is None or not token.has_feature("Tense"):
             return False
         return self._licensed_tenses(tokens, idx) is not None
+
+    @staticmethod
+    def _is_finite(token: AnalyzedToken) -> bool:
+        """Finite forms only: participles/converbs carry Tense too (stanza
+        tags them VERB), but flipping them into finite forms destroys voice
+        (сообщено → сообщит, уволившийся → уволится)."""
+        verb_form = token.get_feature("VerbForm")
+        return verb_form is None or verb_form == "Fin"
 
     @staticmethod
     def _licensed_tenses(
@@ -815,7 +989,7 @@ class VerbTenseErrorHandler:
         word = sentence[idx]
         parse = _get_pymorphy_parse(token)
 
-        if parse is None:
+        if parse is None or not self._is_finite(token):
             return None
 
         current_tense = UD_TO_PYMORPHY_TENSE.get(token.get_feature("Tense"))

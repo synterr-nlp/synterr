@@ -910,6 +910,302 @@ class TestDepTreeAgreement:
         assert handler.can_apply(tokens, 1) is True
 
 
+class TestAdjAgreementPrecisionGuards:
+    """Precision fixes for adj_gender/adj_number (native-annotation pass).
+
+    Regressions for the failure dump where Pl→Sg lost the head noun's gender
+    (технических → технического for fem неполадок), gender flips drifted into
+    case errors (взрывотехническую → animate-Acc взрывотехнического), and the
+    handlers fired on pronominal adjectives (иного), participles (вызванного)
+    and predicatives without an amod arc (нужно, должен).
+    """
+
+    def _number_handler(self):
+        from synterr.languages.russian.errors.morphological import AdjNumberErrorHandler
+
+        return AdjNumberErrorHandler()
+
+    def _gender_handler(self):
+        from synterr.languages.russian.errors.morphological import AdjGenderErrorHandler
+
+        return AdjGenderErrorHandler()
+
+    def _amod_pair(
+        self,
+        adj_text,
+        adj_features,
+        noun_text,
+        noun_features,
+        *,
+        noun_parse=True,
+    ):
+        """adj --amod--> noun, mirroring the real stanza dep tree."""
+        noun_extra = {}
+        if noun_parse:
+            noun_extra["pymorphy_parse"] = morph.parse(noun_text)[0]
+        return [
+            AnalyzedToken(
+                text=adj_text,
+                lemma=morph.parse(adj_text)[0].normal_form,
+                pos="ADJ",
+                features=adj_features,
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse(adj_text)[0]},
+            ),
+            AnalyzedToken(
+                text=noun_text,
+                lemma=morph.parse(noun_text)[0].normal_form,
+                pos="NOUN",
+                features=noun_features,
+                idx=1,
+                dep_rel="obl",
+                head_idx=None,
+                extra=noun_extra,
+            ),
+        ]
+
+    def test_pl_to_sg_takes_gender_from_head_noun(self):
+        """технических неполадок → технической (fem from head), not the
+        pymorphy-default masc технического. Plural nouns carry no UD Gender,
+        so the gender comes from the head's pymorphy tag."""
+        handler = self._number_handler()
+        tokens = self._amod_pair(
+            "технических",
+            {"Case": "Gen", "Number": "Plur"},
+            "неполадок",
+            {"Case": "Gen", "Number": "Plur", "Animacy": "Inan"},
+        )
+        assert handler.can_apply(tokens, 0) is True
+
+        sentence = ["технических", "неполадок"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "технической"
+        assert result.fix_tag == "$TRANSFORM_NUMBER_Plur"
+
+    def test_pl_to_sg_without_head_gender_skips(self):
+        """No gender evidence on the head → skip (precision-first)."""
+        handler = self._number_handler()
+        tokens = self._amod_pair(
+            "технических",
+            {"Case": "Gen", "Number": "Plur"},
+            "неполадок",
+            {"Case": "Gen", "Number": "Plur"},
+            noun_parse=False,
+        )
+        sentence = ["технических", "неполадок"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["технических", "неполадок"]
+
+    def test_pl_to_sg_without_dep_info_skips(self):
+        """Without an amod head there is no gender source for Pl→Sg — skip."""
+        handler = self._number_handler()
+        tok = AnalyzedToken(
+            text="красивые",
+            lemma="красивый",
+            pos="ADJ",
+            features={"Case": "Nom", "Number": "Plur"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("красивые")[0]},
+        )
+        sentence = ["красивые"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["красивые"]
+
+    def test_gender_change_preserves_accusative_case(self):
+        """интересную (Acc fem) → интересный (inan Acc masc), not the
+        animate-Acc/Gen интересного — case and animacy are pinned."""
+        handler = self._gender_handler()
+        handler.set_confusion_matrix({"gender": {"Fem": {"Masc": 1.0}}})
+        tokens = self._amod_pair(
+            "интересную",
+            {"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+            "книгу",
+            {"Case": "Acc", "Number": "Sing", "Gender": "Fem", "Animacy": "Inan"},
+        )
+        assert handler.can_apply(tokens, 0) is True
+
+        sentence = ["интересную", "книгу"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "интересный"
+        assert result.fix_tag == "$TRANSFORM_GENDER_Fem"
+
+    def test_gender_change_preserves_oblique_case(self):
+        """невысокой (Ins fem) → невысоким (Ins masc), not the Dat drift
+        невысокому produced by an unconstrained inflect."""
+        handler = self._gender_handler()
+        handler.set_confusion_matrix({"gender": {"Fem": {"Masc": 1.0}}})
+        tokens = self._amod_pair(
+            "невысокой",
+            {"Case": "Ins", "Number": "Sing", "Gender": "Fem"},
+            "доходностью",
+            {"Case": "Ins", "Number": "Sing", "Gender": "Fem", "Animacy": "Inan"},
+        )
+        sentence = ["невысокой", "доходностью"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "невысоким"
+
+    def test_number_change_preserves_accusative_animacy(self):
+        """ручную гранату (Sg→Pl): → ручные (inan Acc), not ручных."""
+        handler = self._number_handler()
+        tokens = self._amod_pair(
+            "ручную",
+            {"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+            "гранату",
+            {"Case": "Acc", "Number": "Sing", "Gender": "Fem", "Animacy": "Inan"},
+        )
+        sentence = ["ручную", "гранату"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "ручные"
+
+    def test_apro_pronominal_adjectives_skipped(self):
+        """иного/данный parse as pymorphy Apro — flips read as lexical
+        substitutions (иного → иной), not agreement errors."""
+        number_handler = self._number_handler()
+        gender_handler = self._gender_handler()
+
+        # With dep info (amod arc present, guard still rejects on Apro)
+        tokens = self._amod_pair(
+            "иного",
+            {"Case": "Gen", "Number": "Sing", "Gender": "Masc"},
+            "плана",
+            {"Case": "Gen", "Number": "Sing", "Gender": "Masc", "Animacy": "Inan"},
+        )
+        assert "Apro" in str(tokens[0].extra["pymorphy_parse"].tag)
+        assert number_handler.can_apply(tokens, 0) is False
+        assert gender_handler.can_apply(tokens, 0) is False
+
+        # Without dep info the Apro guard still applies
+        tok = AnalyzedToken(
+            text="данный",
+            lemma="данный",
+            pos="ADJ",
+            features={"Case": "Nom", "Number": "Sing", "Gender": "Masc"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("данный")[0]},
+        )
+        assert number_handler.can_apply([tok], 0) is False
+        assert gender_handler.can_apply([tok], 0) is False
+
+    def test_prtf_participle_skipped(self):
+        """вызванного: stanza mistags the participle ADJ, pymorphy says PRTF
+        — agreement is licensed by the verbal frame, skip."""
+        number_handler = self._number_handler()
+        gender_handler = self._gender_handler()
+        tokens = self._amod_pair(
+            "вызванного",
+            {"Case": "Gen", "Number": "Sing", "Gender": "Masc"},
+            "дождя",
+            {"Case": "Gen", "Number": "Sing", "Gender": "Masc", "Animacy": "Inan"},
+        )
+        assert "PRTF" in str(tokens[0].extra["pymorphy_parse"].tag)
+        assert number_handler.can_apply(tokens, 0) is False
+        assert gender_handler.can_apply(tokens, 0) is False
+
+    def test_prts_short_participle_skipped(self):
+        """приговорены (PRTS): short participles inflect into non-words
+        (убеждённы) — skip even without dep info."""
+        handler = self._number_handler()
+        tok = AnalyzedToken(
+            text="приговорены",
+            lemma="приговорить",
+            pos="ADJ",
+            features={"Number": "Plur", "Variant": "Short"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("приговорены")[0]},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_predicative_without_amod_arc_skipped(self):
+        """With dep info present, no amod arc → skip: predicatives (нужно,
+        должен) and substantivized idioms (пойти на попятную)."""
+        number_handler = self._number_handler()
+        gender_handler = self._gender_handler()
+        for text, dep_rel in [
+            ("нужно", "root"),
+            ("должен", "root"),
+            ("попятную", "obl"),
+        ]:
+            tok = AnalyzedToken(
+                text=text,
+                lemma=morph.parse(text)[0].normal_form,
+                pos="ADJ",
+                features={"Number": "Sing", "Gender": "Neut", "Case": "Acc"},
+                idx=0,
+                dep_rel=dep_rel,
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse(text)[0]},
+            )
+            assert number_handler.can_apply([tok], 0) is False, text
+            assert gender_handler.can_apply([tok], 0) is False, text
+
+    def test_amod_to_non_noun_head_skipped(self):
+        """amod pointing at a non-NOUN head is not agreement evidence."""
+        handler = self._gender_handler()
+        adj = AnalyzedToken(
+            text="красивая",
+            lemma="красивый",
+            pos="ADJ",
+            features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
+            idx=0,
+            dep_rel="amod",
+            head_idx=1,
+            extra={"pymorphy_parse": morph.parse("красивая")[0]},
+        )
+        verb = AnalyzedToken(
+            text="стоит",
+            lemma="стоять",
+            pos="VERB",
+            features={"Tense": "Pres", "Number": "Sing"},
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={"pymorphy_parse": morph.parse("стоит")[0]},
+        )
+        assert handler.can_apply([adj, verb], 0) is False
+
+    def test_without_dep_info_plain_adjective_still_fires(self):
+        """No depparse → current behavior retained (plus Apro/PRTF guards)."""
+        number_handler = self._number_handler()
+        gender_handler = self._gender_handler()
+        tok = AnalyzedToken(
+            text="красивая",
+            lemma="красивый",
+            pos="ADJ",
+            features={"Case": "Nom", "Number": "Sing", "Gender": "Fem"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("красивая")[0]},
+        )
+        assert number_handler.can_apply([tok], 0) is True
+        assert gender_handler.can_apply([tok], 0) is True
+
+        sentence = ["красивая"]
+        result = number_handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "красивые"  # Sg→Pl needs no gender source
+
+    def test_indeclinable_head_skips_number_but_not_gender(self):
+        """эксклюзивном интервью: интервью is Fixd, both modifier numbers are
+        correct → number flip is a non-error; a gender flip still is one."""
+        number_handler = self._number_handler()
+        gender_handler = self._gender_handler()
+        tokens = self._amod_pair(
+            "эксклюзивном",
+            {"Case": "Loc", "Number": "Sing", "Gender": "Neut"},
+            "интервью",
+            {"Case": "Loc", "Number": "Sing", "Gender": "Neut", "Animacy": "Inan"},
+        )
+        assert number_handler.can_apply(tokens, 0) is False
+        assert gender_handler.can_apply(tokens, 0) is True
+
+
 class TestConfusionMatrixConfig:
     """Tests for confusion matrix config loading and pipeline wiring."""
 
@@ -1147,6 +1443,71 @@ class TestVerbTensePreservesAgreement:
             result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(seed))
             assert result is not None  # never None despite unreachable present
             assert sentence[0] == "напишет"
+
+
+class TestVerbTenseFiniteOnly:
+    """verb_tense must not fire on participles (annotation pass).
+
+    Stanza tags participles VERB with a Tense feature, but flipping them into
+    finite forms destroys voice: сообщено → сообщит, уволившийся → уволится.
+    Only VerbForm=Fin (or absent) may fire.
+    """
+
+    def test_short_passive_participle_does_not_fire(self):
+        handler = _verb_tense_handler()
+        tokens = [
+            _anchor_token("Вчера", 0, 1),
+            AnalyzedToken(
+                text="сообщено",
+                lemma="сообщить",
+                pos="VERB",
+                features={
+                    "Tense": "Past",
+                    "VerbForm": "Part",
+                    "Voice": "Pass",
+                    "Number": "Sing",
+                    "Gender": "Neut",
+                },
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("сообщено")[0]},
+            ),
+        ]
+        assert handler.can_apply(tokens, 1) is False
+
+        sentence = ["Вчера", "сообщено"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["Вчера", "сообщено"]
+
+    def test_finite_past_verb_still_fires(self):
+        """Explicit VerbForm=Fin must not be caught by the participle guard."""
+        handler = _verb_tense_handler()
+        tokens = [
+            AnalyzedToken(
+                text="написал",
+                lemma="написать",
+                pos="VERB",
+                features={
+                    "Tense": "Past",
+                    "VerbForm": "Fin",
+                    "Number": "Sing",
+                    "Gender": "Masc",
+                },
+                idx=0,
+                dep_rel="root",
+                head_idx=None,
+                extra={"pymorphy_parse": morph.parse("написал")[0]},
+            ),
+            _anchor_token("вчера", 1, 0),
+        ]
+        assert handler.can_apply(tokens, 0) is True
+
+        sentence = ["написал", "вчера"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "напишет"
 
 
 class TestNounNumberRequiresAgreementEvidence:
