@@ -112,6 +112,8 @@ def get_default_preset(language: str) -> str:
     defaults = {
         "russian": "rulec",
         "ru": "rulec",
+        "french": "poc",
+        "fr": "poc",
     }
     return defaults.get(language.lower(), "balanced")
 
@@ -121,5 +123,7 @@ def _normalize_language(language: str) -> str:
     mapping = {
         "ru": "russian",
         "russian": "russian",
+        "fr": "french",
+        "french": "french",
     }
     return mapping.get(language.lower(), language.lower())

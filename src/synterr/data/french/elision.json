@@ -1,0 +1,98 @@
+{
+  "_meta": {
+    "description": "Categorical French elision: the final vowel (a, e, or i) of a closed set of short grammatical words is dropped and replaced by an apostrophe when the following token begins with a vowel or h muet. Elision is suspended before h aspiré words (see h_aspire.json) and before huit, huitième, onze, onzième and their derivatives, where the full form is kept.",
+    "trigger_rule": "Elision fires when the eliding word is immediately followed by a token whose first letter is a, e, i, o, u, y, or a silent h (h muet) -- i.e. any orthographic vowel, or an h that itself does not block liaison/elision. It is suspended (full form kept, no apostrophe) before h aspiré words (h_aspire.json) and before huit, huitième, onze, onzième and their derivatives.",
+    "source": "https://vitrinelinguistique.oqlf.gouv.qc.ca/21737/lorthographe/elision-et-apostrophe/elision-obligatoire (cases where elision is mandatory); https://vitrinelinguistique.oqlf.gouv.qc.ca/21745/lorthographe/elision-et-apostrophe/elision-interdite (cases where elision is forbidden)",
+    "version": "1.0"
+  },
+  "le": {
+    "full_form": "le",
+    "elided_form": "l'",
+    "elided_vowel": "e",
+    "category": "definite article (masc. sg.) / 3rd person singular direct-object clitic pronoun",
+    "example": "l'aviateur a volé",
+    "source": "BDL 21737 -- \"la voyelle finale d'un mot\" is elided in le, la before verbs/nouns starting with vowel or h muet"
+  },
+  "la": {
+    "full_form": "la",
+    "elided_form": "l'",
+    "elided_vowel": "a",
+    "category": "definite article (fem. sg.) / 3rd person singular direct-object clitic pronoun",
+    "example": "l'aviatrice a volé",
+    "note": "does not elide before h aspiré (la hache, not l'hache) or before huit/onze (la onzième heure is not elided in this idiomatic set)",
+    "source": "BDL 21737; BDL 21745 (elision interdite)"
+  },
+  "je": {
+    "full_form": "je",
+    "elided_form": "j'",
+    "elided_vowel": "e",
+    "category": "1st person singular subject clitic",
+    "example": "j'espère",
+    "source": "BDL 21737"
+  },
+  "me": {
+    "full_form": "me",
+    "elided_form": "m'",
+    "elided_vowel": "e",
+    "category": "1st person singular object/reflexive clitic (placed before the verb)",
+    "example": "tu m'apporteras",
+    "source": "BDL 21737"
+  },
+  "te": {
+    "full_form": "te",
+    "elided_form": "t'",
+    "elided_vowel": "e",
+    "category": "2nd person singular object/reflexive clitic (placed before the verb)",
+    "example": "je t'attends",
+    "source": "BDL 21737"
+  },
+  "se": {
+    "full_form": "se",
+    "elided_form": "s'",
+    "elided_vowel": "e",
+    "category": "3rd person reflexive clitic (placed before the verb)",
+    "example": "elle s'habille",
+    "source": "BDL 21737"
+  },
+  "ce": {
+    "full_form": "ce",
+    "elided_form": "c'",
+    "elided_vowel": "e",
+    "category": "demonstrative pronoun (subject of être)",
+    "example": "c'est",
+    "source": "BDL 21737"
+  },
+  "ne": {
+    "full_form": "ne",
+    "elided_form": "n'",
+    "elided_vowel": "e",
+    "category": "negation adverb",
+    "example": "il n'habite plus ici",
+    "source": "BDL 21737"
+  },
+  "de": {
+    "full_form": "de",
+    "elided_form": "d'",
+    "elided_vowel": "e",
+    "category": "preposition (also base of the partitive/indefinite determiner)",
+    "example": "un vent d'hiver, un ami d'ami",
+    "source": "BDL 21737"
+  },
+  "que": {
+    "full_form": "que",
+    "elided_form": "qu'",
+    "elided_vowel": "e",
+    "category": "relative pronoun / subordinating conjunction, including compounds (bien que, après que, parce que, jusqu'à ce que...)",
+    "example": "qu'ils répondent",
+    "source": "BDL 21737"
+  },
+  "si": {
+    "full_form": "si",
+    "elided_form": "s'",
+    "elided_vowel": "i",
+    "category": "conditional/hypothesis conjunction",
+    "condition": "elides ONLY before il / ils (s'il, s'ils) -- never before elle, elles, on, or any other word (si elle, si on, si une... are never elided)",
+    "example": "s'il pleut, nous resterons",
+    "source": "BDL 21737 -- \"il y a élision du i de si devant les pronoms il et ils uniquement\""
+  }
+}

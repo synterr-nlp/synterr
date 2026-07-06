@@ -1,0 +1,57 @@
+# French PoC preset — five validated handlers wired in.
+#
+# Per docs/research/FRENCH_POC_WORKFLOW.md / docs/research/FRENCH_POC_REPORT.md:
+# grammatical_homophone, verb_ending_homophony, article_contraction,
+# elision_apostrophe, pp_agreement passed the ≥90% validity bar (see the
+# report for per-handler numbers). `weights` is uniform across the five —
+# no native-frequency corpus (RULEC/RLC analog) exists yet for French, so an
+# even split is the honest choice until WiCoPaCo mining (FRENCH_DESIGN.md §7)
+# calibrates it. `subtype_weights` is filled only where Lexique 3.83
+# frequencies are directly available (grammatical_homophone, from
+# homophones.json's per-form freqfilms2); the other four handlers don't
+# implement `set_subtype_weights` yet, so their subtypes stay uniform.
+#
+# use_depparse: true is required — every wired handler reads head_idx/dep_rel
+# (aux attachment, nsubj/obj gating, ADP+DET contraction pairs). The CLI's
+# --depparse flag always overrides this per-preset value (see
+# GenerationConfig._from_dict's unconditional override), so pass
+# `--depparse` explicitly when running `synterr generate -l fr --preset poc`.
+#
+# Format reference: src/synterr/configs/russian/rulec.yaml
+
+name: poc
+description: "French PoC preset — 5 validated handlers, uniform weights"
+source: "docs/research/FRENCH_POC_WORKFLOW.md, docs/research/FRENCH_POC_REPORT.md"
+
+# Pipeline settings
+error_probability: 0.7
+max_errors_per_sentence: 3
+use_depparse: true
+
+# Error weights — uniform across the 5 wired handlers (no calibration corpus yet)
+weights:
+  grammatical_homophone: 0.2
+  verb_ending_homophony: 0.2
+  article_contraction: 0.2
+  elision_apostrophe: 0.2
+  pp_agreement: 0.2
+
+# Subtype weights within handlers. None of the 5 PoC handlers implements
+# `set_subtype_weights` yet (their subtypes are picked deterministically by
+# dep-tree classification at the site, not sampled from a distribution), so
+# this block is documentation of the intended split rather than a
+# consumed knob today — same "document the attestation split" convention as
+# rulec.yaml's noun_case block. Only grammatical_homophone's five pairs have
+# a direct Lexique-frequency source (homophones.json "forms" -> freqfilms2,
+# summed per confusion set and rounded to a compact relative scale); the
+# other four handlers have no comparable per-subtype frequency source in
+# their data files (verb_ending_slots.json/contractions.json/elision.json
+# are keyed by lemma/word, not by subtype), so they are intentionally
+# omitted here rather than faked.
+subtype_weights:
+  grammatical_homophone:
+    et_est: 36    # freqfilms2(et)+freqfilms2(est) = 35732.33 -- most frequent pair
+    a_à: 24       # freqfilms2(a)+freqfilms2(à) = 24121.01
+    ce_se: 11     # freqfilms2(ce)+freqfilms2(se) = 10772.12
+    on_ont: 10    # freqfilms2(on)+freqfilms2(ont) = 10034.46
+    son_sont: 4   # freqfilms2(son)+freqfilms2(sont) = 3740.81

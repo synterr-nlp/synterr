@@ -50,6 +50,7 @@ synterr = "synterr.cli:main"
 
 [project.entry-points."synterr.languages"]
 russian = "synterr.languages.russian:RussianLanguage"
+french = "synterr.languages.french:FrenchLanguage"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "description": "The t euphonique (also called t analogique): a -t- inserted between a verb and an inverted 3rd-person subject pronoun (il, elle, on) in interrogative or incise (parenthetical) structures, to avoid a vowel hiatus. Framed with hyphens on both sides. Fires only when the verb form's final letter is a vowel (e or a); verb forms already ending in d or t (which already give a [t] liaison sound) take no extra -t-.",
+    "source": "https://vitrinelinguistique.oqlf.gouv.qc.ca/22513/la-prononciation/prononciation-de-certaines-lettres/emploi-du-t-euphonique",
+    "version": "1.0"
+  },
+  "trigger": {
+    "condition": "subject-verb inversion with a 3rd person singular pronoun (il, elle, on) in a question or incise, where the verb form ends in the vowel letter e or a",
+    "pronouns": ["il", "elle", "on"],
+    "insertion": "t",
+    "hyphenation": "hyphen before and after the inserted t: <verb>-t-<pronoun>",
+    "verb_ending_triggers": ["e", "a"],
+    "no_insertion_when": "the verb form already ends in d or t, since these already produce the [t] liaison sound on inversion (e.g. prend-il, répond-elle, part-il, dit-on)",
+    "irregular_note": "vaincre and convaincre take -t- by analogy despite their 3rd person singular form ending in c (il vainc -> vainc-t-il), per BDL's explicit mention of these two verbs as an addition to the vowel rule",
+    "purpose": "avoids a hiatus (meeting of two vowels: the verb's final vowel and the pronoun's initial vowel), hence 'euphonique'; 't analogique' because t is independently the verbal marker of the 3rd person singular in many paradigms (il finit, elle savait, on croit)"
+  },
+  "examples": [
+    {"verb": "aimer", "form": "aime", "pronoun": "il", "result": "aime-t-il", "note": "ends in e -> t inserted"},
+    {"verb": "aller", "form": "va", "pronoun": "il", "result": "va-t-il", "note": "ends in a -> t inserted"},
+    {"verb": "manger", "form": "mange", "pronoun": "on", "result": "mange-t-on", "note": "ends in e -> t inserted"},
+    {"verb": "venir", "form": "viendra", "pronoun": "il", "result": "viendra-t-il", "note": "future tense ends in a -> t inserted"},
+    {"verb": "convaincre", "form": "convainc", "pronoun": "il", "result": "convainc-t-il", "note": "irregular: ends in c, t inserted by analogy per BDL"},
+    {"verb": "prendre", "form": "prend", "pronoun": "on", "result": "prend-on", "note": "no t needed: already ends in d"},
+    {"verb": "répondre", "form": "répond", "pronoun": "elle", "result": "répond-elle", "note": "no t needed: already ends in d"},
+    {"verb": "dire", "form": "dit", "pronoun": "on", "result": "dit-on", "note": "no t needed: already ends in t"}
+  ]
+}

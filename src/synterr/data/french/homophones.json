@@ -1,0 +1,181 @@
+{
+  "_meta": {
+    "description": "Grammatical homophone confusion sets for the French PoC grammatical_homophone handler. Keyed by surface form for direct handler lookup; each form lists every (POS, lemma, freqfilms2) reading Lexique records for it, so the handler can gate the swap on POS/lemma/deprel at corrupt time.",
+    "source": "Lexique 3.83 (local, ~/Projects/vibes/dico/data/Lexique383.tsv)",
+    "confusion_sets": {
+      "a_à": [
+        "a",
+        "à"
+      ],
+      "et_est": [
+        "et",
+        "est"
+      ],
+      "ce_se": [
+        "ce",
+        "se"
+      ],
+      "on_ont": [
+        "on",
+        "ont"
+      ],
+      "son_sont": [
+        "son",
+        "sont"
+      ]
+    },
+    "generated_by": "scripts/build_french_homophones.py"
+  },
+  "forms": {
+    "a": {
+      "confusion_set": "a_à",
+      "readings": [
+        {
+          "pos": "AUX",
+          "lemma": "avoir",
+          "freqfilms2": 6350.91
+        },
+        {
+          "pos": "VER",
+          "lemma": "avoir",
+          "freqfilms2": 5498.34
+        },
+        {
+          "pos": "NOM",
+          "lemma": "a",
+          "freqfilms2": 81.36
+        }
+      ]
+    },
+    "ce": {
+      "confusion_set": "ce_se",
+      "readings": [
+        {
+          "pos": "PRO:dem",
+          "lemma": "ce",
+          "freqfilms2": 5219.1
+        },
+        {
+          "pos": "ADJ:dem",
+          "lemma": "ce",
+          "freqfilms2": 2739.25
+        }
+      ]
+    },
+    "est": {
+      "confusion_set": "et_est",
+      "readings": [
+        {
+          "pos": "VER",
+          "lemma": "être",
+          "freqfilms2": 19417.69
+        },
+        {
+          "pos": "AUX",
+          "lemma": "être",
+          "freqfilms2": 3318.95
+        },
+        {
+          "pos": "NOM",
+          "lemma": "est",
+          "freqfilms2": 81.74
+        },
+        {
+          "pos": "ADJ",
+          "lemma": "est",
+          "freqfilms2": 4.87
+        }
+      ]
+    },
+    "et": {
+      "confusion_set": "et_est",
+      "readings": [
+        {
+          "pos": "CON",
+          "lemma": "et",
+          "freqfilms2": 12909.08
+        }
+      ]
+    },
+    "on": {
+      "confusion_set": "on_ont",
+      "readings": [
+        {
+          "pos": "PRO:per",
+          "lemma": "on",
+          "freqfilms2": 8586.4
+        },
+        {
+          "pos": "NOM",
+          "lemma": "on",
+          "freqfilms2": 3.56
+        }
+      ]
+    },
+    "ont": {
+      "confusion_set": "on_ont",
+      "readings": [
+        {
+          "pos": "AUX",
+          "lemma": "avoir",
+          "freqfilms2": 1063.32
+        },
+        {
+          "pos": "VER",
+          "lemma": "avoir",
+          "freqfilms2": 381.18
+        }
+      ]
+    },
+    "se": {
+      "confusion_set": "ce_se",
+      "readings": [
+        {
+          "pos": "PRO:per",
+          "lemma": "se",
+          "freqfilms2": 2813.77
+        }
+      ]
+    },
+    "son": {
+      "confusion_set": "son_sont",
+      "readings": [
+        {
+          "pos": "ADJ:pos",
+          "lemma": "son",
+          "freqfilms2": 1740.43
+        },
+        {
+          "pos": "NOM",
+          "lemma": "son",
+          "freqfilms2": 39.69
+        }
+      ]
+    },
+    "sont": {
+      "confusion_set": "son_sont",
+      "readings": [
+        {
+          "pos": "VER",
+          "lemma": "être",
+          "freqfilms2": 1449.03
+        },
+        {
+          "pos": "AUX",
+          "lemma": "être",
+          "freqfilms2": 511.66
+        }
+      ]
+    },
+    "à": {
+      "confusion_set": "a_à",
+      "readings": [
+        {
+          "pos": "PRE",
+          "lemma": "à",
+          "freqfilms2": 12190.4
+        }
+      ]
+    }
+  }
+}
