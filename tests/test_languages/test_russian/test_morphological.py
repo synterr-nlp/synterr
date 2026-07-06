@@ -3046,3 +3046,542 @@ class TestNegGenitiveErrorHandler:
         result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
         assert result is not None
         assert sentence[idx] == "книгу"
+
+
+class TestVerbIterativeSuffixHandler:
+    """verb_iterative_suffix (§172.2): о/а alternation in iterative-suffix
+    imperfectives (обусловливать <-> обуславливать, затрагивать <->
+    затрогивать)."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            VerbIterativeSuffixHandler,
+        )
+
+        return VerbIterativeSuffixHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "verb_iterative_suffix"
+        assert handler.subtypes == ["verb_iterative_suffix"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _tok(self, word, lemma, idx=0):
+        return AnalyzedToken(
+            text=word,
+            lemma=lemma,
+            pos="VERB",
+            features={},
+            idx=idx,
+            extra={"pymorphy_parse": morph.parse(word)[0]},
+        )
+
+    def test_o_exception_family_fires(self):
+        """обусловливает (norm, keeps 'o') -> обуславливает (marked 'a')."""
+        handler = self._handler()
+        tok = self._tok("обусловливает", "обусловливать")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["обусловливает"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "обуславливает"
+        assert result.error_type == "verb_iterative_suffix"
+        assert result.fix_tag == "$REPLACE_обусловливает"
+
+    def test_a_regular_family_fires(self):
+        """затрагивает (norm, alternates to 'a') -> затрогивает (marked,
+        hypercorrected failure to alternate)."""
+        handler = self._handler()
+        tok = self._tok("затрагивает", "затрагивать")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["затрагивает"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "затрогивает"
+
+    def test_infinitive_fires(self):
+        handler = self._handler()
+        tok = self._tok("сосредоточивать", "сосредоточивать")
+        sentence = ["сосредоточивать"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "сосредотачивать"
+
+    def test_reflexive_lemma_fires(self):
+        """Reflexive passives (затрагиваться) are separate lexicon entries
+        since stanza lemmatizes them under the -ся form."""
+        handler = self._handler()
+        tok = self._tok("затрагивалась", "затрагиваться")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["затрагивалась"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "затрогивалась"
+
+    def test_capitalization_preserved(self):
+        handler = self._handler()
+        tok = self._tok("Обусловливает", "обусловливать")
+        sentence = ["Обусловливает"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "Обуславливает"
+
+    def test_non_lexicon_verb_does_not_fire(self):
+        handler = self._handler()
+        tok = self._tok("читает", "читать")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_wrong_pos_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="обусловливание",
+            lemma="обусловливание",
+            pos="NOUN",
+            features={},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_missing_pymorphy_parse_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="обусловливает",
+            lemma="обусловливать",
+            pos="VERB",
+            features={},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_swap_position_mismatch_does_not_fire(self):
+        """Lemma matches but the surface doesn't have the expected 'o' at
+        the alternation position (index 5 for this lexeme) -- must skip
+        rather than mangle the word."""
+        handler = self._handler()
+        broken_word = "обуслявливает"  # index 5 is 'я', not the expected 'o'
+        broken = AnalyzedToken(
+            text=broken_word,
+            lemma="обусловливать",
+            pos="VERB",
+            features={},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse(broken_word)[0]},
+        )
+        assert handler.can_apply([broken], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_o_exception(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Этот фактор обусловливает результат.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "обусловливает")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "обуславливает"
+
+    @pytest.mark.slow
+    def test_real_backend_a_regular_reflexive(self):
+        """Real-corpus sentence (lenta): passive reflexive затрагивалась."""
+        handler = self._handler()
+        text = (
+            "По его словам, эта тема затрагивалась в ходе переговоров с "
+            'президентом Туркмении, передает РИА "Новости".'
+        )
+        tokens = _stanza_backend().analyze(text)
+        idx = next(i for i, t in enumerate(tokens) if t.text == "затрагивалась")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "затрогивалась"
+
+    @pytest.mark.slow
+    def test_real_backend_oparivalsya_reflexive(self):
+        """Real-corpus sentence (lenta): passive reflexive оспаривался."""
+        handler = self._handler()
+        text = (
+            "В 1999 году медики были заключены под стражу, а в 2004 году им "
+            "был вынесен смертный приговор, который с тех пор неоднократно "
+            "оспаривался."
+        )
+        tokens = _stanza_backend().analyze(text)
+        idx = next(i for i, t in enumerate(tokens) if t.text == "оспаривался")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "оспоривался"
+
+    @pytest.mark.slow
+    def test_real_backend_ustraivaet(self):
+        """Real-corpus sentence (lenta)."""
+        handler = self._handler()
+        text = (
+            "По словам офицера безопасности, на сегодняшний день его "
+            "устраивает обеспечение охраны базы, в которой поселилась "
+            "российская команда."
+        )
+        tokens = _stanza_backend().analyze(text)
+        idx = next(i for i, t in enumerate(tokens) if t.text == "устраивает")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "устроивает"
+
+    @pytest.mark.slow
+    def test_real_backend_upolnomochivayuschuyu_participle(self):
+        """Real-corpus sentence (lenta): participle form, o_exception family."""
+        handler = self._handler()
+        text = (
+            "Делегация Северной Кореи в ООН категорически отвергла "
+            "резолюцию, уполномочивающую МАГАТЭ проконтролировать ядерную "
+            "программу этой страны, передает CNN."
+        )
+        tokens = _stanza_backend().analyze(text)
+        idx = next(i for i, t in enumerate(tokens) if t.text == "уполномочивающую")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "уполномачивающую"
+
+    @pytest.mark.slow
+    def test_real_backend_osvaivayutsya(self):
+        """Real-corpus sentence (lenta): reflexive plural present."""
+        handler = self._handler()
+        text = (
+            "В рамках проекта осваиваются Пильтун-Астохское и Лунское "
+            "месторождения, извлекаемые запасы которых оцениваются в 150 "
+            "миллионов тонн нефти и 500 миллиардов кубометров газа."
+        )
+        tokens = _stanza_backend().analyze(text)
+        idx = next(i for i, t in enumerate(tokens) if t.text == "осваиваются")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "освоиваются"
+
+
+class TestAdjPossessiveFormHandler:
+    """adj_possessive_form (§162): possessive-adjective oblique declension
+    variant (маминого <-> мамина, маминому <-> мамину)."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            AdjPossessiveFormHandler,
+        )
+
+        return AdjPossessiveFormHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "adj_possessive_form"
+        assert handler.subtypes == ["adj_possessive_form"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _poss_tok(self, word, lemma, case, gender, idx=0):
+        parse = next(p for p in morph.parse(word) if "Poss" in p.tag)
+        return AnalyzedToken(
+            text=word,
+            lemma=lemma,
+            pos="ADJ",
+            features={"Case": case, "Gender": gender, "Number": "Sing"},
+            idx=idx,
+            extra={"pymorphy_parse": parse},
+        )
+
+    def test_gen_full_to_short(self):
+        """маминого (full pronominal, Gen) -> мамина (short colloquial)."""
+        handler = self._handler()
+        tok = self._poss_tok("маминого", "мамин", "Gen", "Masc")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["маминого"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "мамина"
+        assert result.error_type == "adj_possessive_form"
+        assert result.fix_tag == "$REPLACE_маминого"
+
+    def test_dat_full_to_short(self):
+        """маминому (full pronominal, Dat) -> мамину (short colloquial)."""
+        handler = self._handler()
+        tok = self._poss_tok("маминому", "мамин", "Dat", "Masc")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["маминому"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "мамину"
+
+    def test_neut_gender_also_fires(self):
+        tok = self._poss_tok("папиного", "папин", "Gen", "Neut")
+        handler = self._handler()
+        sentence = ["папиного"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "папина"
+
+    def test_capitalization_preserved(self):
+        handler = self._handler()
+        tok = self._poss_tok("Маминого", "мамин", "Gen", "Masc")
+        sentence = ["Маминого"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "Мамина"
+
+    def test_already_marked_form_does_not_fire(self):
+        """мамина is already the short/marked variant -- no re-corruption."""
+        handler = self._handler()
+        tok = self._poss_tok("мамина", "мамин", "Gen", "Masc")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_feminine_case_does_not_fire(self):
+        """Fem oblique has only one declension pattern -- no Infr sibling."""
+        handler = self._handler()
+        tok = self._poss_tok("маминой", "мамин", "Gen", "Fem")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_ov_possessive_does_not_fire(self):
+        """отцова (-ов possessive) has no competing full/short variant in
+        pymorphy's dictionary -- must skip, not fabricate one."""
+        handler = self._handler()
+        tok = self._poss_tok("отцова", "отцов", "Gen", "Masc")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_non_possessive_adjective_does_not_fire(self):
+        handler = self._handler()
+        parse = morph.parse("большого")[0]
+        tok = AnalyzedToken(
+            text="большого",
+            lemma="большой",
+            pos="ADJ",
+            features={"Case": "Gen", "Gender": "Masc", "Number": "Sing"},
+            idx=0,
+            extra={"pymorphy_parse": parse},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_wrong_case_does_not_fire(self):
+        """Instrumental/locative are not the contested oblique slot."""
+        handler = self._handler()
+        parse = next(p for p in morph.parse("маминым") if "Poss" in p.tag)
+        tok = AnalyzedToken(
+            text="маминым",
+            lemma="мамин",
+            pos="ADJ",
+            features={"Case": "Ins", "Gender": "Masc", "Number": "Sing"},
+            idx=0,
+            extra={"pymorphy_parse": parse},
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_wrong_pos_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="маминого", lemma="мамин", pos="NOUN", features={"Case": "Gen"}, idx=0
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    @pytest.mark.slow
+    def test_real_backend_gen_full_to_short(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze(
+            "Он взял мамину сумку вместо маминого пальто."
+        )
+        idx = next(i for i, t in enumerate(tokens) if t.text == "маминого")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "мамина"
+
+    @pytest.mark.slow
+    def test_real_backend_dat_full_to_short(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Отдай книгу маминому другу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "маминому")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "мамину"
+
+    @pytest.mark.slow
+    def test_real_backend_ov_possessive_instrumental_does_not_fire(self):
+        """дедовым (Ins, -ов possessive): both outside the gated cases and
+        outside the -ин family -- confirms no false positive in the wild."""
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Он гордился дедовым мужеством.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "дедовым")
+        assert handler.can_apply(tokens, idx) is False
+
+
+class TestAdjShortEnEnenHandler:
+    """adj_short_en_enen (§160): masc short-form -ен/-енен variant
+    (свойствен <-> свойственен)."""
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            AdjShortEnEnenHandler,
+        )
+
+        return AdjShortEnEnenHandler()
+
+    def test_protocol(self):
+        handler = self._handler()
+        assert isinstance(handler, ErrorHandler)
+        assert handler.name == "adj_short_en_enen"
+        assert handler.subtypes == ["adj_short_en_enen"]
+        assert handler.category == "MORPH"
+        assert handler.changes_length is False
+
+    def _tok(self, word, lemma, idx=0, **extra_features):
+        features = {"Gender": "Masc", "Number": "Sing", "Variant": "Short"}
+        features.update(extra_features)
+        return AnalyzedToken(
+            text=word, lemma=lemma, pos="ADJ", features=features, idx=idx
+        )
+
+    def test_positive_corruption(self):
+        """свойствен (norm, dictionary-attested marked variant) ->
+        свойственен."""
+        handler = self._handler()
+        tok = self._tok("свойствен", "свойственный")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["свойствен"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "свойственен"
+        assert result.error_type == "adj_short_en_enen"
+        assert result.fix_tag == "$REPLACE_свойствен"
+
+    def test_second_lexicon_entry(self):
+        handler = self._handler()
+        tok = self._tok("ответствен", "ответственный")
+        sentence = ["ответствен"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "ответственен"
+
+    def test_heuristic_only_marked_form(self):
+        """бессмысленен is not itself a pymorphy dictionary headword, but
+        the suffix heuristic recognizes it as a matching ADJS masc form."""
+        handler = self._handler()
+        tok = self._tok("бессмыслен", "бессмысленный")
+        assert handler.can_apply([tok], 0) is True
+
+        sentence = ["бессмыслен"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "бессмысленен"
+
+    def test_capitalization_preserved(self):
+        handler = self._handler()
+        tok = self._tok("Свойствен", "свойственный")
+        sentence = ["Свойствен"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "Свойственен"
+
+    def test_non_lexicon_adjective_does_not_fire(self):
+        handler = self._handler()
+        tok = self._tok("красив", "красивый")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_full_form_does_not_fire(self):
+        """Variant != Short (this is the full adjective, not the predicate
+        short form) -- must not fire."""
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="свойственный",
+            lemma="свойственный",
+            pos="ADJ",
+            features={"Gender": "Masc", "Number": "Sing"},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_feminine_short_form_does_not_fire(self):
+        handler = self._handler()
+        tok = self._tok("свойственна", "свойственный", Gender="Fem")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_already_marked_form_does_not_fire(self):
+        handler = self._handler()
+        tok = self._tok("свойственен", "свойственный")
+        assert handler.can_apply([tok], 0) is False
+
+    def test_wrong_pos_does_not_fire(self):
+        handler = self._handler()
+        tok = AnalyzedToken(
+            text="свойствен",
+            lemma="свойственный",
+            pos="NOUN",
+            features={"Gender": "Masc", "Number": "Sing", "Variant": "Short"},
+            idx=0,
+        )
+        assert handler.can_apply([tok], 0) is False
+
+    def test_unknown_form_guard_rejects_implausible_marked_string(self):
+        """Defensive unit test on the pymorphy validity gate itself: a
+        nonsense string must not be accepted as a valid marked form."""
+        handler = self._handler()
+        assert handler._is_valid_marked_form("свойственнобла") is False
+
+    @pytest.mark.slow
+    def test_real_backend_svoystven(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze(
+            "Такое поведение вполне естественно и свойствен человеку."
+        )
+        idx = next(i for i, t in enumerate(tokens) if t.text == "свойствен")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "свойственен"
+
+    @pytest.mark.slow
+    def test_real_backend_otvetstven(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Директор ответствен за итоги квартала.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "ответствен")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "ответственен"
+
+    @pytest.mark.slow
+    def test_real_backend_deystven(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Этот приём вполне действен на практике.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "действен")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "действенен"

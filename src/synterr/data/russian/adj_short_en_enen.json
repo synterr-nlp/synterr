@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "description": "Closed set of -ственный/-твенный quality adjectives whose masculine short form has two competing endings (Rozental §160): a contracted '-ен' ending (свойствен) that is the modern prescriptive norm, and an uncontracted '-енен' ending (свойственен) that reads as a heavier/marked, slightly archaic variant. Keyed by the full adjective lemma; 'norm' and 'marked' are the masc-sing short-form surfaces. Cross-checked against pymorphy3: the 'norm'/'marked' pair corresponds to pymorphy's own dictionary paradigm split on the internal 'V-en' grammeme (present on the '-енен' member of the pair) for every entry except 'бессмысленный', where 'бессмысленен' is not itself a dictionary headword but is recognized by pymorphy's suffix-heuristic analyzer with a matching ADJS/masc/sing profile.",
+    "source": "manual curation; Rozental grammar tradition (§160 short-form adjective variants); pymorphy3 V-en cross-check",
+    "rozental_paragraph": "160",
+    "version": "1.0"
+  },
+  "lexemes": {
+    "свойственный": {"norm": "свойствен", "marked": "свойственен"},
+    "ответственный": {"norm": "ответствен", "marked": "ответственен"},
+    "естественный": {"norm": "естествен", "marked": "естественен"},
+    "мужественный": {"norm": "мужествен", "marked": "мужественен"},
+    "торжественный": {"norm": "торжествен", "marked": "торжественен"},
+    "тождественный": {"norm": "тождествен", "marked": "тождественен"},
+    "посредственный": {"norm": "посредствен", "marked": "посредственен"},
+    "соответственный": {"norm": "соответствен", "marked": "соответственен"},
+    "воинственный": {"norm": "воинствен", "marked": "воинственен"},
+    "безнравственный": {"norm": "безнравствен", "marked": "безнравственен"},
+    "чувственный": {"norm": "чувствен", "marked": "чувственен"},
+    "явственный": {"norm": "явствен", "marked": "явственен"},
+    "действенный": {"norm": "действен", "marked": "действенен"},
+    "искусственный": {"norm": "искусствен", "marked": "искусственен"},
+    "существенный": {"norm": "существен", "marked": "существенен"},
+    "бесчувственный": {"norm": "бесчувствен", "marked": "бесчувственен"},
+    "могущественный": {"norm": "могуществен", "marked": "могущественен"},
+    "родственный": {"norm": "родствен", "marked": "родственен"},
+    "единственный": {"norm": "единствен", "marked": "единственен"},
+    "таинственный": {"norm": "таинствен", "marked": "таинственен"},
+    "бессмысленный": {"norm": "бессмыслен", "marked": "бессмысленен"}
+  }
+}

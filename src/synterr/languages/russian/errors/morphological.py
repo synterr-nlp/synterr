@@ -1958,3 +1958,383 @@ class NegGenitiveErrorHandler:
             corrupted=new_word,
             fix_tag=f"$TRANSFORM_CASE_{original_case}",
         )
+
+
+@lru_cache(maxsize=1)
+def _morph():
+    """Lazily build a shared pymorphy3 analyzer (heavy to instantiate).
+
+    Same idiom as errors/semantics.py's ``_morph()``: the token-attached
+    ``pymorphy_parse`` extra only covers the word actually in the sentence,
+    but the three handlers below need to re-parse a *candidate* corrupted
+    surface (not yet in any token) to confirm pymorphy still recognizes it.
+    """
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
+
+
+# =============================================================================
+# Iterative-suffix о/а variant (обусловливать <-> обуславливать, §172.2)
+# =============================================================================
+
+# Lexeme-inherent flags stripped before comparing two parses' grammeme
+# profiles: aspect/transitivity are guaranteed identical within a norm/marked
+# pair by construction (both curated as the same-aspect iterative verb), but
+# a heuristic (non-dictionary) parse of an out-of-vocabulary marked form can
+# still guess the wrong transitivity/adjectivization flag even when the verb
+# form itself is a legitimate, well-formed word — comparing on those flags
+# would produce false negatives, not false positives, so stripping them only
+# trades recall for precision in this handler's favor.
+_VERB_TAG_IGNORED_GRAMMEMES = {"tran", "intr", "perf", "impf", "Adjx"}
+
+
+def _verb_grammeme_profile(tag) -> frozenset[str]:
+    """Grammemes relevant to surface-form validity (POS plus case/number/
+    gender/person/tense/mood/voice), stripping the lexeme-inherent flags in
+    ``_VERB_TAG_IGNORED_GRAMMEMES``."""
+    return frozenset(g for g in tag.grammemes if g not in _VERB_TAG_IGNORED_GRAMMEMES)
+
+
+@lru_cache(maxsize=1)
+def _verb_iterative_lexicon() -> dict[str, dict]:
+    """Norm lemma -> {"marked_lemma", "swap_index", "norm_char",
+    "target_char"} for the closed о/а iterative-suffix variant set
+    (Rozental §172.2).
+
+    The swap index/chars are derived from the single-character diff between
+    the norm and marked infinitives in the data file; that offset is a fixed
+    distance from the start of the word (inside the root, before the
+    invariant -ива-/-ыва- suffix that is present across the verb's whole
+    paradigm), so the same offset applies unchanged to every inflected
+    surface form of the lexeme. Entries whose norm/marked pair doesn't
+    reduce to exactly one о<->а diff are dropped defensively.
+    """
+    raw = _load_json_resource("verb_iterative_variants.json").get("lexemes", {})
+    lexicon: dict[str, dict] = {}
+    for norm_lemma, entry in raw.items():
+        marked_lemma = entry.get("marked")
+        if not marked_lemma or len(marked_lemma) != len(norm_lemma):
+            continue
+        diffs = [
+            i
+            for i, (a, b) in enumerate(zip(norm_lemma, marked_lemma, strict=True))
+            if a != b
+        ]
+        if len(diffs) != 1:
+            continue
+        pos = diffs[0]
+        norm_char, marked_char = norm_lemma[pos], marked_lemma[pos]
+        if {norm_char, marked_char} != {"о", "а"}:
+            continue
+        lexicon[norm_lemma] = {
+            "marked_lemma": marked_lemma,
+            "swap_index": pos,
+            "norm_char": norm_char,
+            "target_char": marked_char,
+        }
+    return lexicon
+
+
+class VerbIterativeSuffixHandler:
+    """Corrupt the о/а alternation in iterative-suffix imperfective verbs
+    (Rozental §172.2).
+
+    A closed set of -ивать/-ывать imperfectives has a contested root vowel.
+    Some (обусловливать, узаконивать, приурочивать, ...) resist the
+    otherwise-productive о->а alternation, so keeping 'o' is the
+    prescriptive norm and the colloquial overgeneralization to 'a'
+    (обуславливать) is the marked variant. Others (затрагивать, опаздывать,
+    ...) undergo the alternation as the prescriptive norm, so *failing* to
+    alternate (затрогивать, опоздывать) is itself the marked, hypercorrected
+    form. Both directions are folded into one lexicon keyed by the standard
+    lemma (see ``verb_iterative_variants.json``'s ``family`` field), with the
+    corruption always going norm -> marked.
+
+    The alternating vowel sits at a fixed character offset from the start of
+    the word, so the same offset applies unchanged across the verb's entire
+    paradigm; each candidate corruption is validated per-token by checking
+    that pymorphy recognizes the corrupted surface with the same verb
+    grammeme profile as the original token (case/number/person/tense/voice),
+    which catches transposition mistakes even for lexemes pymorphy's
+    dictionary does not itself register under the marked lemma.
+    """
+
+    name = "verb_iterative_suffix"
+    subtypes = ["verb_iterative_suffix"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "VERB":
+            return False
+        entry = _verb_iterative_lexicon().get(token.lemma.lower())
+        if entry is None:
+            return False
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return False
+        return self._target_form(token.text, entry, parse) is not None
+
+    @staticmethod
+    def _target_form(word: str, entry: dict, parse) -> str | None:
+        """Corrupted surface for ``word`` under ``entry``, or None if the
+        swap position doesn't hold or pymorphy rejects the result."""
+        swap_idx = entry["swap_index"]
+        if swap_idx >= len(word):
+            return None
+        current = word[swap_idx]
+        if current.lower() != entry["norm_char"]:
+            return None
+
+        target_char = (
+            entry["target_char"].upper() if current.isupper() else entry["target_char"]
+        )
+        new_word = word[:swap_idx] + target_char + word[swap_idx + 1 :]
+        if new_word == word:
+            return None
+
+        wanted_profile = _verb_grammeme_profile(parse.tag)
+        for candidate in _morph().parse(new_word):
+            if _verb_grammeme_profile(candidate.tag) == wanted_profile:
+                return new_word
+        return None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        entry = _verb_iterative_lexicon().get(token.lemma.lower())
+        if entry is None:
+            return None
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+
+        new_word = self._target_form(word, entry, parse)
+        if new_word is None:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="verb_iterative_suffix",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Possessive-adjective oblique declension variant (маминого <-> мамина, §162)
+# =============================================================================
+
+# UD cases where -ин possessives have a competing full/short oblique ending.
+_POSS_OBLIQUE_UD_CASES = {"Gen", "Dat"}
+
+
+def _poss_lexeme_variant(
+    parse, pm_case: str, pm_gender: str, pm_number: str
+) -> tuple[str, str] | None:
+    """(norm_word, marked_word) sharing (case, gender, number) in this
+    parse's lexeme paradigm, or None if this lexeme/slot has no attested
+    pymorphy ``Infr`` (colloquial short-oblique) sibling.
+
+    -ов/-ев possessives (отцов, дедов) never produce a match here: pymorphy's
+    dictionary only has the short-oblique form for them (no competing
+    ``Infr``-flagged pair), so they are excluded automatically rather than
+    needing a hand-curated exclusion list.
+    """
+    norm_word = None
+    marked_word = None
+    for form in parse.lexeme:
+        ftag = form.tag
+        if ftag.case != pm_case or ftag.gender != pm_gender or ftag.number != pm_number:
+            continue
+        if "Infr" in ftag:
+            marked_word = form.word
+        elif norm_word is None:
+            norm_word = form.word
+    if norm_word is None or marked_word is None:
+        return None
+    return norm_word, marked_word
+
+
+class AdjPossessiveFormHandler:
+    """Corrupt possessive-adjective oblique declension (Rozental §162):
+    full pronominal ending -> short colloquial ending (маминого -> мамина,
+    маминому -> мамину).
+
+    -ин possessive adjectives (мамин, папин, бабушкин, ...) have two
+    competing declension patterns in the masc/neut genitive and dative
+    singular: the modern-standard 'full' pronominal ending (-ого, -ому) and
+    an older, colloquial 'short' ending (-а, -у). pymorphy3's own dictionary
+    paradigm tags the short variant with the ``Infr`` (informal) grammeme, so
+    both the trigger and the corruption target are read directly off the
+    lexeme's paradigm — no hand-curated lexicon is needed for this handler.
+    -ов/-ев possessives (отцов, дедов) are excluded automatically: their
+    pymorphy paradigm has no competing ``Infr`` form at all.
+    """
+
+    name = "adj_possessive_form"
+    subtypes = ["adj_possessive_form"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "ADJ":
+            return False
+        if token.get_feature("Case") not in _POSS_OBLIQUE_UD_CASES:
+            return False
+        parse = _get_pymorphy_parse(token)
+        if parse is None or "Poss" not in parse.tag:
+            return False
+        return self._target(token, parse) is not None
+
+    @staticmethod
+    def _target(token: AnalyzedToken, parse) -> str | None:
+        pm_case = UD_TO_PYMORPHY_CASE.get(token.get_feature("Case"))
+        pm_gender = UD_TO_PYMORPHY_GENDER.get(token.get_feature("Gender"))
+        pm_number = UD_TO_PYMORPHY_NUMBER.get(token.get_feature("Number")) or "sing"
+        if pm_case is None or pm_gender is None:
+            return None
+
+        variant = _poss_lexeme_variant(parse, pm_case, pm_gender, pm_number)
+        if variant is None:
+            return None
+        norm_word, marked_word = variant
+        if token.text.lower() != norm_word:
+            return None
+        return marked_word
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+
+        target = self._target(token, parse)
+        if target is None:
+            return None
+
+        new_word = match_capitalization(word, target)
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="adj_possessive_form",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
+
+
+# =============================================================================
+# Short-form masc -ен/-енен variant (свойствен <-> свойственен, §160)
+# =============================================================================
+
+_ADJ_SHORT_MASC_UD = {"Gender": "Masc", "Number": "Sing", "Variant": "Short"}
+
+
+@lru_cache(maxsize=1)
+def _adj_short_en_enen_lexicon() -> dict[str, dict]:
+    """Adjective lemma -> {"norm", "marked"} masc-short-form pair for the
+    closed -ен/-енен variant set (Rozental §160)."""
+    return _load_json_resource("adj_short_en_enen.json").get("lexemes", {})
+
+
+class AdjShortEnEnenHandler:
+    """Corrupt the masc short-form -ен/-енен variant (Rozental §160):
+    свойствен -> свойственен.
+
+    A closed set of -ственный/-твенный quality adjectives has two competing
+    masculine short-form endings: the modern-standard contracted '-ен'
+    (свойствен) and a heavier, marked '-енен' (свойственен). The corruption
+    direction is always norm ('-ен') -> marked ('-енен'). pymorphy3 is used
+    defensively to confirm the marked target is at least recognizable as an
+    ADJS masc-sing form — a dictionary hit for most entries in the data
+    file, and suffix-heuristic recognition for the rest (see the data
+    file's ``бессмысленный`` note).
+    """
+
+    name = "adj_short_en_enen"
+    subtypes = ["adj_short_en_enen"]
+    category = "MORPH"
+    changes_length = False
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        token = tokens[idx]
+        if token.pos != "ADJ":
+            return False
+        if not all(token.get_feature(k) == v for k, v in _ADJ_SHORT_MASC_UD.items()):
+            return False
+        entry = _adj_short_en_enen_lexicon().get(token.lemma.lower())
+        if entry is None:
+            return False
+        if token.text.lower() != entry["norm"]:
+            return False
+        return self._is_valid_marked_form(entry["marked"])
+
+    @staticmethod
+    def _is_valid_marked_form(marked: str) -> bool:
+        for candidate in _morph().parse(marked):
+            tag = candidate.tag
+            if tag.POS == "ADJS" and "masc" in tag and "sing" in tag:
+                return True
+        return False
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        token = tokens[idx]
+        word = sentence[idx]
+        entry = _adj_short_en_enen_lexicon().get(token.lemma.lower())
+        if entry is None or word.lower() != entry["norm"]:
+            return None
+        if not self._is_valid_marked_form(entry["marked"]):
+            return None
+
+        new_word = match_capitalization(word, entry["marked"])
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+        return ErrorResult(
+            error_type="adj_short_en_enen",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )
