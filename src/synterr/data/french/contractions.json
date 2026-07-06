@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "description": "Categorical French article contractions (préposition à/de + article défini le/les). au and aux are unconditional: à + le/à + les cannot surface any other way in standard French, so they always expand. du is structurally ambiguous with the partitive article (du café, du courage), which is a single indeterminate-quantity determiner and must NEVER be split. Only split du when it heads an nmod dependent whose head is itself a definite, uniquely-referring NOUN (garage, voisin, jour...) -- a genitive-like possessor/complement reading equivalent to de + le. Do not split du when it determines the direct object of a verb selecting mass/abstract/indefinite quantity (boire du café, avoir du courage, manger du pain): that is the partitive, not a contraction.",
+    "source": "BDL vitrinelinguistique.oqlf.gouv.qc.ca (per-entry source fields below); 1990 rectifications not applicable to this closed functional-word class",
+    "version": "1.0"
+  },
+  "au": {
+    "expands_to": ["à", "le"],
+    "gate": "unconditional -- au is categorically à + le (masc. sg. definite article); no partitive homograph exists for au",
+    "source": "https://vitrinelinguistique.oqlf.gouv.qc.ca/23897/la-syntaxe/les-prepositions/preposition-devant-un-nom/les-prepositions-devant-un-nom-de-pays -- \"Les mots à et le se contractent pour donner au.\""
+  },
+  "aux": {
+    "expands_to": ["à", "les"],
+    "gate": "unconditional -- aux is categorically à + les (plural definite article, both genders); the partitive plural is des (from de + les as an indefinite article), a distinct paradigm with no au/aux-style ambiguity",
+    "source": "https://vitrinelinguistique.oqlf.gouv.qc.ca/23508/la-grammaire/les-pronoms/pronoms-relatifs/le-pronom-relatif-lequel-et-les-formes-contractees-duquel-et-auquel -- auquel/auxquels attest the productive à+le(s) -> au/aux contraction pattern extended to plural; general descriptive grammar (Grevisse, Le Bon Usage) confirms aux has no partitive reading"
+  },
+  "du": {
+    "expands_to": ["de", "le"],
+    "gate": "nmod-of-definite-NOUN ONLY. du is ambiguous between (a) the contracted definite article de+le (e.g. 'la porte du garage' = la porte DE LE garage) and (b) the partitive article marking indeterminate quantity (e.g. 'il boit du café', 'il faut du courage'), which is NOT a contraction and must never be split. Split only when du introduces an nmod dependent whose head is itself a definite, uniquely-referring NOUN -- i.e. a genitive-like possessor/complement reading. Do not split when du is the object determiner of a verb selecting mass/abstract/indefinite quantity -- that is the partitive, a single determiner, not de+le.",
+    "ambiguity_examples": [
+      {
+        "text": "le plat du jour",
+        "reading": "contracted (de + le)",
+        "splittable": true,
+        "gloss": "du jour = de + le jour, an nmod complement of a definite noun (plat)"
+      },
+      {
+        "text": "il lui reste encore du travail",
+        "reading": "partitive",
+        "splittable": false,
+        "gloss": "du travail = indeterminate-quantity object of rester, no de+le paraphrase available"
+      },
+      {
+        "text": "quel est le plat du jour ?",
+        "reading": "contracted (de + le)",
+        "splittable": true,
+        "gloss": "same du jour idiom, BDL's own example"
+      },
+      {
+        "text": "mangeons du pain et buvons de la bière",
+        "reading": "partitive",
+        "splittable": false,
+        "gloss": "du pain patterns with de la bière -- both partitive, neither splittable"
+      }
+    ],
+    "source": "https://vitrinelinguistique.oqlf.gouv.qc.ca/21501/la-grammaire/les-homophones-grammaticaux/les-homophones-du-et-du -- \"Du est un déterminant partitif ou un déterminant défini contracté (de + le).\" Examples on that page: 'Il lui reste encore du travail. Mangeons du pain et buvons de la bière.' (partitive) vs. 'Quel est le plat du jour ?' (contracted)."
+  }
+}

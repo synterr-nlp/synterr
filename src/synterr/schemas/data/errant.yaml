@@ -322,6 +322,90 @@ mappings:
     primary: PUNCT
     modifier: U
 
+  # ---------------------------------------------------------------------------
+  # French PoC handler subtypes (docs/research/FRENCH_POC_WORKFLOW.md,
+  # docs/research/FRENCH_POC_REPORT.md). errant.yaml is language-agnostic by
+  # design (FRENCH_DESIGN.md §6), so these subtypes share the same
+  # primary_tags/modifiers vocabulary as the Russian mappings above rather
+  # than getting a separate French schema file.
+  # ---------------------------------------------------------------------------
+
+  # grammatical_homophone: bidirectional token swap between two homophonous
+  # function words (a/à, et/est, ce/se, on/ont, son/sont) — a pure spelling
+  # confusion, same category as the Russian tsa_confusion/vowel_reduction pairs.
+  a_à:
+    primary: SPELL
+    modifier: R
+  et_est:
+    primary: SPELL
+    modifier: R
+  ce_se:
+    primary: SPELL
+    modifier: R
+  on_ont:
+    primary: SPELL
+    modifier: R
+  son_sont:
+    primary: SPELL
+    modifier: R
+
+  # verb_ending_homophony: ending-swap on homophonous 1st-group (-er) verb
+  # forms (infinitive/participle/future-conditional). Tagged VERB:FORM (not
+  # SPELL) in this cross-linguistic schema: what changed is the verb's form
+  # slot, even though the handler's own `category` is SPELL per Catach's
+  # logogrammique framing (see errors/verb_endings.py docstring) — the two
+  # taxonomies are allowed to diverge, same as Russian's noun_case_governed
+  # sharing NOUN:CASE with noun_case_subject/other despite finer synterr
+  # subtypes.
+  inf_to_participle:
+    primary: VERB:FORM
+    modifier: R
+  participle_to_inf:
+    primary: VERB:FORM
+    modifier: R
+  fut_cond_1sg:
+    primary: VERB:FORM
+    modifier: R
+
+  # article_contraction: de-contracts a categorical préposition+article
+  # fusion (au/aux/du) back into its two separate words. Tagged DET+Missing:
+  # the corrupted form is missing the contraction (a required single-word
+  # determiner fusion is spelled out as two words instead).
+  au_split:
+    primary: DET
+    modifier: M
+  aux_split:
+    primary: DET
+    modifier: M
+  du_split:
+    primary: DET
+    modifier: M
+
+  # elision_apostrophe: elision_omit restores the un-elided full form of a
+  # clitic/article/conjunction (in-place replace, same shape as the
+  # grammatical-homophone swaps); euphonic_t_drop deletes the euphonic -t-
+  # particle token between a vowel-final verb and an inverted subject
+  # pronoun, so the fix reinserts it (Missing), the same modifier
+  # word_omission uses for a deleted content word.
+  elision_omit:
+    primary: SPELL
+    modifier: R
+  euphonic_t_drop:
+    primary: PART
+    modifier: M
+
+  # pp_agreement: strips past-participle gender/number agreement marking
+  # (être-subject agreement, avoir-anteposed-object agreement). VERB:GEN is
+  # the existing tag purpose-built for "verb gender error (past tense)" —
+  # past participle agreement is exactly that class, extended here to also
+  # cover the number half of the same agreement rule.
+  etre_strip:
+    primary: VERB:GEN
+    modifier: R
+  avoir_cod_ante_strip:
+    primary: VERB:GEN
+    modifier: R
+
 # ============================================================================
 # REFERENCE: Tag frequency in RULEC-GEC (approximate)
 # ============================================================================
