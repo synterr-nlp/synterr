@@ -270,6 +270,8 @@ mappings:
     primary: Ref
   pronoun_sebya:
     primary: Ref
+  pronoun_n_form:
+    primary: Ref
   noun_case_gen_partitive:
     primary: Gov
   noun_case_instr_pl:

@@ -25,6 +25,7 @@ weights:
   neg_genitive: 0.015 # §201 Acc/Gen under negation (subsumed in Gov; estimated)
   pronoun_svoy: 0.015 # §167 свой vs personal possessive (Ref; estimated)
   pronoun_sebya: 0.01 # §168 себя vs personal pronoun (Ref; estimated)
+  pronoun_n_form: 0.008 # §169–170 н-augment after prepositions (Ref; estimated)
   noun_number: 0.053    # 2.4%
 
   # Morphological - Adjectives: 5.4% total

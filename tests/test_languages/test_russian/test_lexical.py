@@ -7,6 +7,7 @@ from synterr.languages.russian.errors.lexical import (
     ConjunctionErrorHandler,
     ParonymErrorHandler,
     PrepositionErrorHandler,
+    PronounNFormErrorHandler,
     PronounSebyaErrorHandler,
     PronounSvoyErrorHandler,
     _is_sebya_set_phrase,
@@ -1568,3 +1569,266 @@ class TestPronounSebyaErrorHandler:
         assert result.start_idx == 2
         assert result.end_idx == 3
         assert len(" ".join(sentence).split()) == len(sentence)
+
+
+class TestPronounNFormErrorHandler:
+    handler = PronounNFormErrorHandler()
+
+    def test_implements_protocol(self):
+        """Test PronounNFormErrorHandler implements protocol."""
+        assert hasattr(self.handler, "name")
+        assert hasattr(self.handler, "subtypes")
+        assert hasattr(self.handler, "category")
+        assert hasattr(self.handler, "changes_length")
+        assert hasattr(self.handler, "can_apply")
+        assert hasattr(self.handler, "apply")
+        assert self.handler.name == "pronoun_n_form"
+        assert self.handler.subtypes == ["pronoun_n_form"]
+        assert self.handler.category == "OTHER"
+        assert self.handler.changes_length is False
+
+    def _prep_tokens(self, prep_text, prep_lemma, pron_text, pron_lemma, features):
+        """Build '<prep> <pronoun>' with the ADP attached via dep_rel='case'."""
+        return [
+            AnalyzedToken(
+                text=prep_text,
+                lemma=prep_lemma,
+                pos="ADP",
+                features={},
+                idx=0,
+                dep_rel="case",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text=pron_text,
+                lemma=pron_lemma,
+                pos="PRON",
+                features=features,
+                idx=1,
+                dep_rel="obl",
+                head_idx=2,
+            ),
+        ]
+
+    def test_direction_a_drops_n_after_true_preposition(self):
+        """'у него' -> 'у его', 'с ней' -> 'с ей', 'к ним' -> 'к им',
+        'без неё' -> 'без её' (Rozental §169-170, direction a)."""
+        cases = [
+            ("у", "у", "него", "он", {"Case": "Gen", "Gender": "Masc"}, "его"),
+            ("с", "с", "ней", "она", {"Case": "Ins", "Gender": "Fem"}, "ей"),
+            ("к", "к", "ним", "они", {"Case": "Dat", "Number": "Plur"}, "им"),
+            ("без", "без", "неё", "она", {"Case": "Gen", "Gender": "Fem"}, "её"),
+            ("к", "к", "нему", "он", {"Case": "Dat", "Gender": "Masc"}, "ему"),
+        ]
+        for prep_text, prep_lemma, pron_text, pron_lemma, feats, expected in cases:
+            tokens = self._prep_tokens(
+                prep_text, prep_lemma, pron_text, pron_lemma, feats
+            )
+            sentence = [prep_text, pron_text]
+            assert self.handler.can_apply(tokens, 1) is True, pron_text
+            result = self.handler.apply(tokens, sentence, 1, set())
+            assert result is not None, pron_text
+            assert result.corrupted == expected, pron_text
+            assert result.fix_tag == f"$REPLACE_{pron_text}"
+            assert sentence[1] == expected
+
+    def test_direction_b_adds_n_after_exception_governor(self):
+        """'благодаря ему' -> 'благодаря нему', 'согласно ей' -> 'согласно
+        ней', 'вопреки им' -> 'вопреки ним' (hyper-correction, direction b)."""
+        cases = [
+            ("благодаря", "благодаря", "ему", "он", {"Case": "Dat"}, "нему"),
+            ("согласно", "согласно", "ей", "она", {"Case": "Dat"}, "ней"),
+            ("вопреки", "вопреки", "им", "они", {"Case": "Dat"}, "ним"),
+            ("наперекор", "наперекор", "ему", "он", {"Case": "Dat"}, "нему"),
+            ("навстречу", "навстречу", "ему", "он", {"Case": "Dat"}, "нему"),
+        ]
+        for prep_text, prep_lemma, pron_text, pron_lemma, feats, expected in cases:
+            tokens = self._prep_tokens(
+                prep_text, prep_lemma, pron_text, pron_lemma, feats
+            )
+            sentence = [prep_text, pron_text]
+            assert self.handler.can_apply(tokens, 1) is True, pron_text
+            result = self.handler.apply(tokens, sentence, 1, set())
+            assert result is not None, pron_text
+            assert result.corrupted == expected, pron_text
+            assert sentence[1] == expected
+
+    def test_no_governor_skipped(self):
+        """Bare/augmented pronoun with no adjacent preposition never fires."""
+        tokens = [
+            AnalyzedToken(text="Мама", lemma="мама", pos="NOUN", features={}, idx=0),
+            AnalyzedToken(
+                text="видела",
+                lemma="видеть",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="него",
+                lemma="он",
+                pos="PRON",
+                features={"Case": "Acc"},
+                idx=2,
+                dep_rel="obj",
+                head_idx=1,
+            ),
+        ]
+        sentence = ["Мама", "видела", "него"]
+        assert self.handler.can_apply(tokens, 2) is False
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is None
+        assert sentence[2] == "него"
+
+    def test_possessive_never_fires_in_direction_b(self):
+        """'благодаря его помощи' -- его here is the frozen possessive
+        determiner ('his help'), not the Dative personal pronoun that
+        благодаря actually governs. Possessive его/её/их are a disjoint
+        surface-form set from the Dative bare forms (ему/ей/им) that
+        direction (b) targets, so this must never fire; dep_rel='det' is
+        checked defensively on top of that.
+        """
+        tokens = [
+            AnalyzedToken(
+                text="благодаря",
+                lemma="благодаря",
+                pos="ADP",
+                features={},
+                idx=0,
+                dep_rel="case",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="его",
+                lemma="его",
+                pos="DET",
+                features={"Poss": "Yes", "PronType": "Prs"},
+                idx=1,
+                dep_rel="det",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="помощи",
+                lemma="помощь",
+                pos="NOUN",
+                features={"Case": "Dat"},
+                idx=2,
+                dep_rel="obl",
+                head_idx=3,
+            ),
+        ]
+        sentence = ["благодаря", "его", "помощи"]
+        assert self.handler.can_apply(tokens, 1) is False
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is None
+        assert sentence[1] == "его"
+
+    def test_comparative_neighbor_skipped(self):
+        """'лучше него' / 'лучше его' -- both acceptable after a comparative;
+        neither direction may fire since no true preposition governs the
+        pronoun here (its governor is the comparative itself)."""
+        tokens = [
+            AnalyzedToken(
+                text="Лучше",
+                lemma="хорошо",
+                pos="ADV",
+                features={"Degree": "Cmp"},
+                idx=0,
+                dep_rel="advmod",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="него",
+                lemma="он",
+                pos="PRON",
+                features={"Case": "Gen"},
+                idx=1,
+                dep_rel="obl",
+                head_idx=0,
+            ),
+            AnalyzedToken(
+                text="никто",
+                lemma="никто",
+                pos="PRON",
+                features={},
+                idx=2,
+                dep_rel="nsubj",
+                head_idx=3,
+            ),
+        ]
+        sentence = ["Лучше", "него", "никто"]
+        assert self.handler.can_apply(tokens, 1) is False
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is None
+        assert sentence[1] == "него"
+
+    def test_exception_governor_list_closed(self):
+        """Only the five listed secondary prepositions trigger direction (b);
+        an ordinary Dative-governing preposition (e.g. 'к') must not."""
+        tokens = self._prep_tokens("к", "к", "ему", "он", {"Case": "Dat"})
+        sentence = ["к", "ему"]
+        assert self.handler.can_apply(tokens, 1) is False
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is None
+        assert sentence[1] == "ему"
+
+    def test_no_dep_info_fallback_adjacency(self):
+        """Without depparse, an immediate-left ADP/exception-lemma neighbor
+        still drives both directions."""
+        tokens = [
+            AnalyzedToken(text="у", lemma="у", pos="ADP", features={}, idx=0),
+            AnalyzedToken(
+                text="него", lemma="он", pos="PRON", features={"Case": "Gen"}, idx=1
+            ),
+        ]
+        sentence = ["у", "него"]
+        assert self.handler.can_apply(tokens, 1) is True
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.corrupted == "его"
+
+        tokens = [
+            AnalyzedToken(
+                text="благодаря", lemma="благодаря", pos="ADP", features={}, idx=0
+            ),
+            AnalyzedToken(
+                text="ему", lemma="он", pos="PRON", features={"Case": "Dat"}, idx=1
+            ),
+        ]
+        sentence = ["благодаря", "ему"]
+        assert self.handler.can_apply(tokens, 1) is True
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.corrupted == "нему"
+
+    def test_first_second_person_pronouns_never_fire(self):
+        """я/ты/мы/вы have no augmented paradigm at all -- must never fire
+        even if adjacent to a preposition."""
+        tokens = self._prep_tokens("у", "у", "меня", "я", {"Case": "Gen"})
+        sentence = ["у", "меня"]
+        assert self.handler.can_apply(tokens, 1) is False
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is None
+        assert sentence[1] == "меня"
+
+    def test_replacement_token_tag_consistent(self):
+        """Single $REPLACE, one token in, one token out."""
+        tokens = self._prep_tokens("у", "у", "него", "он", {"Case": "Gen"})
+        sentence = ["у", "него"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.fix_tag == "$REPLACE_него"
+        assert result.start_idx == 1
+        assert result.end_idx == 2
+        assert len(" ".join(sentence).split()) == len(sentence)
+
+    def test_capitalization_preserved(self):
+        """Sentence-initial capitalized pronoun keeps its capitalization."""
+        tokens = self._prep_tokens("Без", "без", "Него", "он", {"Case": "Gen"})
+        sentence = ["Без", "Него"]
+        result = self.handler.apply(tokens, sentence, 1, set())
+        assert result is not None
+        assert result.corrupted == "Его"
+        assert sentence[1] == "Его"

@@ -551,10 +551,10 @@ fine_grained_tags:
     l2_note: "L2 learners confuse svoy/ego"
   mo_pronoun_forms:
     parent: mo_pronoun
-    description: "Определительные and indefinite pronouns (всякий/каждый, кое-кто)"
+    description: "н-augment after prepositions (у него/у его; благодаря ему/нему)"
     paras: "§169–170"
-    l2_applicability: none
-    l2_note: "native stylistic variants"
+    l2_applicability: partial
+    l2_note: "learners drop н too, by a different mechanism; determiner half of §169–170 uncovered"
 
   # --- mo_verb_aspect children ---
   mo_verb_asp_pair:
@@ -964,6 +964,9 @@ mappings:
   pronoun_sebya:
     primary: mo_pronoun
     l2_tag: mo_pronoun_sebya
+  pronoun_n_form:
+    primary: mo_pronoun
+    l2_tag: mo_pronoun_forms
   noun_case_gen_partitive:
     primary: mo_noun_case
     l2_tag: mo_noun_case_gen_a_u

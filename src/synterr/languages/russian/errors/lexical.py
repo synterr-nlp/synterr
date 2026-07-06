@@ -924,3 +924,210 @@ class ConjunctionErrorHandler:
             corrupted=new_word,
             fix_tag=f"$REPLACE_{word}",
         )
+
+
+# ---------------------------------------------------------------------------
+# н-insertion/deletion on 3rd-person pronouns after prepositions (§169-170)
+#
+# Standard Russian augments the oblique forms of он/она/оно/они with a
+# prothetic н- when (and only when) they are governed by a true preposition:
+# "у него", "с ней", "к ним", "без неё". Without a governing preposition the
+# bare forms are used: "его вижу", "ей нравится". The textbook L2 errors run
+# in both directions:
+#   (a) dropping the н after an ordinary preposition ("у него" -> "у его");
+#   (b) hyper-correction: adding the н after one of a small closed class of
+#       secondary/deverbative prepositions (благодаря, вопреки, согласно,
+#       наперекор, навстречу) that take Dative but, exceptionally, never
+#       trigger the augment ("благодаря ему" -> "благодаря нему").
+# Both directions are pure surface-form swaps -- no inflection is needed,
+# since the augmented and bare paradigms are just two fixed spellings of the
+# same case/number/gender cell.
+# ---------------------------------------------------------------------------
+
+# Only он/она/оно/они (never я/ты/мы/вы) have an augmented paradigm.
+_N_FORM_PRONOUN_LEMMAS = {"он", "она", "оно", "они"}
+
+# Augmented (н-) surface form -> bare form, direction (a) source -> target.
+# Loc forms (нём, and ней/них in the Loc cell) are deliberately excluded:
+# Loc has no bare counterpart at all (it is only ever used after a
+# preposition), so there is no competing "bare" spelling for a learner to
+# confuse it with and this error pattern cannot arise there. Both ё and е
+# spellings of the fem Gen/Acc form are covered since source corpora mix the
+# two conventions.
+_N_AUGMENTED_TO_BARE: dict[str, str] = {
+    "него": "его",  # Gen/Acc masc/neut
+    "неё": "её",  # Gen/Acc fem
+    "нее": "ее",  # Gen/Acc fem, е-spelling
+    "ней": "ей",  # Dat/Ins fem
+    "нему": "ему",  # Dat masc/neut
+    "них": "их",  # Gen/Acc plural
+    "ним": "им",  # Ins masc/neut
+    "ними": "ими",  # Ins plural
+    "нею": "ею",  # Ins fem, alternative form
+}
+
+# Bare Dative surface form -> augmented form, direction (b). Restricted to
+# Dative only: благодаря/вопреки/согласно/наперекор/навстречу all govern
+# Dative (never Gen/Acc), so его/её/их are never a direction (b) candidate
+# in the first place -- which is what keeps this direction safe from the
+# possessive-determiner homonym (его/её/их as "his/her/their X"): those
+# surface forms simply never appear in this dict, so there is nothing to
+# guard against by exclusion. dep_rel is still checked defensively in
+# _resolve in case a parser quirk ever tags a possessive as PRON.
+_N_BARE_DATIVE_TO_AUGMENTED: dict[str, str] = {
+    "ему": "нему",
+    "ей": "ней",
+    "им": "ним",
+}
+
+# Secondary/deverbative prepositions that exceptionally take the bare form.
+_N_EXCEPTION_GOVERNOR_LEMMAS = {
+    "благодаря",
+    "вопреки",
+    "согласно",
+    "наперекор",
+    "навстречу",
+}
+
+
+def _n_form_comparative_neighbor(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """True if the token to the left is a comparative-degree ADJ/ADV.
+
+    "лучше него" / "лучше его" (better than him) are both acceptable -- the
+    pronoun here is governed by the comparative itself (no true preposition
+    is involved at all), so this is not the target error in either
+    direction. In practice a comparative head is never tagged ADP, so the
+    "governed by a true preposition" requirement in _resolve already
+    excludes this construction; this check is kept as an explicit,
+    parser-independent guard per spec.
+    """
+    if idx - 1 < 0:
+        return False
+    left = tokens[idx - 1]
+    return left.pos in ("ADJ", "ADV") and left.get_feature("Degree") == "Cmp"
+
+
+def _n_form_case_governor(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> AnalyzedToken | None:
+    """Token governing tokens[idx] via the UD 'case' dependency relation.
+
+    Adpositions (including secondary ones like благодаря) attach to their
+    governed nominal with dep_rel='case' and head_idx pointing at that
+    nominal -- so the governor is found by scanning for a token whose head
+    is idx, not by looking at idx's own head_idx.
+    """
+    for other in tokens:
+        if other.head_idx == idx and other.dep_rel == "case":
+            return other
+    return None
+
+
+class PronounNFormErrorHandler:
+    """3rd-person pronoun н-augment confusion after prepositions (§169-170,
+    RLC Ref).
+
+    Direction (a) -- drop н after an ordinary preposition: "у него" -> "у
+    его", "с ней" -> "с ей", "к ним" -> "к им", "без неё" -> "без её". Fires
+    only when a true preposition (any ADP attached via dep_rel='case', or --
+    without depparse -- an ADP immediately to the left) governs the pronoun,
+    and that governor is not one of the exception words below.
+
+    Direction (b) -- hyper-correction after benefactive/adversative
+    secondary prepositions that take Dative but never trigger the augment:
+    благодаря, вопреки, согласно, наперекор, навстречу. "благодаря ему" ->
+    "благодаря нему". Restricted to the bare Dative forms (ему/ей/им);
+    checked by a plain lemma-adjacency scan (immediate left neighbor) since
+    навстречу in particular is not reliably tagged ADP by the depparse
+    backend (it is sometimes an ADV sibling of the pronoun rather than its
+    dep_rel='case' head), so relying on the dep tree alone would miss it.
+
+    Guards:
+    - Only он/она/оно/они pronouns (PRON) participate; я/ты/мы/вы have no
+      augmented paradigm.
+    - Comparative degree left neighbor ("лучше него/его", both acceptable)
+      is excluded in both directions.
+    - Direction (a)'s augmented forms (него, неё, ней, нему, них, ним, ними,
+      нею) are never used as the frozen possessive determiner (его/её/их
+      only), so no possessive guard is needed there -- unambiguous by
+      construction.
+    - Direction (b) is restricted to the Dative-only bare forms (ему, ей,
+      им); the possessive determiner его/её/их is a disjoint set of surface
+      strings, so it is never a candidate, and dep_rel=='det' is checked
+      defensively regardless.
+    - Loc forms (нём, and the Loc cell of ней/них) are excluded from
+      direction (a): Loc has no competing bare form at all (always requires
+      a preposition), so this confusion cannot arise there.
+    """
+
+    name = "pronoun_n_form"
+    subtypes = ["pronoun_n_form"]
+    category = "OTHER"
+    changes_length = False
+
+    def _resolve(
+        self, tokens: Sequence[AnalyzedToken], idx: int
+    ) -> tuple[str, str] | None:
+        """Plan the replacement as (direction, new_word), or None to skip."""
+        token = tokens[idx]
+        if token.pos != "PRON" or token.lemma not in _N_FORM_PRONOUN_LEMMAS:
+            return None
+        if _n_form_comparative_neighbor(tokens, idx):
+            return None
+
+        word_lower = token.text.lower()
+
+        bare = _N_AUGMENTED_TO_BARE.get(word_lower)
+        if bare is not None:
+            governor = _n_form_case_governor(tokens, idx)
+            if governor is None and idx - 1 >= 0 and tokens[idx - 1].pos == "ADP":
+                governor = tokens[idx - 1]
+            if governor is None or governor.lemma in _N_EXCEPTION_GOVERNOR_LEMMAS:
+                return None
+            return ("drop_n", bare)
+
+        augmented = _N_BARE_DATIVE_TO_AUGMENTED.get(word_lower)
+        if augmented is not None:
+            if token.dep_rel == "det":
+                return None
+            if idx - 1 < 0 or tokens[idx - 1].lemma not in _N_EXCEPTION_GOVERNOR_LEMMAS:
+                return None
+            return ("add_n", augmented)
+
+        return None
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        return self._resolve(tokens, idx) is not None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        """Apply the н-form confusion."""
+        word = sentence[idx]
+
+        plan = self._resolve(tokens, idx)
+        if plan is None:
+            return None
+        _, new_word_raw = plan
+
+        new_word = match_capitalization(word, new_word_raw)
+        if new_word == word:
+            return None
+
+        sentence[idx] = new_word
+        modified.add(idx)
+
+        return ErrorResult(
+            error_type=self.name,
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=word,
+            corrupted=new_word,
+            fix_tag=f"$REPLACE_{word}",
+        )

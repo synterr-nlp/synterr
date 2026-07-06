@@ -26,6 +26,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         ConjunctionErrorHandler,
         ParonymErrorHandler,
         PrepositionErrorHandler,
+        PronounNFormErrorHandler,
         PronounSebyaErrorHandler,
         PronounSvoyErrorHandler,
     )
@@ -97,6 +98,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         ConjunctionErrorHandler(),
         PronounSvoyErrorHandler(),
         PronounSebyaErrorHandler(),
+        PronounNFormErrorHandler(),
         # Semantics
         PleonasmHandler(),
         CollocationHandler(),
