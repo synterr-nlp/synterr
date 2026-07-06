@@ -52,7 +52,7 @@ class TestAA:
     handler = GrammaticalHomophoneErrorHandler()
 
     def test_a_to_à_swap(self, tokens_avoir_3sg):
-        """"Elle a mangé une pomme." - "a" (AUX avoir 3sg) -> "à"."""
+        """ "Elle a mangé une pomme." - "a" (AUX avoir 3sg) -> "à"."""
         sentence = [t.text for t in tokens_avoir_3sg]
         modified: set[int] = set()
 
@@ -69,7 +69,7 @@ class TestAA:
         assert modified == {1}
 
     def test_a_guard_non_avoir_reading(self):
-        """"a" tagged NOUN (rare Lexique reading "la lettre a") must not fire."""
+        """ "a" tagged NOUN (rare Lexique reading "la lettre a") must not fire."""
         tokens = [
             _token("le", "le", "DET", idx=0, dep_rel="det", head_idx=1),
             _token("a", "a", "NOUN", {"Gender": "Masc", "Number": "Sing"}, idx=1),
@@ -77,7 +77,7 @@ class TestAA:
         assert self.handler.can_apply(tokens, 1) is False
 
     def test_à_to_a_swap(self, tokens_au_contraction):
-        """"Il va au marché." - "à" (ADP, case marker) -> "a"."""
+        """ "Il va au marché." - "à" (ADP, case marker) -> "a"."""
         sentence = [t.text for t in tokens_au_contraction]
         modified: set[int] = set()
 
@@ -95,7 +95,7 @@ class TestEtEst:
     handler = GrammaticalHomophoneErrorHandler()
 
     def _tokens_et(self) -> list[AnalyzedToken]:
-        """"Marie et Paul sont partis." (simplified: only "et" needs a coord head.)"""
+        """ "Marie et Paul sont partis." (simplified: only "et" needs a coord head.)"""
         return [
             _token("Marie", "Marie", "PROPN", idx=0, dep_rel="nsubj", head_idx=3),
             _token("et", "et", "CCONJ", idx=1, dep_rel="cc", head_idx=2),
@@ -133,13 +133,13 @@ class TestEtEst:
         assert sentence[1] == "est"
 
     def test_et_guard_wrong_pos(self):
-        """"et" mistagged as a non-CCONJ POS must not fire (conservative gate)."""
+        """ "et" mistagged as a non-CCONJ POS must not fire (conservative gate)."""
         tokens = self._tokens_et()
         tokens[1] = _token("et", "et", "ADV", idx=1, dep_rel="cc", head_idx=2)
         assert self.handler.can_apply(tokens, 1) is False
 
     def test_est_to_et_swap(self, tokens_etre_copula):
-        """"Marie est heureuse." - "est" (AUX être 3sg pres, copula) -> "et"."""
+        """ "Marie est heureuse." - "est" (AUX être 3sg pres, copula) -> "et"."""
         sentence = [t.text for t in tokens_etre_copula]
         modified: set[int] = set()
 
@@ -153,7 +153,7 @@ class TestEtEst:
         assert sentence[1] == "et"
 
     def test_est_guard_number_mismatch(self, tokens_etre_copula):
-        """"est" whose own Number feature contradicts 3sg must not fire."""
+        """ "est" whose own Number feature contradicts 3sg must not fire."""
         tokens = list(tokens_etre_copula)
         tokens[1] = _token(
             "est",
@@ -171,7 +171,7 @@ class TestCeSe:
     handler = GrammaticalHomophoneErrorHandler()
 
     def test_ce_det_before_noun_to_se(self):
-        """"Ce livre est grand." - "Ce" (DET dem, det->NOUN) -> "se"."""
+        """ "Ce livre est grand." - "Ce" (DET dem, det->NOUN) -> "se"."""
         tokens = [
             _token(
                 "Ce",
@@ -183,8 +183,13 @@ class TestCeSe:
                 head_idx=1,
             ),
             _token(
-                "livre", "livre", "NOUN", {"Gender": "Masc", "Number": "Sing"},
-                idx=1, dep_rel="nsubj", head_idx=2,
+                "livre",
+                "livre",
+                "NOUN",
+                {"Gender": "Masc", "Number": "Sing"},
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
             ),
             _token(
                 "est",
@@ -209,11 +214,16 @@ class TestCeSe:
         assert sentence[0] == "Se"
 
     def test_ce_pron_subject_of_etre_to_se(self):
-        """"Ce sera formidable." - "Ce" (PRON dem, nsubj of être) -> "se"."""
+        """ "Ce sera formidable." - "Ce" (PRON dem, nsubj of être) -> "se"."""
         tokens = [
             _token(
-                "Ce", "ce", "PRON", {"PronType": "Dem"}, idx=0,
-                dep_rel="nsubj", head_idx=1,
+                "Ce",
+                "ce",
+                "PRON",
+                {"PronType": "Dem"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
             ),
             _token(
                 "sera",
@@ -236,7 +246,7 @@ class TestCeSe:
         assert result.corrupted == "Se"
 
     def test_se_to_ce_swap(self):
-        """"Il se lave." - "se" (PRON expl on VERB) -> "ce"."""
+        """ "Il se lave." - "se" (PRON expl on VERB) -> "ce"."""
         tokens = [
             _token("Il", "lui", "PRON", idx=0, dep_rel="nsubj", head_idx=2),
             _token("se", "se", "PRON", idx=1, dep_rel="expl:comp", head_idx=2),
@@ -255,7 +265,7 @@ class TestCeSe:
         assert sentence[1] == "ce"
 
     def test_se_guard_head_not_verb(self):
-        """"se" with a reflexive-looking deprel but a non-verbal head must not fire."""
+        """ "se" with a reflexive-looking deprel but a non-verbal head must not fire."""
         tokens = [
             _token("Il", "lui", "PRON", idx=0, dep_rel="nsubj", head_idx=2),
             _token("se", "se", "PRON", idx=1, dep_rel="expl:comp", head_idx=2),
@@ -268,7 +278,7 @@ class TestOnOnt:
     handler = GrammaticalHomophoneErrorHandler()
 
     def test_on_to_ont_swap(self):
-        """"On mange." - "on" (PRON nsubj) -> "ont"."""
+        """ "On mange." - "on" (PRON nsubj) -> "ont"."""
         tokens = [
             _token("On", "on", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
             _token(
@@ -293,7 +303,7 @@ class TestOnOnt:
         assert sentence[0] == "Ont"
 
     def test_on_guard_head_number_mismatch(self):
-        """"on" whose governed verb is (inconsistently) plural must not fire."""
+        """ "on" whose governed verb is (inconsistently) plural must not fire."""
         tokens = [
             _token("on", "on", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
             _token(
@@ -308,7 +318,7 @@ class TestOnOnt:
         assert self.handler.can_apply(tokens, 0) is False
 
     def test_ont_to_on_swap(self):
-        """"Ils ont mangé." - "ont" (AUX avoir 3pl) -> "on"."""
+        """ "Ils ont mangé." - "ont" (AUX avoir 3pl) -> "on"."""
         tokens = [
             _token("Ils", "lui", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
             _token(
@@ -321,8 +331,12 @@ class TestOnOnt:
                 head_idx=2,
             ),
             _token(
-                "mangé", "manger", "VERB",
-                {"Tense": "Past", "VerbForm": "Part"}, idx=2, dep_rel="root",
+                "mangé",
+                "manger",
+                "VERB",
+                {"Tense": "Past", "VerbForm": "Part"},
+                idx=2,
+                dep_rel="root",
             ),
         ]
         sentence = [t.text for t in tokens]
@@ -338,7 +352,7 @@ class TestOnOnt:
         assert sentence[1] == "on"
 
     def test_ont_guard_participle_number_mismatch(self):
-        """"ont" whose governed participle carries a contradicting explicit
+        """ "ont" whose governed participle carries a contradicting explicit
         Number (e.g. agreement with a preceding singular direct object, "la
         pomme qu'ils ont mangée") must not fire."""
         tokens = [
@@ -356,7 +370,12 @@ class TestOnOnt:
                 "mangée",
                 "manger",
                 "VERB",
-                {"Gender": "Fem", "Number": "Sing", "Tense": "Past", "VerbForm": "Part"},
+                {
+                    "Gender": "Fem",
+                    "Number": "Sing",
+                    "Tense": "Past",
+                    "VerbForm": "Part",
+                },
                 idx=2,
                 dep_rel="acl:relcl",
             ),
@@ -368,7 +387,7 @@ class TestSonSont:
     handler = GrammaticalHomophoneErrorHandler()
 
     def test_son_to_sont_swap(self):
-        """"Son livre est grand." - "Son" (DET poss->NOUN) -> "sont"."""
+        """ "Son livre est grand." - "Son" (DET poss->NOUN) -> "sont"."""
         tokens = [
             _token(
                 "Son",
@@ -380,8 +399,13 @@ class TestSonSont:
                 head_idx=1,
             ),
             _token(
-                "livre", "livre", "NOUN", {"Gender": "Masc", "Number": "Sing"},
-                idx=1, dep_rel="nsubj", head_idx=2,
+                "livre",
+                "livre",
+                "NOUN",
+                {"Gender": "Masc", "Number": "Sing"},
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=2,
             ),
             _token(
                 "est",
@@ -407,7 +431,7 @@ class TestSonSont:
         assert sentence[0] == "Sont"
 
     def test_son_guard_head_not_noun(self):
-        """"son" DET whose det-arc head is not a NOUN (contrived/inconsistent
+        """ "son" DET whose det-arc head is not a NOUN (contrived/inconsistent
         parse) must not fire."""
         tokens = [
             _token(
@@ -424,7 +448,7 @@ class TestSonSont:
         assert self.handler.can_apply(tokens, 0) is False
 
     def test_sont_to_son_swap(self):
-        """"Ils sont arrivés." - "sont" (AUX être 3pl) -> "son"."""
+        """ "Ils sont arrivés." - "sont" (AUX être 3pl) -> "son"."""
         tokens = [
             _token("Ils", "lui", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
             _token(

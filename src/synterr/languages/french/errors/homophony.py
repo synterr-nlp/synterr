@@ -116,7 +116,9 @@ def _load_confusion_pairs() -> dict[str, tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-def _head(tokens: Sequence[AnalyzedToken], token: AnalyzedToken) -> AnalyzedToken | None:
+def _head(
+    tokens: Sequence[AnalyzedToken], token: AnalyzedToken
+) -> AnalyzedToken | None:
     """The dependency head of ``token``, or None if absent/out of range."""
     idx = token.head_idx
     if idx is None or not (0 <= idx < len(tokens)):

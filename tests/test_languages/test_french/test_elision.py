@@ -30,7 +30,7 @@ class TestElisionOmit:
     handler = ElisionApostropheHandler()
 
     def test_l_apostrophe_before_noun(self, tokens_elided_l):
-        """"L'arbre est grand." -> "Le arbre est grand." — the flagship
+        """ "L'arbre est grand." -> "Le arbre est grand." — the flagship
         case: fr_sequoia's DET token for "L'" carries no Gender feature of
         its own (see conftest), so resolution must fall back to the
         following noun's Gender."""
@@ -52,7 +52,7 @@ class TestElisionOmit:
         assert len(sentence) == len(tokens_elided_l)
 
     def test_qu_apostrophe_before_pronoun(self, tokens_elided_qu):
-        """"Qu'il vienne bientôt !" -> "Que il vienne bientôt !" —
+        """ "Qu'il vienne bientôt !" -> "Que il vienne bientôt !" —
         que -> qu' is a unique (unambiguous) elision, no gender needed."""
         sentence = [t.text for t in tokens_elided_qu]
         modified: set[int] = set()
@@ -67,16 +67,26 @@ class TestElisionOmit:
         assert sentence == ["Que", "il", "vienne", "bientôt", "!"]
 
     def test_je_apostrophe_unique_mapping(self):
-        """"J'ai froid." -> "Je ai froid." — j' has no other source word,
+        """ "J'ai froid." -> "Je ai froid." — j' has no other source word,
         so no disambiguation is needed."""
         tokens = [
             AnalyzedToken(
-                text="J'", lemma="moi", pos="PRON",
-                features={"Number": "Sing", "Person": "1"}, idx=0,
+                text="J'",
+                lemma="moi",
+                pos="PRON",
+                features={"Number": "Sing", "Person": "1"},
+                idx=0,
             ),
             AnalyzedToken(
-                text="ai", lemma="avoir", pos="AUX",
-                features={"Mood": "Ind", "Number": "Sing", "Person": "1", "Tense": "Pres"},
+                text="ai",
+                lemma="avoir",
+                pos="AUX",
+                features={
+                    "Mood": "Ind",
+                    "Number": "Sing",
+                    "Person": "1",
+                    "Tense": "Pres",
+                },
                 idx=1,
             ),
             AnalyzedToken(text="froid", lemma="froid", pos="NOUN", features={}, idx=2),
@@ -93,16 +103,21 @@ class TestElisionOmit:
         assert sentence == ["Je", "ai", "froid", "."]
 
     def test_se_reflexive_pronoun_disambiguation(self):
-        """"Elle s'habille." -> "Elle se habille." — s' before a verb, with
+        """ "Elle s'habille." -> "Elle se habille." — s' before a verb, with
         the eliding token itself tagged PRON (reflexive clitic), resolves to
         "se" rather than "si"."""
         tokens = [
             AnalyzedToken(text="Elle", lemma="lui", pos="PRON", features={}, idx=0),
             AnalyzedToken(
-                text="s'", lemma="se", pos="PRON",
-                features={"Reflex": "Yes"}, idx=1,
+                text="s'",
+                lemma="se",
+                pos="PRON",
+                features={"Reflex": "Yes"},
+                idx=1,
             ),
-            AnalyzedToken(text="habille", lemma="habiller", pos="VERB", features={}, idx=2),
+            AnalyzedToken(
+                text="habille", lemma="habiller", pos="VERB", features={}, idx=2
+            ),
             AnalyzedToken(text=".", lemma=".", pos="PUNCT", features={}, idx=3),
         ]
         sentence = [t.text for t in tokens]
@@ -116,13 +131,15 @@ class TestElisionOmit:
         assert sentence == ["Elle", "se", "habille", "."]
 
     def test_si_conjunction_disambiguation_before_il(self):
-        """"S'il pleut, nous resterons." -> "Si il pleut, ..." — s' tagged
+        """ "S'il pleut, nous resterons." -> "Si il pleut, ..." — s' tagged
         SCONJ and followed by "il" resolves to "si" (elision.json: si only
         elides before il/ils)."""
         tokens = [
             AnalyzedToken(text="S'", lemma="si", pos="SCONJ", features={}, idx=0),
             AnalyzedToken(text="il", lemma="lui", pos="PRON", features={}, idx=1),
-            AnalyzedToken(text="pleut", lemma="pleuvoir", pos="VERB", features={}, idx=2),
+            AnalyzedToken(
+                text="pleut", lemma="pleuvoir", pos="VERB", features={}, idx=2
+            ),
             AnalyzedToken(text=",", lemma=",", pos="PUNCT", features={}, idx=3),
         ]
         sentence = [t.text for t in tokens]
@@ -159,8 +176,11 @@ class TestElisionOmit:
         front of one."""
         tokens = [
             AnalyzedToken(
-                text="l'", lemma="le", pos="DET",
-                features={}, idx=0,
+                text="l'",
+                lemma="le",
+                pos="DET",
+                features={},
+                idx=0,
             ),
             AnalyzedToken(text="héros", lemma="héros", pos="NOUN", features={}, idx=1),
         ]
@@ -206,7 +226,7 @@ class TestEuphonicTDrop:
     handler = ElisionApostropheHandler()
 
     def test_aime_t_il_positive(self, tokens_t_il_inversion):
-        """"Aime-t-il le chocolat ?" -- drop the -t- token between the
+        """ "Aime-t-il le chocolat ?" -- drop the -t- token between the
         vowel-final verb "Aime" and the inverted pronoun "-il"."""
         sentence = [t.text for t in tokens_t_il_inversion]
         modified: set[int] = set()
@@ -223,12 +243,19 @@ class TestEuphonicTDrop:
         assert sentence == ["Aime", "-il", "le", "chocolat", "?"]
 
     def test_convaincre_irregular_analogy(self):
-        """"Convainc-t-il son adversaire ?" -- vaincre/convaincre take -t-
+        """ "Convainc-t-il son adversaire ?" -- vaincre/convaincre take -t-
         by analogy despite their 3sg form ending in "c", per BDL."""
         tokens = [
             AnalyzedToken(
-                text="Convainc", lemma="convaincre", pos="VERB",
-                features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres"},
+                text="Convainc",
+                lemma="convaincre",
+                pos="VERB",
+                features={
+                    "Mood": "Ind",
+                    "Number": "Sing",
+                    "Person": "3",
+                    "Tense": "Pres",
+                },
                 idx=0,
             ),
             AnalyzedToken(text="-t", lemma="tui", pos="PRON", features={}, idx=1),
@@ -243,7 +270,9 @@ class TestEuphonicTDrop:
         -t- token dropped as a genuine euphonic-t case -- conservative
         refusal on an inconsistent/adversarial parse."""
         tokens = [
-            AnalyzedToken(text="Prend", lemma="prendre", pos="VERB", features={}, idx=0),
+            AnalyzedToken(
+                text="Prend", lemma="prendre", pos="VERB", features={}, idx=0
+            ),
             AnalyzedToken(text="-t", lemma="tui", pos="PRON", features={}, idx=1),
             AnalyzedToken(text="-on", lemma="on", pos="PRON", features={}, idx=2),
         ]

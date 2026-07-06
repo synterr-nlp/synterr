@@ -90,7 +90,9 @@ def _match_capitalization(original: str, new: str) -> str:
     return new
 
 
-def _strip_regular_participle(word: str, gender: str | None, number: str | None) -> str | None:
+def _strip_regular_participle(
+    word: str, gender: str | None, number: str | None
+) -> str | None:
     """Return the masc-sing stem if ``word`` is a regular, strippable
     agreement form; ``None`` if there is nothing to strip or the form looks
     irregular.

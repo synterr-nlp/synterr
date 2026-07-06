@@ -37,7 +37,7 @@ def test_handler_protocol_shape():
 
 
 def test_inf_to_participle_positive_modal_governed(tokens_modal_infinitive):
-    """"Il veut manger une pomme." - manger is xcomp under vouloir (modal)."""
+    """ "Il veut manger une pomme." - manger is xcomp under vouloir (modal)."""
     handler = _handler()
     idx = 2  # "manger"
     assert tokens_modal_infinitive[idx].text == "manger"
@@ -46,7 +46,9 @@ def test_inf_to_participle_positive_modal_governed(tokens_modal_infinitive):
 
     sentence = ["Il", "veut", "manger", "une", "pomme", "."]
     modified: set[int] = set()
-    result = handler.apply(tokens_modal_infinitive, sentence, idx, modified, rng=random.Random(0))
+    result = handler.apply(
+        tokens_modal_infinitive, sentence, idx, modified, rng=random.Random(0)
+    )
 
     assert result is not None
     assert result.error_type == "inf_to_participle"
@@ -59,30 +61,68 @@ def test_inf_to_participle_positive_modal_governed(tokens_modal_infinitive):
 
 
 def test_inf_to_participle_positive_adp_governed():
-    """"Il part sans manger." - manger governed by ADP "sans" (mark)."""
+    """ "Il part sans manger." - manger governed by ADP "sans" (mark)."""
     tokens = [
         AnalyzedToken(
-            text="Il", lemma="lui", pos="PRON",
-            features={"Gender": "Masc", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            text="Il",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="part", lemma="partir", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="part",
+            lemma="partir",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
         AnalyzedToken(
-            text="sans", lemma="sans", pos="ADP", features={},
-            idx=2, dep_rel="mark", head_idx=3, extra={},
+            text="sans",
+            lemma="sans",
+            pos="ADP",
+            features={},
+            idx=2,
+            dep_rel="mark",
+            head_idx=3,
+            extra={},
         ),
         AnalyzedToken(
-            text="manger", lemma="manger", pos="VERB",
+            text="manger",
+            lemma="manger",
+            pos="VERB",
             features={"VerbForm": "Inf"},
-            idx=3, dep_rel="advcl", head_idx=1, extra={},
+            idx=3,
+            dep_rel="advcl",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text=".", lemma=".", pos="PUNCT", features={},
-            idx=4, dep_rel="punct", head_idx=1, extra={},
+            text=".",
+            lemma=".",
+            pos="PUNCT",
+            features={},
+            idx=4,
+            dep_rel="punct",
+            head_idx=1,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -99,17 +139,34 @@ def test_inf_to_participle_preserves_capitalization():
     """Sentence-initial "Manger" -> "Mangé" (governed by ADP "Pour")."""
     tokens = [
         AnalyzedToken(
-            text="Pour", lemma="pour", pos="ADP", features={},
-            idx=0, dep_rel="mark", head_idx=1, extra={},
+            text="Pour",
+            lemma="pour",
+            pos="ADP",
+            features={},
+            idx=0,
+            dep_rel="mark",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="Manger", lemma="manger", pos="VERB",
+            text="Manger",
+            lemma="manger",
+            pos="VERB",
             features={"VerbForm": "Inf"},
-            idx=1, dep_rel="advcl", head_idx=2, extra={},
+            idx=1,
+            dep_rel="advcl",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="vite", lemma="vite", pos="ADV", features={},
-            idx=2, dep_rel="root", head_idx=None, extra={},
+            text="vite",
+            lemma="vite",
+            pos="ADV",
+            features={},
+            idx=2,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -129,19 +186,40 @@ def test_inf_to_participle_no_governor_does_not_apply():
     "Manger est un plaisir.") must not fire - ambiguous licensing."""
     tokens = [
         AnalyzedToken(
-            text="Manger", lemma="manger", pos="VERB",
+            text="Manger",
+            lemma="manger",
+            pos="VERB",
             features={"VerbForm": "Inf"},
-            idx=0, dep_rel="nsubj", head_idx=2, extra={},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="est", lemma="être", pos="AUX",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="cop", head_idx=2, extra={},
+            text="est",
+            lemma="être",
+            pos="AUX",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="cop",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="agréable", lemma="agréable", pos="ADJ",
+            text="agréable",
+            lemma="agréable",
+            pos="ADJ",
             features={"Number": "Sing"},
-            idx=2, dep_rel="root", head_idx=None, extra={},
+            idx=2,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -153,19 +231,45 @@ def test_inf_to_participle_non_whitelisted_lemma_does_not_apply():
     1st-group whitelist) must not fire even with a valid modal governor."""
     tokens = [
         AnalyzedToken(
-            text="Il", lemma="lui", pos="PRON",
-            features={"Gender": "Masc", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            text="Il",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="veut", lemma="vouloir", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="veut",
+            lemma="vouloir",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
         AnalyzedToken(
-            text="grenouiller", lemma="grenouiller", pos="VERB",
+            text="grenouiller",
+            lemma="grenouiller",
+            pos="VERB",
             features={"VerbForm": "Inf"},
-            idx=2, dep_rel="xcomp", head_idx=1, extra={},
+            idx=2,
+            dep_rel="xcomp",
+            head_idx=1,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -173,24 +277,50 @@ def test_inf_to_participle_non_whitelisted_lemma_does_not_apply():
 
 
 def test_inf_to_participle_non_homophonous_lemma_does_not_apply():
-    """"aider" IS a whitelisted 1st-group verb, but its infinitive and
+    """ "aider" IS a whitelisted 1st-group verb, but its infinitive and
     participle land in different phonemic clusters ("ede" vs "Ede") - not a
     genuine homophone pair, so inf_to_participle must not fire."""
     tokens = [
         AnalyzedToken(
-            text="Il", lemma="lui", pos="PRON",
-            features={"Gender": "Masc", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            text="Il",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="veut", lemma="vouloir", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="veut",
+            lemma="vouloir",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
         AnalyzedToken(
-            text="aider", lemma="aider", pos="VERB",
+            text="aider",
+            lemma="aider",
+            pos="VERB",
             features={"VerbForm": "Inf"},
-            idx=2, dep_rel="xcomp", head_idx=1, extra={},
+            idx=2,
+            dep_rel="xcomp",
+            head_idx=1,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -202,19 +332,45 @@ def test_inf_to_participle_surface_text_mismatch_does_not_apply():
     "-er" (parser/fixture noise) - the surface guard must block this."""
     tokens = [
         AnalyzedToken(
-            text="Il", lemma="lui", pos="PRON",
-            features={"Gender": "Masc", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            text="Il",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="veut", lemma="vouloir", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="veut",
+            lemma="vouloir",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
         AnalyzedToken(
-            text="mang", lemma="manger", pos="VERB",  # truncated surface form
+            text="mang",
+            lemma="manger",
+            pos="VERB",  # truncated surface form
             features={"VerbForm": "Inf"},
-            idx=2, dep_rel="xcomp", head_idx=1, extra={},
+            idx=2,
+            dep_rel="xcomp",
+            head_idx=1,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -225,7 +381,7 @@ def test_inf_to_participle_surface_text_mismatch_does_not_apply():
 
 
 def test_participle_to_inf_positive_avoir(tokens_avoir_3sg):
-    """"Elle a mangé une pomme." - mangé after avoir."""
+    """ "Elle a mangé une pomme." - mangé after avoir."""
     handler = _handler()
     idx = 2  # "mangé"
     assert tokens_avoir_3sg[idx].text == "mangé"
@@ -234,7 +390,9 @@ def test_participle_to_inf_positive_avoir(tokens_avoir_3sg):
 
     sentence = ["Elle", "a", "mangé", "une", "pomme", "."]
     modified: set[int] = set()
-    result = handler.apply(tokens_avoir_3sg, sentence, idx, modified, rng=random.Random(0))
+    result = handler.apply(
+        tokens_avoir_3sg, sentence, idx, modified, rng=random.Random(0)
+    )
 
     assert result is not None
     assert result.error_type == "participle_to_inf"
@@ -245,23 +403,54 @@ def test_participle_to_inf_positive_avoir(tokens_avoir_3sg):
 
 
 def test_participle_to_inf_feminine_plural_agreement_form():
-    """"mangées" (fem plur agreement, e.g. after être/COD-fronted avoir) ->
+    """ "mangées" (fem plur agreement, e.g. after être/COD-fronted avoir) ->
     "manger", stripping -ées not just -é."""
     tokens = [
         AnalyzedToken(
-            text="Elles", lemma="lui", pos="PRON",
-            features={"Gender": "Fem", "Number": "Plur", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=2, extra={},
+            text="Elles",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Fem",
+                "Number": "Plur",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="ont", lemma="avoir", pos="AUX",
-            features={"Mood": "Ind", "Number": "Plur", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="aux:tense", head_idx=2, extra={},
+            text="ont",
+            lemma="avoir",
+            pos="AUX",
+            features={
+                "Mood": "Ind",
+                "Number": "Plur",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="aux:tense",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="mangées", lemma="manger", pos="VERB",
-            features={"Gender": "Fem", "Number": "Plur", "Tense": "Past", "VerbForm": "Part"},
-            idx=2, dep_rel="root", head_idx=None, extra={},
+            text="mangées",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Gender": "Fem",
+                "Number": "Plur",
+                "Tense": "Past",
+                "VerbForm": "Part",
+            },
+            idx=2,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -275,19 +464,50 @@ def test_participle_to_inf_feminine_plural_agreement_form():
 def test_participle_to_inf_preserves_capitalization():
     tokens = [
         AnalyzedToken(
-            text="Elle", lemma="lui", pos="PRON",
-            features={"Gender": "Fem", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=2, extra={},
+            text="Elle",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Fem",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="A", lemma="avoir", pos="AUX",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="aux:tense", head_idx=2, extra={},
+            text="A",
+            lemma="avoir",
+            pos="AUX",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="aux:tense",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="Mangé", lemma="manger", pos="VERB",
-            features={"Gender": "Masc", "Number": "Sing", "Tense": "Past", "VerbForm": "Part"},
-            idx=2, dep_rel="root", head_idx=None, extra={},
+            text="Mangé",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Tense": "Past",
+                "VerbForm": "Part",
+            },
+            idx=2,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -306,19 +526,44 @@ def test_participle_to_inf_no_aux_does_not_apply(tokens_etre_copula):
     aux in the sentence) must not fire."""
     tokens = [
         AnalyzedToken(
-            text="La", lemma="le", pos="DET",
-            features={"Definite": "Def", "Gender": "Fem", "Number": "Sing", "PronType": "Art"},
-            idx=0, dep_rel="det", head_idx=1, extra={},
+            text="La",
+            lemma="le",
+            pos="DET",
+            features={
+                "Definite": "Def",
+                "Gender": "Fem",
+                "Number": "Sing",
+                "PronType": "Art",
+            },
+            idx=0,
+            dep_rel="det",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="pomme", lemma="pomme", pos="NOUN",
+            text="pomme",
+            lemma="pomme",
+            pos="NOUN",
             features={"Gender": "Fem", "Number": "Sing"},
-            idx=1, dep_rel="nsubj", head_idx=2, extra={},
+            idx=1,
+            dep_rel="nsubj",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="mangée", lemma="manger", pos="VERB",
-            features={"Gender": "Fem", "Number": "Sing", "Tense": "Past", "VerbForm": "Part"},
-            idx=2, dep_rel="root", head_idx=None, extra={},
+            text="mangée",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Gender": "Fem",
+                "Number": "Sing",
+                "Tense": "Past",
+                "VerbForm": "Part",
+            },
+            idx=2,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
             # No AUX token anywhere in this sentence points at idx 2.
         ),
     ]
@@ -327,23 +572,54 @@ def test_participle_to_inf_no_aux_does_not_apply(tokens_etre_copula):
 
 
 def test_participle_to_inf_non_er_lemma_does_not_apply():
-    """"fait" (faire, 3rd group) after avoir - not a 1st-group verb, must not
+    """ "fait" (faire, 3rd group) after avoir - not a 1st-group verb, must not
     fire regardless of aux evidence."""
     tokens = [
         AnalyzedToken(
-            text="Il", lemma="lui", pos="PRON",
-            features={"Gender": "Masc", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=2, extra={},
+            text="Il",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="a", lemma="avoir", pos="AUX",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="aux:tense", head_idx=2, extra={},
+            text="a",
+            lemma="avoir",
+            pos="AUX",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="aux:tense",
+            head_idx=2,
+            extra={},
         ),
         AnalyzedToken(
-            text="fait", lemma="faire", pos="VERB",
-            features={"Gender": "Masc", "Number": "Sing", "Tense": "Past", "VerbForm": "Part"},
-            idx=2, dep_rel="root", head_idx=None, extra={},
+            text="fait",
+            lemma="faire",
+            pos="VERB",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Tense": "Past",
+                "VerbForm": "Part",
+            },
+            idx=2,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -354,17 +630,33 @@ def test_participle_to_inf_non_er_lemma_does_not_apply():
 
 
 def test_fut_cond_1sg_fut_to_cond_positive():
-    """"Je mangerai." - future 1sg -> conditional (-ai -> -ais)."""
+    """ "Je mangerai." - future 1sg -> conditional (-ai -> -ais)."""
     tokens = [
         AnalyzedToken(
-            text="Je", lemma="moi", pos="PRON",
+            text="Je",
+            lemma="moi",
+            pos="PRON",
             features={"Number": "Sing", "Person": "1", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="mangerai", lemma="manger", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "1", "Tense": "Fut", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="mangerai",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "1",
+                "Tense": "Fut",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -379,17 +671,33 @@ def test_fut_cond_1sg_fut_to_cond_positive():
 
 
 def test_fut_cond_1sg_cond_to_fut_positive():
-    """"Je mangerais." - conditional 1sg -> future (-ais -> -ai)."""
+    """ "Je mangerais." - conditional 1sg -> future (-ais -> -ai)."""
     tokens = [
         AnalyzedToken(
-            text="Je", lemma="moi", pos="PRON",
+            text="Je",
+            lemma="moi",
+            pos="PRON",
             features={"Number": "Sing", "Person": "1", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="mangerais", lemma="manger", pos="VERB",
-            features={"Mood": "Cnd", "Number": "Sing", "Person": "1", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="mangerais",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Mood": "Cnd",
+                "Number": "Sing",
+                "Person": "1",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -402,19 +710,35 @@ def test_fut_cond_1sg_cond_to_fut_positive():
 
 
 def test_fut_cond_1sg_uses_aider_whitelist_entry():
-    """"aider" is not inf/participle-homophonous, but its fut_1s/cond
+    """ "aider" is not inf/participle-homophonous, but its fut_1s/cond
     cluster IS shared ("aiderai"/"aiderais") - confirms the whitelist gate
     is evaluated per-subtype, not just per-lemma."""
     tokens = [
         AnalyzedToken(
-            text="Je", lemma="moi", pos="PRON",
+            text="Je",
+            lemma="moi",
+            pos="PRON",
             features={"Number": "Sing", "Person": "1", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="aiderai", lemma="aider", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "1", "Tense": "Fut", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="aiderai",
+            lemma="aider",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "1",
+                "Tense": "Fut",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -433,14 +757,35 @@ def test_fut_cond_1sg_third_person_does_not_apply():
     ("il mangera") must not fire."""
     tokens = [
         AnalyzedToken(
-            text="Il", lemma="lui", pos="PRON",
-            features={"Gender": "Masc", "Number": "Sing", "Person": "3", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            text="Il",
+            lemma="lui",
+            pos="PRON",
+            features={
+                "Gender": "Masc",
+                "Number": "Sing",
+                "Person": "3",
+                "PronType": "Prs",
+            },
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="mangera", lemma="manger", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "3", "Tense": "Fut", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="mangera",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "3",
+                "Tense": "Fut",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -452,14 +797,30 @@ def test_fut_cond_1sg_plural_does_not_apply():
     homophony pair is specifically the 1sg -ai/-ais ending."""
     tokens = [
         AnalyzedToken(
-            text="Nous", lemma="moi", pos="PRON",
+            text="Nous",
+            lemma="moi",
+            pos="PRON",
             features={"Number": "Plur", "Person": "1", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="mangerons", lemma="manger", pos="VERB",
-            features={"Mood": "Ind", "Number": "Plur", "Person": "1", "Tense": "Fut", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="mangerons",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Plur",
+                "Person": "1",
+                "Tense": "Fut",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -471,14 +832,30 @@ def test_fut_cond_1sg_present_tense_does_not_apply():
     form) must not fire at all - no subtype matches."""
     tokens = [
         AnalyzedToken(
-            text="Je", lemma="moi", pos="PRON",
+            text="Je",
+            lemma="moi",
+            pos="PRON",
             features={"Number": "Sing", "Person": "1", "PronType": "Prs"},
-            idx=0, dep_rel="nsubj", head_idx=1, extra={},
+            idx=0,
+            dep_rel="nsubj",
+            head_idx=1,
+            extra={},
         ),
         AnalyzedToken(
-            text="mange", lemma="manger", pos="VERB",
-            features={"Mood": "Ind", "Number": "Sing", "Person": "1", "Tense": "Pres", "VerbForm": "Fin"},
-            idx=1, dep_rel="root", head_idx=None, extra={},
+            text="mange",
+            lemma="manger",
+            pos="VERB",
+            features={
+                "Mood": "Ind",
+                "Number": "Sing",
+                "Person": "1",
+                "Tense": "Pres",
+                "VerbForm": "Fin",
+            },
+            idx=1,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()
@@ -501,9 +878,14 @@ def test_apply_returns_none_when_can_apply_would_be_false():
     silently corrupt) when called on a non-applicable index."""
     tokens = [
         AnalyzedToken(
-            text="pomme", lemma="pomme", pos="NOUN",
+            text="pomme",
+            lemma="pomme",
+            pos="NOUN",
             features={"Gender": "Fem", "Number": "Sing"},
-            idx=0, dep_rel="root", head_idx=None, extra={},
+            idx=0,
+            dep_rel="root",
+            head_idx=None,
+            extra={},
         ),
     ]
     handler = _handler()

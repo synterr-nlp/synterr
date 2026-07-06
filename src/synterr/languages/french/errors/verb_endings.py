@@ -59,7 +59,12 @@ def _data_path() -> Path:
     ``languages/french/errors/verb_endings.py`` -> up to ``synterr/`` -> down
     into ``data/french``.
     """
-    return Path(__file__).parent.parent.parent.parent / "data" / "french" / "verb_ending_slots.json"
+    return (
+        Path(__file__).parent.parent.parent.parent
+        / "data"
+        / "french"
+        / "verb_ending_slots.json"
+    )
 
 
 @lru_cache(maxsize=1)

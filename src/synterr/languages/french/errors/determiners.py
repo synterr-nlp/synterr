@@ -249,7 +249,10 @@ class ArticleContractionHandler:
         # any reason to touch an ADP/DET contraction pair). If some earlier
         # corruption already changed either slot, refuse rather than build
         # an ErrorResult around text that no longer matches what we gated on.
-        if sentence[idx] != tokens[idx].text or sentence[idx + 1] != tokens[idx + 1].text:
+        if (
+            sentence[idx] != tokens[idx].text
+            or sentence[idx + 1] != tokens[idx + 1].text
+        ):
             return None
 
         fused = _match_capitalization(tokens[idx].text, fused_lower)

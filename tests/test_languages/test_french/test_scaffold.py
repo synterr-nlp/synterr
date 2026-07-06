@@ -7,7 +7,7 @@ and that the fixture pack in conftest.py holds sane parsed-token shapes.
 
 from __future__ import annotations
 
-from synterr.core.protocol import AnalyzedToken, LanguageModule
+from synterr.core.protocol import LanguageModule
 from synterr.languages.french import FrenchLanguage
 
 

@@ -208,10 +208,15 @@ class ElisionApostropheHandler:
             # with. Clitic-pronoun uses before a verb (no nominal head
             # nearby) stay unresolved — out of scope for this PoC.
             gender = tok.get_feature("Gender")
-            if gender is None and next_tok is not None and next_tok.pos in (
-                "NOUN",
-                "ADJ",
-                "PROPN",
+            if (
+                gender is None
+                and next_tok is not None
+                and next_tok.pos
+                in (
+                    "NOUN",
+                    "ADJ",
+                    "PROPN",
+                )
             ):
                 gender = next_tok.get_feature("Gender")
             if gender == "Masc":
@@ -237,7 +242,9 @@ class ElisionApostropheHandler:
         # no disambiguation rule written yet, refuse rather than guess.
         return None
 
-    def _can_apply_elision_omit(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    def _can_apply_elision_omit(
+        self, tokens: Sequence[AnalyzedToken], idx: int
+    ) -> bool:
         tok = tokens[idx]
         key = _strip_apostrophe(tok.text)
         if key is None:
@@ -285,7 +292,9 @@ class ElisionApostropheHandler:
 
     # -- euphonic_t_drop --------------------------------------------------
 
-    def _can_apply_euphonic_t_drop(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    def _can_apply_euphonic_t_drop(
+        self, tokens: Sequence[AnalyzedToken], idx: int
+    ) -> bool:
         tok = tokens[idx]
         if tok.text.lower() != "-t":
             return False
@@ -346,9 +355,9 @@ class ElisionApostropheHandler:
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx < 0 or idx >= len(tokens):
             return False
-        return self._can_apply_elision_omit(tokens, idx) or self._can_apply_euphonic_t_drop(
+        return self._can_apply_elision_omit(
             tokens, idx
-        )
+        ) or self._can_apply_euphonic_t_drop(tokens, idx)
 
     def apply(
         self,

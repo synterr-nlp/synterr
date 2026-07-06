@@ -21,15 +21,11 @@ class TestFromDictOverrides:
         assert cfg.schema == "rozental"
 
     def test_explicit_false_still_overrides(self):
-        cfg = GenerationConfig._from_dict(
-            {"use_depparse": True}, use_depparse=False
-        )
+        cfg = GenerationConfig._from_dict({"use_depparse": True}, use_depparse=False)
         assert cfg.use_depparse is False
 
     def test_explicit_true_overrides_yaml_false(self):
-        cfg = GenerationConfig._from_dict(
-            {"use_depparse": False}, use_depparse=True
-        )
+        cfg = GenerationConfig._from_dict({"use_depparse": False}, use_depparse=True)
         assert cfg.use_depparse is True
 
     def test_yaml_absent_falls_back_to_default(self):
