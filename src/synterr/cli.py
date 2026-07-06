@@ -384,7 +384,9 @@ def cmd_corrupt(
     "--error-prob", type=float, help="Probability of introducing errors (0-1)"
 )
 @click.option(
-    "--depparse/--no-depparse", default=False, help="Enable dependency parsing"
+    "--depparse/--no-depparse",
+    default=None,
+    help="Enable dependency parsing (default: preset/config value, else off)",
 )
 @click.option("--batch-size", type=int, default=128, help="Batch size for processing")
 @click.option(
@@ -413,7 +415,7 @@ def cmd_generate(
     max_sentences: int | None,
     label_format: str,
     error_prob: float | None,
-    depparse: bool,
+    depparse: bool | None,
     batch_size: int,
     output_format: str,
     system_prompt: str | None,
@@ -482,7 +484,7 @@ def cmd_generate(
         # Default config
         config = GenerationConfig(
             seed=seed,
-            use_depparse=depparse,
+            use_depparse=bool(depparse),
             label_format=label_format,
             enabled_errors=enabled_errors,
             error_weights=error_weights,

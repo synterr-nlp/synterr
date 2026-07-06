@@ -127,9 +127,12 @@ class GenerationConfig:
             confusion_matrices=data.get("confusion_matrices"),
         )
 
-        # Apply overrides
+        # Apply overrides. None means "not specified" — a caller default
+        # must not clobber an explicit value from the YAML (config-binding
+        # bug class: the CLI's --depparse default silently disabled presets'
+        # use_depparse: true).
         for key, value in overrides.items():
-            if hasattr(config, key):
+            if value is not None and hasattr(config, key):
                 setattr(config, key, value)
 
         return config

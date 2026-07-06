@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 ALL_HANDLERS = [
     "spelling", "orthographic_spelling", "function_spelling",
     "noun_case", "noun_case_prep", "noun_number",
+    "noun_case_gen_partitive", "noun_case_instr_pl", "noun_number_gen_pl",
+    "neg_genitive", "pronoun_svoy", "pronoun_sebya",
     "adj_case", "adj_number", "adj_gender", "adj_form",
     "adj_double_comparative",
     "verb_person_number", "verb_tense",
