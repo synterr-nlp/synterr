@@ -976,6 +976,30 @@ mappings:
   ag_mn_special:
     primary: ag_modifier_noun
     l2_tag: ag_mn_special
+  agr_sv_collective:
+    primary: ag_subject_verb
+    l2_tag: ag_sv_collective
+  agr_sv_counting:
+    primary: ag_subject_verb
+    l2_tag: ag_sv_counting
+  agr_sv_approximate:
+    primary: ag_subject_verb
+    l2_tag: ag_sv_approximate
+  agr_sv_compound:
+    primary: ag_subject_verb
+    l2_tag: ag_sv_compound
+  agr_sv_coordinated:
+    primary: ag_subject_verb
+    l2_tag: ag_sv_coordinated
+  verb_iterative_suffix:
+    primary: mo_verb_aspect
+    l2_tag: mo_verb_asp_iterative
+  adj_possessive_form:
+    primary: mo_adj_form
+    l2_tag: mo_adj_possessive
+  adj_short_en_enen:
+    primary: mo_adj_form
+    l2_tag: mo_adj_other
   noun_case_gen_partitive:
     primary: mo_noun_case
     l2_tag: mo_noun_case_gen_a_u

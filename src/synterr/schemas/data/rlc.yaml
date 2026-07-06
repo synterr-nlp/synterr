@@ -278,6 +278,22 @@ mappings:
     primary: AgrCase
   ag_mn_special:
     primary: AgrCase
+  agr_sv_collective:
+    primary: AgrNum
+  agr_sv_counting:
+    primary: AgrNum
+  agr_sv_approximate:
+    primary: AgrNum
+  agr_sv_compound:
+    primary: AgrNum
+  agr_sv_coordinated:
+    primary: AgrNum
+  verb_iterative_suffix:
+    primary: Asp
+  adj_possessive_form:
+    primary: Infl
+  adj_short_en_enen:
+    primary: Brev
   noun_case_gen_partitive:
     primary: Gov
   noun_case_instr_pl:

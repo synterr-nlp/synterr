@@ -38,7 +38,7 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 
 ## Handlers → RLC Tags
 
-34 handlers / 94 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
+46 handlers / 106 subtypes. Table below; `synterr list-errors -l ru` is authoritative.
 
 | Handler | Subtypes | RLC Tag | Category |
 |---------|----------|---------|----------|
@@ -55,6 +55,12 @@ uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits
 | neg_genitive | §201 Acc↔Gen under negation (не читал книгу↔книги; dep-arc) | Gov | MORPH |
 | pronoun_svoy | §167 свой→personal possessive (нашёл свою→мою книгу) | Ref | OTHER |
 | pronoun_sebya | §168 себя→personal pronoun (купил себе→ему) | Ref | OTHER |
+| pronoun_n_form | §169–170 н-augment after prepositions (у него→у его; благодаря ей→ней) | Ref | OTHER |
+| agr_sv_collective/counting/approximate/compound/coordinated | §183–190 subject–verb agreement flips (dep-arc; 5 handlers) | AgrNum | MORPH |
+| agr_mn_apposition/compound_term/numeral_adj | §193–197 modifier–noun agreement (toponyms, hyphen compounds, два+adj) | AgrCase | MORPH |
+| verb_iterative_suffix | §172.2 о/а iterative suffix (обусловливать→обуславливать) | Asp | MORPH |
+| adj_possessive_form | §162 possessive-adj oblique variants (маминого→мамина) | Infl | MORPH |
+| adj_short_en_enen | §160 short-form -ен/-енен (свойствен→свойственен) | Brev | MORPH |
 | noun_number | noun_number | Num | MORPH |
 | adj_case/number/gender | (3) | AgrCase, AgrNum, AgrGender | MORPH |
 | adj_form | adj_short_full (готовы→готовые) | Infl | MORPH |

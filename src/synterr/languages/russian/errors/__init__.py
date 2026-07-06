@@ -13,6 +13,18 @@ def get_all_handlers() -> list[ErrorHandler]:
     from synterr.languages.russian.errors.adverb_spelling import (
         AdverbSpellingHandler,
     )
+    from synterr.languages.russian.errors.agreement_mn import (
+        AgrMnAppositionErrorHandler,
+        AgrMnCompoundTermErrorHandler,
+        AgrMnNumeralAdjErrorHandler,
+    )
+    from synterr.languages.russian.errors.agreement_sv import (
+        AgrSvApproximateErrorHandler,
+        AgrSvCollectiveErrorHandler,
+        AgrSvCompoundErrorHandler,
+        AgrSvCoordinatedErrorHandler,
+        AgrSvCountingErrorHandler,
+    )
     from synterr.languages.russian.errors.comma_insert import (
         CommaInsertHandler,
     )
@@ -30,16 +42,13 @@ def get_all_handlers() -> list[ErrorHandler]:
         PronounSebyaErrorHandler,
         PronounSvoyErrorHandler,
     )
-    from synterr.languages.russian.errors.agreement_mn import (
-        AgrMnAppositionErrorHandler,
-        AgrMnCompoundTermErrorHandler,
-        AgrMnNumeralAdjErrorHandler,
-    )
     from synterr.languages.russian.errors.morphological import (
         AdjCaseErrorHandler,
         AdjFormErrorHandler,
         AdjGenderErrorHandler,
         AdjNumberErrorHandler,
+        AdjPossessiveFormHandler,
+        AdjShortEnEnenHandler,
         DoubleComparativeHandler,
         NegGenitiveErrorHandler,
         NounCaseErrorHandler,
@@ -49,6 +58,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         NounNumberErrorHandler,
         NounNumberGenPlHandler,
         NumeralDeclensionHandler,
+        VerbIterativeSuffixHandler,
         VerbPersonNumberErrorHandler,
         VerbTenseErrorHandler,
     )
@@ -86,6 +96,15 @@ def get_all_handlers() -> list[ErrorHandler]:
         NounNumberErrorHandler(),
         NounNumberGenPlHandler(),
         NegGenitiveErrorHandler(),
+        AdjPossessiveFormHandler(),
+        AdjShortEnEnenHandler(),
+        VerbIterativeSuffixHandler(),
+        # Agreement - Subject-Verb
+        AgrSvCollectiveErrorHandler(),
+        AgrSvCountingErrorHandler(),
+        AgrSvApproximateErrorHandler(),
+        AgrSvCompoundErrorHandler(),
+        AgrSvCoordinatedErrorHandler(),
         # Agreement - Modifier-Noun
         AgrMnAppositionErrorHandler(),
         AgrMnCompoundTermErrorHandler(),
