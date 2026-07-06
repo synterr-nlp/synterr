@@ -216,9 +216,19 @@ def _is_pol_compound(text_lower: str) -> bool:
       полено, полюс, полночь, полдень). Proper-noun parses (Geox etc.) are
       skipped: toponyms like Польша/Полтава are also Sgtm but not compounds.
     - X not lexicalized (полкниги, полшага): accept when the remainder after
-      "пол" parses as a genitive noun (книги, шага).
+      "пол" is itself a dictionary-known word that parses as a genitive noun
+      (книги, шага). Known-ness is strict (word_is_known): pymorphy's
+      prediction analyzers would otherwise "parse" garbage remainders as
+      genitive nouns (политисполкома → пол + итисполкома, полуторажителей →
+      пол + уторажителей) and the corruption emits non-words.
 
-    Both cases reject полный, получить, положение, etc.
+    Before either case, a morpheme gate: §46 пол- attaches to a standalone
+    genitive noun, so when the unified dict has a segmentation, "пол" must be
+    a morpheme of its own (полвека = пол|век|а). Rejects clipped-stem
+    compounds like политисполком (полит|исполком) where "пол" straddles a
+    morpheme boundary.
+
+    All cases reject полный, получить, положение, etc.
     """
     m = _POL_MERGED_RE.match(text_lower)
     if not m:
@@ -230,6 +240,12 @@ def _is_pol_compound(text_lower: str) -> bool:
     remainder = m.group(1)
     analyzer = get_morpheme_analyzer()
 
+    # Morpheme gate (necessary, not sufficient): when a segmentation exists,
+    # the first morpheme must be exactly "пол".
+    morphemes = analyzer.get_morphemes(text_lower)
+    if morphemes is not None and morphemes[0][0] != "пол":
+        return False
+
     if analyzer.word_is_known(text_lower):
         for parse in analyzer.pymorphy.parse(text_lower):
             tag = parse.tag
@@ -239,6 +255,10 @@ def _is_pol_compound(text_lower: str) -> bool:
                 return True
         return False
 
+    # Whole word unknown: the remainder must be a genuine standalone word
+    # (strict dictionary lookup, no prediction) inflected as a genitive noun.
+    if not analyzer.word_is_known(remainder):
+        return False
     for parse in analyzer.pymorphy.parse(remainder):
         tag = parse.tag
         if "NOUN" in tag and "gent" in tag:

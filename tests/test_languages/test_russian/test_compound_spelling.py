@@ -68,6 +68,18 @@ class TestPolCompoundDetection:
 
     @pytest.mark.parametrize(
         "word",
+        ["политисполкома", "полуторажителей"],
+    )
+    def test_clipped_stem_compounds_rejected(self, word):
+        """Regression (native-speaker annotation pass): политисполкома is
+        полит+исполком (clipped stem), not пол+итисполкома — pymorphy's
+        prediction analyzers parsed the garbage remainder as a genitive noun.
+        The remainder must be a strictly dictionary-known genitive noun (and
+        any morpheme segmentation must have "пол" as its own morpheme)."""
+        assert _is_pol_compound(word) is False
+
+    @pytest.mark.parametrize(
+        "word",
         ["польша", "полтава", "полесье", "полтавы", "полесья"],
     )
     def test_toponyms_rejected(self, word):
@@ -107,6 +119,30 @@ class TestPolSpelling:
         result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
         assert result is not None
         assert sentence[0] == "поллимона"
+
+    def test_merged_unknown_word_with_known_genitive_remainder_fires(self):
+        """поллимона is not in pymorphy's dictionary, but the remainder
+        (лимона, gen.) is — the unknown-word branch must still corrupt it."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok("поллимона")]
+        sentence = ["поллимона"]
+        assert h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "compound_spelling_pol_spelling"
+        assert sentence[0] == "пол-лимона"
+
+    @pytest.mark.parametrize("word", ["политисполкома", "полуторажителей"])
+    def test_clipped_stem_compound_not_applied(self, word):
+        """Regression (annotation pass): политисполкома must never become
+        пол-итисполкома — полит- is a clipped stem, not the пол- prefix."""
+        h = CompoundSpellingHandler()
+        tokens = [_tok(word)]
+        sentence = [word]
+        assert not h.can_apply(tokens, 0)
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is None
+        assert sentence[0] == word
 
     def test_preserves_case(self):
         h = CompoundSpellingHandler()
