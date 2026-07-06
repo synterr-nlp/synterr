@@ -92,7 +92,7 @@ def match_capitalization(original: str, new: str) -> str:
     if not original or not new:
         return new
 
-    if original.isupper():
+    if original.isupper() and len(original) > 1:
         return new.upper()
     elif original[0].isupper():
         return new[0].upper() + new[1:] if len(new) > 1 else new.upper()
@@ -121,6 +121,10 @@ def inflect_word(
 
     word = result.word
     if original:
+        # pymorphy always emits ё; if the source text spells е, keep е —
+        # otherwise inflection injects a spurious ё edit (сушеной → сушёным)
+        if "ё" in word and "ё" not in original.lower():
+            word = word.replace("ё", "е")
         word = match_capitalization(original, word)
     return word
 
