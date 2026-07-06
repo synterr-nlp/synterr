@@ -935,3 +935,122 @@ def cmd_audit_jsonl(path: str, samples: int, no_morphology: bool) -> None:
 
 if __name__ == "__main__":
     main()
+
+
+@main.command("minimal-pairs")
+@click.option("--lang", "-l", required=True, help="Language code")
+@click.option("--input", "-i", "input_path", required=True, help="Input sentences file")
+@click.option("--output", "-o", "output_path", required=True, help="Output JSONL file")
+@click.option(
+    "--errors",
+    "-e",
+    help="Comma-separated handler names (default: all registered handlers)",
+)
+@click.option(
+    "--per-error", type=int, default=50, help="Max pairs per handler (default 50)"
+)
+@click.option("--schema", "-s", default="rozental", help="Schema for phenomenon labels")
+@click.option(
+    "--depparse/--no-depparse",
+    default=True,
+    help="Dependency parsing (default on: several handlers require it)",
+)
+@click.option("--seed", type=int, default=42, help="Random seed")
+@click.option("--max-sentences", type=int, help="Cap on input sentences")
+def cmd_minimal_pairs(
+    lang: str,
+    input_path: str,
+    output_path: str,
+    errors: str | None,
+    per_error: int,
+    schema: str,
+    depparse: bool,
+    seed: int,
+    max_sentences: int | None,
+) -> None:
+    """Emit phenomenon-labeled minimal pairs (RozentalBench emitter).
+
+    Each record is one contrast: a correct sentence and its corruption by
+    exactly one handler, labeled with the L1 phenomenon tag, the L2
+    fine-grained tag, its Rozental paragraphs, and the native/learner
+    applicability — ready to filter into benchmark views.
+
+    \b
+    Example:
+      synterr minimal-pairs -l ru -i sents.txt -o pairs.jsonl -e pronoun_svoy,neg_genitive
+    """
+    import json
+    from pathlib import Path
+    from random import Random
+
+    from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+    from synterr.schemas.loader import load_schema
+
+    try:
+        language = get_language(lang)
+    except KeyError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    config = GenerationConfig(seed=seed, schema=schema, use_depparse=depparse)
+    pipeline = ErrorPipeline(language, config)
+    schema_obj = load_schema(schema)
+
+    handler_names = (
+        [e.strip() for e in errors.split(",")]
+        if errors
+        else [h.name for h in pipeline.handlers]
+    )
+    known = {h.name for h in pipeline.handlers}
+    unknown = [h for h in handler_names if h not in known]
+    if unknown:
+        click.echo(f"Error: unknown handlers: {unknown}", err=True)
+        sys.exit(1)
+
+    sentences: list[str] = []
+    with Path(input_path).open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                sentences.append(line)
+                if max_sentences and len(sentences) >= max_sentences:
+                    break
+
+    total = 0
+    with Path(output_path).open("w", encoding="utf-8") as out:
+        for handler_name in handler_names:
+            rng = Random(seed)
+            order = list(range(len(sentences)))
+            rng.shuffle(order)
+            count = 0
+            for sent_idx in order:
+                if count >= per_error:
+                    break
+                result = pipeline.apply_error(sentences[sent_idx], handler_name)
+                if not result or not result.errors:
+                    continue
+                err = result.errors[0]
+                l2 = err.schema_l2_tag
+                fg = schema_obj.fine_grained_tags.get(l2) if l2 else None
+                record = {
+                    "id": f"{handler_name}_{count:04d}",
+                    "correct": " ".join(result.original_tokens),
+                    "incorrect": " ".join(result.corrupted_tokens),
+                    "phenomenon": err.schema_tag,
+                    "l2": l2,
+                    "l2_applicability": err.schema_l2_applicability,
+                    "paras": fg.paras if fg else None,
+                    "contrast": err.error_type,
+                    "handler": handler_name,
+                    "correct_span": err.original,
+                    "incorrect_span": err.corrupted,
+                    "span": [err.start_idx, err.end_idx],
+                    "schema": schema,
+                    "seed": seed,
+                }
+                out.write(json.dumps(record, ensure_ascii=False) + "\n")
+                count += 1
+            click.echo(f"  {handler_name}: {count} pairs")
+            total += count
+
+    click.echo(f"Total: {total} minimal pairs -> {output_path}")
