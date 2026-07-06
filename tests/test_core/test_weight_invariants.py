@@ -410,24 +410,25 @@ BATTERY: list[list[AnalyzedToken]] = [
         ),
         _tok(".", "PUNCT", idx=3, dep_rel="punct", head_idx=2),
     ],
-    # comma_insert: non-splittable compound conjunction (§108 Прим.)
+    # comma_insert: non-splittable compound conjunction (§108 Прим.),
+    # sentence-initial — the subtype only fires without a preceding correlate
     [
-        _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
-        _tok("спал", "VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}),
-        _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=8),
-        _tok("в", "ADP", idx=3, dep_rel="case", head_idx=5),
-        _tok("то", "DET", idx=4, dep_rel="det", head_idx=5),
-        _tok("время", "NOUN", idx=5, dep_rel="obl", head_idx=8),
-        _tok("как", "SCONJ", idx=6, dep_rel="mark", head_idx=8),
-        _tok("я", "PRON", idx=7, dep_rel="nsubj", head_idx=8),
+        _tok("В", "ADP", idx=0, dep_rel="case", head_idx=2),
+        _tok("то", "DET", idx=1, dep_rel="det", head_idx=2),
+        _tok("время", "NOUN", idx=2, dep_rel="obl", head_idx=5),
+        _tok("как", "SCONJ", idx=3, dep_rel="mark", head_idx=5),
+        _tok("я", "PRON", idx=4, dep_rel="nsubj", head_idx=5),
         _tok(
             "работал",
             "VERB",
-            idx=8,
+            idx=5,
             dep_rel="advcl",
-            head_idx=1,
+            head_idx=8,
             features={"VerbForm": "Fin"},
         ),
+        _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=5),
+        _tok("он", "PRON", idx=7, dep_rel="nsubj", head_idx=8),
+        _tok("спал", "VERB", idx=8, dep_rel="root", features={"VerbForm": "Fin"}),
     ],
     # comma_insert: «X не X» repetition (§90 п.4)
     _seq(

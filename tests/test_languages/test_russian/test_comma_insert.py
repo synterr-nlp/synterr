@@ -780,10 +780,119 @@ class TestCommaAfterOdnako:
 
 
 class TestCommaCompoundConjSplit:
-    """§108 Прим.: non-splittable compound conjunctions take no internal comma."""
+    """§108 Прим.: non-splittable compound conjunctions take no internal comma.
+
+    SENTENCE-INITIAL only (annotation-driven gate, native pass 2026-07):
+    mid-sentence «…, даже, если…» can be legitimate with stress on the
+    correlate, so only sentence-initial compounds fire.
+    """
 
     def _tokens(self):
+        """Sentence-initial «В то время как я работал , он спал»."""
         return [
+            _tok("В", pos="ADP", idx=0, dep_rel="case", head_idx=2),
+            _tok("то", pos="DET", idx=1, dep_rel="det", head_idx=2),
+            _tok("время", idx=2, dep_rel="obl", head_idx=5),
+            _tok("как", pos="SCONJ", idx=3, dep_rel="mark", head_idx=5),
+            _tok("я", pos="PRON", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "работал",
+                pos="VERB",
+                idx=5,
+                dep_rel="advcl",
+                head_idx=8,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", pos="PUNCT", idx=6, dep_rel="punct", head_idx=5),
+            _tok("он", pos="PRON", idx=7, dep_rel="nsubj", head_idx=8),
+            _tok(
+                "спал", pos="VERB", idx=8, dep_rel="root", features={"VerbForm": "Fin"}
+            ),
+        ]
+
+    def _dazhe_esli_tokens(self, prefix=()):
+        """«Даже если устану , приду», optionally with `prefix` tokens."""
+        offset = len(prefix)
+        return [
+            *prefix,
+            _tok("Даже", pos="PART", idx=offset, dep_rel="advmod", head_idx=offset + 2),
+            _tok(
+                "если", pos="SCONJ", idx=offset + 1, dep_rel="mark", head_idx=offset + 2
+            ),
+            _tok(
+                "устану",
+                pos="VERB",
+                idx=offset + 2,
+                dep_rel="advcl",
+                head_idx=offset + 4,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(
+                ",", pos="PUNCT", idx=offset + 3, dep_rel="punct", head_idx=offset + 2
+            ),
+            _tok(
+                "приду",
+                pos="VERB",
+                idx=offset + 4,
+                dep_rel="root",
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+
+    def test_detects_v_to_vremya_kak(self):
+        assert "comma_compound_conj_split" in CommaInsertHandler()._detect_subtypes(
+            self._tokens(), 0
+        )
+
+    def test_apply_inserts_comma_before_kak(self):
+        h = _force_subtype("comma_compound_conj_split")
+        tokens = self._tokens()
+        sentence = [t.text for t in tokens]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence == [
+            "В",
+            "то",
+            "время",
+            ",",
+            "как",
+            "я",
+            "работал",
+            ",",
+            "он",
+            "спал",
+        ]
+        assert result.fix_tag == "$DELETE"
+
+    def test_detects_sentence_initial_dazhe_esli(self):
+        assert "comma_compound_conj_split" in CommaInsertHandler()._detect_subtypes(
+            self._dazhe_esli_tokens(), 0
+        )
+
+    def test_apply_splits_sentence_initial_dazhe_esli(self):
+        h = _force_subtype("comma_compound_conj_split")
+        tokens = self._dazhe_esli_tokens()
+        sentence = [t.text for t in tokens]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence == ["Даже", ",", "если", "устану", ",", "приду"]
+
+    def test_refuses_mid_sentence_dazhe_esli(self):
+        """«…играть , даже если…» — annotator judged mid-sentence splits
+        ambiguous (stress on the correlate licenses them) → never fire."""
+        prefix = (
+            _tok("буду", pos="AUX", idx=0, dep_rel="aux", head_idx=1),
+            _tok("играть", pos="VERB", idx=1, dep_rel="root"),
+            _tok(",", pos="PUNCT", idx=2, dep_rel="punct", head_idx=5),
+        )
+        tokens = self._dazhe_esli_tokens(prefix=prefix)
+        assert "comma_compound_conj_split" not in CommaInsertHandler()._detect_subtypes(
+            tokens, 3
+        )
+
+    def test_refuses_mid_sentence_v_to_vremya_kak(self):
+        """«Он спал , в то время как я работал» — mid-sentence → skip."""
+        tokens = [
             _tok("Он", pos="PRON", idx=0, dep_rel="nsubj", head_idx=1),
             _tok(
                 "спал", pos="VERB", idx=1, dep_rel="root", features={"VerbForm": "Fin"}
@@ -803,51 +912,19 @@ class TestCommaCompoundConjSplit:
                 features={"VerbForm": "Fin"},
             ),
         ]
-
-    def test_detects_v_to_vremya_kak(self):
-        assert "comma_compound_conj_split" in CommaInsertHandler()._detect_subtypes(
-            self._tokens(), 3
+        assert "comma_compound_conj_split" not in CommaInsertHandler()._detect_subtypes(
+            tokens, 3
         )
 
-    def test_apply_inserts_comma_before_kak(self):
-        h = _force_subtype("comma_compound_conj_split")
-        tokens = self._tokens()
-        sentence = [t.text for t in tokens]
-        result = h.apply(tokens, sentence, 3, set(), rng=Random(42))
-        assert result is not None
-        assert sentence == [
-            "Он",
-            "спал",
-            ",",
-            "в",
-            "то",
-            "время",
-            ",",
-            "как",
-            "я",
-            "работал",
-        ]
-        assert result.fix_tag == "$DELETE"
-
-    def test_detects_dazhe_esli(self):
-        tokens = [
-            _tok(
-                "приду", pos="VERB", idx=0, dep_rel="root", features={"VerbForm": "Fin"}
-            ),
-            _tok("даже", pos="PART", idx=1, dep_rel="advmod", head_idx=3),
-            _tok("если", pos="SCONJ", idx=2, dep_rel="mark", head_idx=3),
-            _tok(
-                "устану",
-                pos="VERB",
-                idx=3,
-                dep_rel="advcl",
-                head_idx=0,
-                features={"VerbForm": "Fin"},
-            ),
-        ]
-        assert "comma_compound_conj_split" in CommaInsertHandler()._detect_subtypes(
-            tokens, 1
-        )
+    def test_fires_after_opening_quote_or_dash(self):
+        """Opening quote / dialogue dash are transparent to sentence-initial."""
+        for opener in ("«", "—"):
+            prefix = (_tok(opener, pos="PUNCT", idx=0),)
+            tokens = self._dazhe_esli_tokens(prefix=prefix)
+            detected = CommaInsertHandler()._detect_subtypes(tokens, 1)
+            assert "comma_compound_conj_split" in detected, (
+                f"did not fire after opener {opener!r}"
+            )
 
     def test_refuses_partial_match(self):
         """«в то время» + noun continuation is a plain temporal PP."""

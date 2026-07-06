@@ -27,7 +27,9 @@ clauses of §§79–116 (see synterr-internal/BIDIRECTIONAL_COMMA_DESIGN.md):
 - comma_after_odnako (§99 п.7): sentence-initial «однако» = «но», takes no
   comma; the error inserts one ("Однако, переговоры продолжились").
 - comma_compound_conj_split (§108 Прим.): comma inside non-splittable
-  compound conjunctions ("в то время, как").
+  compound conjunctions ("в то время, как"). SENTENCE-INITIAL only —
+  annotation-driven precision gate (native pass 2026-07, 4/14 real):
+  mid-sentence расчленение can be licensed by stress on a correlate.
 - comma_x_ne_x (§90 п.4): comma inside «X не X» / «X так X» repetition
   constructions ("работа, не работа").
 
@@ -609,6 +611,15 @@ _COMPOUND_SCONJ: list[tuple[tuple[str, ...], int]] = [
 # («тогда как раз», «тогда как будто») rather than the compound conjunction.
 _KAK_PHRASE_CONTINUATIONS = {"раз", "будто", "бы"}
 
+# Tokens transparent to the sentence-initial check: opening quotes and the
+# dialogue dash may precede a sentence-initial compound conjunction.
+_SENTENCE_OPENERS = frozenset({"«", "„", "“", '"', "'", "—", "–", "-"})
+
+
+def _is_sentence_initial(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """`idx` is the sentence's first word (opening quotes/dashes don't count)."""
+    return all(tokens[k].text in _SENTENCE_OPENERS for k in range(idx))
+
 
 def _match_phrase(
     tokens: Sequence[AnalyzedToken], idx: int, phrase: tuple[str, ...]
@@ -622,7 +633,19 @@ def _match_phrase(
 def _match_compound_sconj(
     tokens: Sequence[AnalyzedToken], idx: int
 ) -> tuple[tuple[str, ...], int] | None:
-    """Match a non-splittable compound conjunction starting at `idx`."""
+    """Match a non-splittable compound conjunction starting at `idx`.
+
+    SENTENCE-INITIAL only. Annotation-driven precision gate (native-speaker
+    pass 2026-07, 4/14 real): every real_error verdict was sentence-initial
+    («Даже, если пуля пройдет…»), while every mid-sentence split after a
+    preceding clause + comma («…играть, даже, если бы…») was judged
+    ambiguous — mid-sentence, расчленение союза can be licensed by stress
+    on the correlate (§108 п.1). Sentence-initially there is no preceding
+    correlate, so the split is unambiguously wrong. Shared by detection and
+    apply, so the two can never diverge.
+    """
+    if not _is_sentence_initial(tokens, idx):
+        return None
     for compound, comma_pos in _COMPOUND_SCONJ:
         if not _match_phrase(tokens, idx, compound):
             continue
@@ -779,7 +802,8 @@ class CommaInsertHandler:
     - comma_subj_pred: comma between heavy subject NP and predicate
     - comma_pseudo_parenthetical: bracket never-вводные words (§99 п.2 Прим.)
     - comma_after_odnako: comma after sentence-initial однако (§99 п.7)
-    - comma_compound_conj_split: split non-splittable compound conjunctions (§108)
+    - comma_compound_conj_split: split non-splittable compound conjunctions
+      (§108; sentence-initial only)
     - comma_x_ne_x: comma inside «X не X» repetitions (§90)
     """
 

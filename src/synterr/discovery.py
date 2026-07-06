@@ -238,7 +238,8 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         "suffix_its_ets": r"\b[А-Яа-яЁё]{3,}(?:ица|ице|ицей|ицу|ицы)\b",
         "dash_contexts": r"\s—\s",
         "comma_x_ne_x": r"\b([А-Яа-яЁё]{3,})\s+не\s+\1\b",
-        "comma_compound_conj_split": rf"\b(?:{alt(compound_sconj)})\b",
+        # handler only splits sentence-initial compounds — anchor accordingly
+        "comma_compound_conj_split": rf"^[«„\"'—–\-\s]*(?:{alt(compound_sconj)})\b",
         "verb_tense_anchor": r"\b(?:вчера|позавчера|завтра|послезавтра|недавно)\b",
         "noun_case_prep_e_u": rf"\b(?:в|на)\s+(?:{'|'.join(loc2)})\b",
         "numeral_poltora": r"\b(?:полтора|полторы|полутора|полтораста)\b",
