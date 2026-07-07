@@ -920,9 +920,11 @@ mappings:
     primary: mo_noun_number
     l2_tag: mo_noun_num_nom_pl
   # reserved: no NounGender handler yet (mapping kept for planned handler)
-  noun_gender:
-    primary: mo_noun_gender
-    l2_tag: mo_noun_gender_fluctuation
+  # noun_gender handler never implemented — mapping reserved (§144–149);
+  # see MEDIUM_WAVE_SPEC.md capsules mo_noun_gender_common / _profession
+  # noun_gender:
+  #   primary: mo_noun_gender
+  #   l2_tag: mo_noun_gender_fluctuation
 
   # Morphological handler subtypes — adjectives (RECLASSIFIED as agreement)
   adj_case:
@@ -945,9 +947,11 @@ mappings:
   verb_tense:
     primary: mo_verb_tense
   # reserved: no VerbAspect handler yet (mapping kept for planned handler)
-  verb_aspect:
-    primary: mo_verb_aspect
-    l2_tag: mo_verb_asp_pair
+  # verb_aspect (§172 pair choice) never implemented — needs aspect-pair
+  # lexicon; the covered §172.2 subcase is verb_iterative_suffix
+  # verb_aspect:
+  #   primary: mo_verb_aspect
+  #   l2_tag: mo_verb_asp_pair
 
   # Lexical/structural handler subtypes
   paronym:

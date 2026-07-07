@@ -4,6 +4,59 @@ All notable changes to synterr are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **21 new handlers / 22 new subtypes since 1.0.1** — now 46 handlers /
+  106 subtypes, 68/101 Rozental L2 tags generation-reachable:
+  - Subject–verb agreement family (§183–190): collective, counting,
+    approximate, compound (кто/comitative/acronym), coordinated — dep-arc
+    gated with word-order and value-class guards.
+  - Modifier–noun agreement (§193–197): toponym appositions, hyphenated
+    compounds, два/три/четыре adjective-form crossover — case detection via
+    pymorphy inflection round-trips (stanza Case features are unreliable on
+    OOV proper nouns).
+  - Noun form variants: partitive genitive §150, instrumental plural §155,
+    nonstandard genitive plural §154; negation genitive §201 (Acc↔Gen under
+    negated verbs, dep-arc).
+  - Pronouns: свой↔personal possessive §167, себя↔personal §168,
+    н-augment after prepositions §169–170.
+  - Verb/adjective variants: о/а iterative suffix §172.2, possessive-adj
+    oblique forms §162, short-form -ен/-енен §160.
+  - Spelling roots: alternating roots §3, unchecked vowels §2 (curated
+    lexicons with homograph denylists), root vowels after sibilants/ц §5,
+    -ем/-им adjective endings; пол- compounds gated by morpheme boundaries.
+  - Punctuation: dash_ellipsis subtype (§80, тире в неполном предложении);
+    six insert-direction comma subtypes + `gera_bidir` preset closing the
+    delete:insert asymmetry; sentence-initial restriction for compound-
+    conjunction splits (§108).
+- **`synterr minimal-pairs`** — phenomenon-labeled contrast-pair emitter:
+  one corruption per record with L1/L2 tags, Rozental paragraphs, and
+  native/learner applicability.
+- **`synterr survey` / `synterr mine-pools`** — per-subtype fire-rate
+  measurement and lexicon-derived candidate-pool mining.
+- **French PoC**: 5 inflection-free handlers on stanza fr_sequoia.
+- Weight-invariant test suite; annotation-derived regression tests
+  (~2,700-item native-speaker verification pass: 98.4% corruption validity,
+  91.6% intended-type precision; all identified failure classes fixed).
+
+### Fixed
+
+- Adjective agreement corruption pins case/animacy and takes singular
+  gender from the amod head noun; pronominal adjectives, participles, and
+  bare predicatives are skipped.
+- verb_tense fires on finite forms only (participle voice preserved).
+- Collocation swaps transfer the full grammatical form (voice, participle
+  class, case) and skip when inflection fails.
+- Punctuation subtype classifiers reworked on dep-tree evidence: finite
+  relative clauses route to subordinate; pair deletion always removes
+  exactly two commas; ranges, direct speech, and authorial dashes are
+  skipped; speech-verb attributions are parentheticals.
+- Inflection preserves source е/ё spelling and single-capital titlecasing.
+- CLI/preset config binding: None-valued CLI defaults no longer clobber
+  explicit YAML values (`--depparse` is tri-state).
+
 ## [1.0.1] — 2026-05-14
 
 Documentation cleanup pass.
