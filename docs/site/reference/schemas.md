@@ -8,7 +8,7 @@ Synterr ships **4 schemas**. Default: `synterr`. Schemas live in `src/synterr/sc
 |---|---|---|
 | `errant` | 32 | ERRANT error taxonomy for Russian GEC evaluation |
 | `rlc` | 35 | Russian Learner Corpus error taxonomy (35 primary + 3 modifiers) |
-| `rozental` | 29 | Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2) |
+| `rozental` | 29 | Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 103 L2) |
 | `synterr` *(default)* | 14 | Synterr native error classification for GECToR training |
 
 
@@ -61,7 +61,7 @@ ERRANT error taxonomy for Russian GEC evaluation
 
 Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 
-**Coverage:** 15/35 tags mapped (42.9%).
+**Coverage:** 19/35 tags mapped (54.3%).
 
 ### Covered tags
 
@@ -69,24 +69,26 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 - `AgrGender`
 - `AgrNum`
 - `AgrPers`
+- `Asp`
+- `Brev`
 - `Conj`
 - `Gov`
 - `Hyphen`
 - `Infl`
 - `Lex`
 - `Misspell`
+- `Nominative`
 - `Num`
 - `Ortho`
 - `Prep`
+- `Ref`
 - `Syntax`
 - `Tense`
 
 ### Uncovered tags
 
 - `Altern`
-- `Asp`
 - `Aux`
-- `Brev`
 - `CS`
 - `Com`
 - `Constr`
@@ -97,9 +99,7 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 - `Impers`
 - `Mode`
 - `Morph`
-- `Nominative`
 - `Passive`
-- `Ref`
 - `Refl`
 - `Space`
 - `WO`
@@ -107,13 +107,14 @@ Russian Learner Corpus error taxonomy (35 primary + 3 modifiers)
 
 ## `rozental`
 
-Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2)
+Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 103 L2)
 
-**Coverage:** 20/29 tags mapped (69.0%).
+**Coverage:** 22/29 tags mapped (75.9%).
 
 ### Covered tags
 
 - `ag_modifier_noun`
+- `ag_subject_verb`
 - `gv_government`
 - `lx_structural`
 - `lx_word_choice`
@@ -121,7 +122,8 @@ Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2)
 - `mo_noun_case`
 - `mo_noun_number`
 - `mo_numeral`
-- `mo_verb_person_num`
+- `mo_pronoun`
+- `mo_verb_aspect`
 - `mo_verb_tense`
 - `pu_clause`
 - `pu_comma`
@@ -136,11 +138,9 @@ Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2)
 
 ### Uncovered tags
 
-- `ag_subject_verb`
 - `mo_noun_gender`
-- `mo_pronoun`
-- `mo_verb_aspect`
 - `mo_verb_form`
+- `mo_verb_person_num`
 - `pu_speech_quotes`
 - `sp_capitalization`
 - `sp_foreign`

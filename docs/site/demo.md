@@ -20,3 +20,14 @@ Notes:
 - The sample data is also downloadable: [sample.jsonl](demo/sample.jsonl).
   The viewer itself ships in the repo as `tools/diff_viewer.html` — drop
   any of your own generated JSONL onto it.
+
+## Quality
+
+Every handler has gone through three independent review passes: an
+internal audit against the underlying grammar reference (June, 73
+findings, all fixed); a native-speaker annotator's pass using this same
+viewer (2,724 items — 98.4% corruption validity, 91.6% intended-type
+precision); and an external model-based adversarial audit (July, 47/51
+findings confirmed, all fixed). Together they're the basis for treating
+synterr's output as trustworthy training and evaluation signal, not just
+plausible-looking noise.

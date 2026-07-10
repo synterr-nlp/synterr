@@ -97,14 +97,14 @@ relabel a corpus under another taxonomy without regenerating it.
 
 ## What it generates
 
-28 handlers / 83 subtypes across five categories
+46 handlers / 106 subtypes across five categories
 (`synterr list-errors -l ru` is authoritative):
 
 | Category | Examples |
 |----------|----------|
 | Spelling | *молоко → малако*, *учится ↔ учиться*, не/ни, adverb & compound spelling |
 | Morphology | case government (*ждали автобуса → автобусу*), agreement, second locative (*в лесу → в лесе*), short/full adjectives, numeral declension |
-| Punctuation | dep-tree-classified comma deletion/insertion (10+5 subtypes incl. asyndetic §116 and vocative §101), dash rules with §79 exception handling |
+| Punctuation | dep-tree-classified comma deletion/insertion/pairing (10+11+5 subtypes incl. asyndetic §116 and vocative §101), dash rules (5 subtypes) with §79 exception handling |
 | Lexical | paronyms (*одеть ↔ надеть*), preposition/conjunction confusion sets |
 | Structural | word omission/insertion with grammaticality guards |
 
@@ -140,7 +140,7 @@ suite (`tests/test_core/test_weight_invariants.py`) structurally
 prevents the "config silently ignored" bug class; per-rule benchmark
 coverage is live-verified sentence by sentence
 ([docs/research/LORUGEC_COVERAGE.md](docs/research/LORUGEC_COVERAGE.md)).
-700+ tests.
+1,300+ tests.
 
 ## Status
 

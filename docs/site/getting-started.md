@@ -10,6 +10,10 @@ This pulls synterr plus stanza and pymorphy3 (Russian backend
 dependencies). For development setup, see
 [Contributing](contributing.md).
 
+Russian (`ru`) is the production-ready language. A 5-handler French
+proof of concept (`fr`, stanza `fr_sequoia` backend) also ships in the
+same architecture — run `uv run synterr list-languages` to see both.
+
 ## Three ways to use synterr
 
 ### 1. Corrupt a single sentence (testing / inspection)

@@ -4,7 +4,7 @@
 # Three levels:
 #   L0  Detection      8 tags   (7 error categories + CORRECT)
 #   L1  Working       29 tags   → synterr handlers, training analysis, paper tables
-#   L2  Fine-grained 100 tags   → research annotation, Rozental § tracing
+#   L2  Fine-grained 103 tags   → research annotation, Rozental § tracing
 #
 # L0 prefix mapping (deterministic from tag name):
 #   sp_ → SPELL    mo_ → MORPH    ag_ → AGR    gv_ → GOV
@@ -12,7 +12,7 @@
 
 name: rozental
 version: "1.0"
-description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 100 L2)"
+description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 103 L2)"
 
 # =============================================================================
 # L0: Detection Categories (linguistically grounded, decoupled from GECToR)

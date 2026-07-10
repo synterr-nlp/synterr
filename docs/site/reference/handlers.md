@@ -2,7 +2,7 @@
 
 # Handlers and subtypes
 
-**28 handlers, 75 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
+**46 handlers, 106 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
 
 Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 
@@ -13,10 +13,25 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 | `adj_form` | `adj_short_full` | `MORPH` | no |
 | `adj_gender` | `adj_gender` | `MORPH` | no |
 | `adj_number` | `adj_number` | `MORPH` | no |
-| `noun_case` | `noun_case` | `MORPH` | no |
+| `adj_possessive_form` | `adj_possessive_form` | `MORPH` | no |
+| `adj_short_en_enen` | `adj_short_en_enen` | `MORPH` | no |
+| `agr_mn_apposition` | `ag_mn_apposition` | `MORPH` | no |
+| `agr_mn_compound_term` | `ag_mn_compound_term` | `MORPH` | no |
+| `agr_mn_numeral_adj` | `ag_mn_special` | `MORPH` | no |
+| `agr_sv_approximate` | `agr_sv_approximate` | `MORPH` | no |
+| `agr_sv_collective` | `agr_sv_collective` | `MORPH` | no |
+| `agr_sv_compound` | `agr_sv_compound` | `MORPH` | no |
+| `agr_sv_coordinated` | `agr_sv_coordinated` | `MORPH` | no |
+| `agr_sv_counting` | `agr_sv_counting` | `MORPH` | no |
+| `neg_genitive` | `neg_genitive` | `MORPH` | no |
+| `noun_case` | `noun_case_governed`, `noun_case_subject`, `noun_case_other` | `MORPH` | no |
+| `noun_case_gen_partitive` | `noun_case_gen_partitive` | `MORPH` | no |
+| `noun_case_instr_pl` | `noun_case_instr_pl` | `MORPH` | no |
 | `noun_case_prep` | `noun_case_prep_e_u` | `MORPH` | no |
 | `noun_number` | `noun_number` | `MORPH` | no |
+| `noun_number_gen_pl` | `noun_number_gen_pl` | `MORPH` | no |
 | `numeral_declension` | `numeral_poltora`, `numeral_declension` | `MORPH` | no |
+| `verb_iterative_suffix` | `verb_iterative_suffix` | `MORPH` | no |
 | `verb_person_number` | `verb_person_number` | `MORPH` | no |
 | `verb_tense` | `verb_tense` | `MORPH` | no |
 | `collocation` | `collocation` | `OTHER` | no |
@@ -24,18 +39,21 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 | `paronym` | `paronym` | `OTHER` | no |
 | `pleonasm` | `pleonasm` | `OTHER` | yes |
 | `preposition` | `preposition` | `OTHER` | no |
+| `pronoun_n_form` | `pronoun_n_form` | `OTHER` | no |
+| `pronoun_sebya` | `pronoun_sebya` | `OTHER` | no |
+| `pronoun_svoy` | `pronoun_svoy` | `OTHER` | no |
 | `word_insertion` | `word_insertion` | `OTHER` | yes |
 | `word_omission` | `word_omission` | `OTHER` | yes |
 | `comma_delete` | `comma_subordinate`, `comma_compound`, `comma_parenthetical`, `comma_isolation`, `comma_homogeneous`, `comma_interjection`, `comma_response`, `comma_repeated`, `comma_asyndetic`, `comma_vocative` | `PUNCT` | yes |
-| `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible`, `comma_clause_junction` | `PUNCT` | yes |
+| `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible`, `comma_clause_junction`, `comma_homogeneous_conj`, `comma_subj_pred`, `comma_pseudo_parenthetical`, `comma_after_odnako`, `comma_compound_conj_split`, `comma_x_ne_x` | `PUNCT` | yes |
 | `comma_pair_delete` | `pair_participle`, `pair_relative`, `pair_gerund`, `pair_parenthetical`, `pair_apposition` | `PUNCT` | yes |
-| `dash_delete` | `dash_subj_pred`, `dash_asyndetic`, `dash_apposition`, `dash_other` | `PUNCT` | yes |
+| `dash_delete` | `dash_subj_pred`, `dash_asyndetic`, `dash_apposition`, `dash_ellipsis`, `dash_other` | `PUNCT` | yes |
 | `dash_to_comma` | `dash_to_comma_apposition` | `PUNCT` | no |
 | `adverb_spelling` | `adverb_solid_to_separate`, `adverb_separate_to_solid`, `adverb_hyphen_to_separate`, `adverb_separate_to_hyphen` | `SPELL` | yes |
 | `compound_spelling` | `num_dash`, `pol_spelling`, `compound_adj` | `SPELL` | no |
 | `function_spelling` | `ne_attachment`, `ne_detachment`, `conjunction_split`, `conjunction_merge`, `taki_hyphen`, `neg_pronoun_ne_ni` | `SPELL` | yes |
-| `orthographic_spelling` | `pre_pri`, `y_i_after_prefix`, `suffix_enk_onk`, `suffix_insk_ensk`, `suffix_its_ets`, `suffix_ek_ik`, `participle_suffix`, `vowel_after_ts`, `vowel_after_sibilant`, `nn_suffix` | `SPELL` | no |
-| `spelling` | `vowel_reduction`, `devoicing`, `prefix_voicing`, `tsa_confusion`, `cluster`, `double_consonant`, `keyboard`, `soft_sign` | `SPELL` | no |
+| `orthographic_spelling` | `pre_pri`, `y_i_after_prefix`, `suffix_enk_onk`, `suffix_insk_ensk`, `suffix_its_ets`, `suffix_ek_ik`, `participle_suffix`, `vowel_after_ts`, `vowel_after_sibilant`, `nn_suffix`, `root_vowel_after_sibilant`, `adj_ending_vowel` | `SPELL` | no |
+| `spelling` | `vowel_reduction`, `devoicing`, `prefix_voicing`, `tsa_confusion`, `cluster`, `double_consonant`, `keyboard`, `soft_sign`, `root_alternating`, `root_unchecked` | `SPELL` | no |
 
 
 ## MORPH
@@ -70,11 +88,91 @@ Change adjective/participle number.
 
 - `adj_number:adj_number`
 
-### `noun_case` (1 subtype)
+### `adj_possessive_form` (1 subtype)
+
+Corrupt possessive-adjective oblique declension (Rozental §162):
+
+- `adj_possessive_form:adj_possessive_form`
+
+### `adj_short_en_enen` (1 subtype)
+
+Corrupt the masc short-form -ен/-енен variant (Rozental §160):
+
+- `adj_short_en_enen:adj_short_en_enen`
+
+### `agr_mn_apposition` (1 subtype)
+
+Corrupt a declinable toponym apposition to its citation (Nom) form.
+
+- `agr_mn_apposition:ag_mn_apposition`
+
+### `agr_mn_compound_term` (1 subtype)
+
+Freeze the second half of a hyphenated compound noun to Nom.
+
+- `agr_mn_compound_term:ag_mn_compound_term`
+
+### `agr_mn_numeral_adj` (1 subtype)
+
+Swap the two-way adjective agreement in два/три/четыре + ADJ + NOUN.
+
+- `agr_mn_numeral_adj:ag_mn_special`
+
+### `agr_sv_approximate` (1 subtype)
+
+Corrupt subject-verb agreement with an approximate-quantity subject.
+
+- `agr_sv_approximate:agr_sv_approximate`
+
+### `agr_sv_collective` (1 subtype)
+
+Corrupt subject-verb number agreement with a bare collective subject.
+
+- `agr_sv_collective:agr_sv_collective`
+
+### `agr_sv_compound` (1 subtype)
+
+Corrupt subject-verb agreement for three §186-189 special-subject
+
+- `agr_sv_compound:agr_sv_compound`
+
+### `agr_sv_coordinated` (1 subtype)
+
+Corrupt subject-verb agreement with coordinated preposed subjects.
+
+- `agr_sv_coordinated:agr_sv_coordinated`
+
+### `agr_sv_counting` (1 subtype)
+
+Corrupt subject-verb agreement with a counting-phrase subject.
+
+- `agr_sv_counting:agr_sv_counting`
+
+### `neg_genitive` (1 subtype)
+
+Flip Gen->Acc inside strong-genitive negation frames (Rozental §201).
+
+- `neg_genitive:neg_genitive`
+
+### `noun_case` (3 subtypes)
 
 Change noun case to create morphological error.
 
-- `noun_case:noun_case`
+- `noun_case:noun_case_governed`
+- `noun_case:noun_case_subject`
+- `noun_case:noun_case_other`
+
+### `noun_case_gen_partitive` (1 subtype)
+
+Corrupt the standard genitive -а/-я into the colloquial partitive -у/-ю.
+
+- `noun_case_gen_partitive:noun_case_gen_partitive`
+
+### `noun_case_instr_pl` (1 subtype)
+
+Corrupt the instrumental-plural -ями/-(ь)ми variant (Rozental §155).
+
+- `noun_case_instr_pl:noun_case_instr_pl`
 
 ### `noun_case_prep` (1 subtype)
 
@@ -88,12 +186,24 @@ Change noun number (singular ↔ plural).
 
 - `noun_number:noun_number`
 
+### `noun_number_gen_pl` (1 subtype)
+
+Corrupt a genitive-plural noun to its frequent nonstandard variant.
+
+- `noun_number_gen_pl:noun_number_gen_pl`
+
 ### `numeral_declension` (2 subtypes)
 
 Corrupt numeral declension.
 
 - `numeral_declension:numeral_poltora`
 - `numeral_declension:numeral_declension`
+
+### `verb_iterative_suffix` (1 subtype)
+
+Corrupt the о/а alternation in iterative-suffix imperfective verbs
+
+- `verb_iterative_suffix:verb_iterative_suffix`
 
 ### `verb_person_number` (1 subtype)
 
@@ -140,6 +250,24 @@ Replace preposition with an attested confusion from the same group.
 
 - `preposition:preposition`
 
+### `pronoun_n_form` (1 subtype)
+
+3rd-person pronoun н-augment confusion after prepositions (§169-170,
+
+- `pronoun_n_form:pronoun_n_form`
+
+### `pronoun_sebya` (1 subtype)
+
+Reflexive себя/себе/собой -> personal pronoun confusion (§168, RLC Ref).
+
+- `pronoun_sebya:pronoun_sebya`
+
+### `pronoun_svoy` (1 subtype)
+
+свой -> personal possessive confusion (Rozental §167, RLC Ref).
+
+- `pronoun_svoy:pronoun_svoy`
+
 ### `word_insertion` (1 subtype)
 
 Insert a filler word (discourse marker, particle) into the sentence.
@@ -170,7 +298,7 @@ Delete a comma with L2 subtype classification.
 - `comma_delete:comma_asyndetic`
 - `comma_delete:comma_vocative`
 
-### `comma_insert` (5 subtypes)
+### `comma_insert` (11 subtypes)
 
 Insert spurious commas — creates extra-comma errors.
 
@@ -179,6 +307,12 @@ Insert spurious commas — creates extra-comma errors.
 - `comma_insert:comma_between_conjunctions`
 - `comma_insert:comma_in_indivisible`
 - `comma_insert:comma_clause_junction`
+- `comma_insert:comma_homogeneous_conj`
+- `comma_insert:comma_subj_pred`
+- `comma_insert:comma_pseudo_parenthetical`
+- `comma_insert:comma_after_odnako`
+- `comma_insert:comma_compound_conj_split`
+- `comma_insert:comma_x_ne_x`
 
 ### `comma_pair_delete` (5 subtypes)
 
@@ -190,13 +324,14 @@ Delete both commas of a paired construction (обособление).
 - `comma_pair_delete:pair_parenthetical`
 - `comma_pair_delete:pair_apposition`
 
-### `dash_delete` (4 subtypes)
+### `dash_delete` (5 subtypes)
 
 Delete a dash (em/en) with L2 subtype classification.
 
 - `dash_delete:dash_subj_pred`
 - `dash_delete:dash_asyndetic`
 - `dash_delete:dash_apposition`
+- `dash_delete:dash_ellipsis`
 - `dash_delete:dash_other`
 
 ### `dash_to_comma` (1 subtype)
@@ -236,7 +371,7 @@ Corrupt function word spelling: не/ни, conjunctions, particles.
 - `function_spelling:taki_hyphen`
 - `function_spelling:neg_pronoun_ne_ni`
 
-### `orthographic_spelling` (10 subtypes)
+### `orthographic_spelling` (12 subtypes)
 
 Morpheme-level spelling errors: suffixes, prefixes, post-sibilant vowels.
 
@@ -250,8 +385,10 @@ Morpheme-level spelling errors: suffixes, prefixes, post-sibilant vowels.
 - `orthographic_spelling:vowel_after_ts`
 - `orthographic_spelling:vowel_after_sibilant`
 - `orthographic_spelling:nn_suffix`
+- `orthographic_spelling:root_vowel_after_sibilant`
+- `orthographic_spelling:adj_ending_vowel`
 
-### `spelling` (8 subtypes)
+### `spelling` (10 subtypes)
 
 Russian spelling error handler using phonetic rules.
 
@@ -263,4 +400,6 @@ Russian spelling error handler using phonetic rules.
 - `spelling:double_consonant`
 - `spelling:keyboard`
 - `spelling:soft_sign`
+- `spelling:root_alternating`
+- `spelling:root_unchecked`
 

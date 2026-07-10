@@ -31,6 +31,7 @@ Commands:
   list-presets          List available presets for a language.
   list-schemas          List available linguistic schemas.
   mine-pools            Mine per-error-class sentence pools from large...
+  minimal-pairs         Emit phenomenon-labeled minimal pairs...
   survey                Survey per-subtype fire rates of all handlers...
 ```
 
@@ -198,7 +199,8 @@ Options:
   --label-format [original|binary|multiclass]
                                   Output label format
   --error-prob FLOAT              Probability of introducing errors (0-1)
-  --depparse / --no-depparse      Enable dependency parsing
+  --depparse / --no-depparse      Enable dependency parsing (default:
+                                  preset/config value, else off)
   --batch-size INTEGER            Batch size for processing
   -f, --output-format [gector|tsv|jsonl|chat|sft]
                                   Output format: gector (token tags), tsv
@@ -338,6 +340,36 @@ Options:
   --cap INTEGER           Max sentences per class
   --seed INTEGER
   --help                  Show this message and exit.
+```
+
+## `synterr minimal-pairs`
+
+```
+Usage: synterr synterr minimal-pairs [OPTIONS]
+
+  Emit phenomenon-labeled minimal pairs (RozentalBench emitter).
+
+  Each record is one contrast: a correct sentence and its corruption by
+  exactly one handler, labeled with the L1 phenomenon tag, the L2 fine-grained
+  tag, its Rozental paragraphs, and the native/learner applicability — ready
+  to filter into benchmark views.
+
+  Example:
+    synterr minimal-pairs -l ru -i sents.txt -o pairs.jsonl -e pronoun_svoy,neg_genitive
+
+Options:
+  -l, --lang TEXT             Language code  [required]
+  -i, --input TEXT            Input sentences file  [required]
+  -o, --output TEXT           Output JSONL file  [required]
+  -e, --errors TEXT           Comma-separated handler names (default: all
+                              registered handlers)
+  --per-error INTEGER         Max pairs per handler (default 50)
+  -s, --schema TEXT           Schema for phenomenon labels
+  --depparse / --no-depparse  Dependency parsing (default on: several handlers
+                              require it)
+  --seed INTEGER              Random seed
+  --max-sentences INTEGER     Cap on input sentences
+  --help                      Show this message and exit.
 ```
 
 ## `synterr survey`

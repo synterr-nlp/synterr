@@ -1,10 +1,10 @@
 # The pipeline: text in, tagged errors out
 
 This page is the end-to-end contract: what you feed synterr, what comes
-out, and what every tag on the output means. The three stages are
-independent CLI commands — you can run just stage 3, but stages 1–2 are
-how you make sure your corpus can actually feed the error classes you
-care about.
+out, and what every tag on the output means. The four stages are
+independent CLI commands — you can run just stage 3 or stage 4, but
+stages 1–2 are how you make sure your corpus can actually feed the error
+classes you care about.
 
 ```
 clean text ──► 1. survey ──► starving classes
@@ -12,7 +12,9 @@ clean text ──► 1. survey ──► starving classes
                   2. mine-pools ◄─┘
                         │
    per-class pools ─────┤
-   + base corpus  ──────┴──► 3. generate ──► tagged training pairs
+   + base corpus  ──────┴──► 3. generate ────────► tagged training pairs
+                        │
+                        └────► 4. minimal-pairs ──► labeled contrast pairs (eval)
 ```
 
 ## Stage 0 — prepare input
@@ -167,3 +169,33 @@ agreement errors — so they emit no applicability field.
 Filtering a corpus by population is therefore a one-liner: keep
 `full` for native-style data, `full`+`partial` for learner-style data,
 and treat `none` as schema-extension territory.
+
+## Stage 4 — minimal-pairs: phenomenon-labeled benchmark pairs
+
+```bash
+uv run synterr minimal-pairs -l ru -i sents.txt -o pairs.jsonl \
+    -e pronoun_svoy,neg_genitive --per-error 50
+```
+
+Where `generate` produces *training* data (many errors per sentence,
+weighted by preset), `minimal-pairs` produces *evaluation* data: **one
+corruption per record** — a correct sentence and its single-handler
+corruption, held as a contrast pair. Each record carries the L1
+phenomenon tag (handler-level), the fine-grained L2 tag, the Rozental §§
+the corruption instantiates, and the `l2_applicability` field described
+above.
+
+That labeling supports two different benchmark views over the same
+emitted file:
+
+- **full view** — every emitted pair, unfiltered. Tests native-norm
+  grammatical competence: does the model know the rule Rozental states,
+  independent of whether L2 learners actually make that mistake?
+- **learner view** — filter to `l2_applicability == "full"`. Keeps only
+  the subset where the native prescriptive rule and the learner's actual
+  error coincide, giving a benchmark that's meaningful for evaluating
+  learner-facing correction too.
+
+`--schema` selects the labeling schema (default: the one configured for
+the language); `--depparse` is on by default since several handlers
+(agreement, government) require dependency parses to fire correctly.

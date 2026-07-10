@@ -182,6 +182,12 @@ problem (pymorphy3 is exceptional; equivalent quality for other
 languages requires effort). Start with a small handler set
 (`spelling`, `paronym`, `comma_delete`) and expand.
 
+**Worked example:** `src/synterr/languages/french/` is a live 5-handler
+French proof of concept (elision, article contraction, pp agreement,
+verb-ending homophony, grammatical homophones) on the stanza
+`fr_sequoia` backend — inflection-free by design, a useful reference for
+scoping a first pass on a new language.
+
 ---
 
 ## What you do *not* need to extend
