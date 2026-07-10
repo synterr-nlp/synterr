@@ -62,3 +62,32 @@ data/scarce_sents_*.txt
 data/conjunction_sents_*.txt
 data/qwen_sft_*.jsonl
 data/qwen_sft_*.dist.json
+
+# Session tooling (Claude/agents)
+.claude/
+.agents/
+.github/skills/
+
+# Corpora and mined pools (regenerable via download / synterr mine-pools)
+lenta_50k.txt
+data/pools/
+data/conjunction_sents.txt
+data/conjunction_sents.meta.json
+data/rare_conjunctions_*.txt
+data/rublimp_pool_sents.meta.json
+data/french_poc/
+
+# Unified-dict build intermediates (regenerable via scripts/build_unified_dict.py)
+scripts/dict.opcorpora.xml
+scripts/dict.opcorpora.xml.bz2
+scripts/need_stress.txt
+scripts/need_morphemes.txt
+scripts/stress_results.json
+scripts/morpheme_results.json
+scripts/zalizniak_stress.json
+
+# Presentation lane artifacts (kept out of the code repo)
+docs/presentation.tex
+docs/presentation.pdf
+docs/synterr_presentation.pptx
+docs/references.bib

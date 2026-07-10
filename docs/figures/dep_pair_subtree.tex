@@ -1,0 +1,31 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{fontspec}
+\setmainfont{Charter}
+\setmonofont{Menlo}[Scale=0.82]
+\usepackage{tikz-dependency}
+\usepackage{xcolor}
+\definecolor{hiblue}{HTML}{1A66B3}
+\definecolor{hiorange}{HTML}{C26A00}
+\definecolor{higreen}{HTML}{1B7A3D}
+\begin{document}
+\begin{tabular}{@{}l@{}}
+\begin{dependency}[theme = simple, label style={font=\small}]
+\begin{deptext}[column sep=0.55cm, row sep=.08ex]
+Книга \& , \& которую \& я \& читал \& , \& лежала \& на \& столе \& . \\
+{\scriptsize\color{gray}NOUN} \& {\scriptsize\color{gray}PUNCT} \& {\scriptsize\color{gray}PRON} \& {\scriptsize\color{gray}PRON} \& {\scriptsize\color{gray}VERB} \& {\scriptsize\color{gray}PUNCT} \& {\scriptsize\color{gray}VERB} \& {\scriptsize\color{gray}ADP} \& {\scriptsize\color{gray}NOUN} \& {\scriptsize\color{gray}PUNCT} \\
+\end{deptext}
+\wordgroup[group style={fill=hiblue!8, draw=hiblue!60, inner sep=.4ex}]{1}{3}{5}{relsub}
+\depedge[edge style={hiorange, very thick}, label style={text=hiorange}]{5}{2}{punct}
+\depedge{5}{3}{obj}
+\depedge{5}{4}{nsubj}
+\depedge[edge unit distance=2.0ex, edge style={hiblue, very thick}, label style={text=hiblue}]{1}{5}{acl:relcl}
+\depedge[edge style={hiorange, very thick}, label style={text=hiorange}]{5}{6}{punct}
+\depedge[edge unit distance=1.5ex]{7}{1}{nsubj}
+\depedge{7}{9}{obl}
+\end{dependency}\\[2.2ex]
+\small head arc \textcolor{hiblue}{\texttt{acl:relcl}} $\Rightarrow$ isolation pair (§95);\quad
+both commas bound the \textcolor{hiblue}{relative-clause subtree} --- deleted \emph{together}\\[0.4ex]
+\small $\Rightarrow$ \textcolor{higreen}{\texttt{pair\_relative}}\\[1.2ex]
+\small\texttt{corrupt: Книга которую я читал лежала на столе .}\\
+\end{tabular}
+\end{document}

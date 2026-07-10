@@ -1,0 +1,41 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{fontspec}
+\setmainfont{Charter}
+\setmonofont{Menlo}[Scale=0.82]
+\usepackage{tikz-dependency}
+\usepackage{xcolor}
+\definecolor{hiblue}{HTML}{1A66B3}
+\definecolor{hiorange}{HTML}{C26A00}
+\definecolor{higreen}{HTML}{1B7A3D}
+\definecolor{hired}{HTML}{B3261E}
+\begin{document}
+\begin{tabular}{@{}l@{\hspace{2.2cm}}l@{}}
+\begin{dependency}[theme = simple, label style={font=\small}]
+\begin{deptext}[column sep=0.7cm, row sep=.08ex]
+Москва \& --- \& столица \& России \\
+{\scriptsize\color{gray}PROPN} \& {\scriptsize\color{gray}PUNCT} \& {\scriptsize\color{gray}NOUN} \& {\scriptsize\color{gray}PROPN} \\
+\end{deptext}
+\depedge[edge style={hiblue, very thick}, label style={text=hiblue}]{3}{1}{nsubj}
+\depedge[edge style={hiorange, very thick}, label style={text=hiorange}]{1}{2}{punct}
+\depedge{3}{4}{nmod}
+\end{dependency}
+&
+\begin{dependency}[theme = simple, label style={font=\small}]
+\begin{deptext}[column sep=0.7cm, row sep=.08ex]
+Он \& --- \& мой \& лучший \& друг \\
+{\scriptsize\color{gray}PRON} \& {\scriptsize\color{gray}PUNCT} \& {\scriptsize\color{gray}DET} \& {\scriptsize\color{gray}ADJ} \& {\scriptsize\color{gray}NOUN} \\
+\end{deptext}
+\depedge[edge unit distance=1.8ex, edge style={hired, very thick}, label style={text=hired}]{5}{1}{nsubj}
+\depedge[edge style={hiorange, very thick}, label style={text=hiorange}]{1}{2}{punct}
+\depedge{5}{3}{det}
+\depedge{5}{4}{amod}
+\end{dependency}
+\\[2ex]
+\small noun subject --- noun predicate &
+\small subject is \textcolor{hired}{PRON} (\texttt{PronType=Prs}) --- §79 exception \\
+\small $\Rightarrow$ \textcolor{higreen}{\texttt{dash\_subj\_pred}} (§79): dash is \textcolor{higreen}{required} &
+\small \phantom{$\Rightarrow$} dash is authorial; deleting it $=$ correct text \\
+\small \texttt{corrupt: Москва столица России .} &
+\small $\Rightarrow$ \textcolor{hired}{\textbf{refused}} --- a non-error never enters the data \\
+\end{tabular}
+\end{document}

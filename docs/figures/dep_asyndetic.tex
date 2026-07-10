@@ -1,0 +1,27 @@
+\documentclass[border=10pt]{standalone}
+\usepackage{fontspec}
+\setmainfont{Charter}
+\setmonofont{Menlo}[Scale=0.82]
+\usepackage{tikz-dependency}
+\usepackage{xcolor}
+\definecolor{hiblue}{HTML}{1A66B3}
+\definecolor{hiorange}{HTML}{C26A00}
+\definecolor{higreen}{HTML}{1B7A3D}
+\begin{document}
+\begin{tabular}{@{}l@{}}
+\begin{dependency}[theme = simple, label style={font=\small}]
+\begin{deptext}[column sep=0.85cm, row sep=.08ex]
+Лес \& рубят \& , \& щепки \& летят \& . \\
+{\scriptsize\color{gray}NOUN} \& {\scriptsize\color{gray}VERB} \& {\scriptsize\color{gray}PUNCT} \& {\scriptsize\color{gray}NOUN} \& {\scriptsize\color{gray}VERB} \& {\scriptsize\color{gray}PUNCT} \\
+\end{deptext}
+\depedge{2}{1}{obj}
+\depedge[edge style={hiorange, very thick}, label style={text=hiorange}]{5}{3}{punct}
+\depedge{5}{4}{nsubj}
+\depedge[edge unit distance=2.2ex, edge style={hiblue, very thick}, label style={text=hiblue}]{2}{5}{conj}
+\end{dependency}\\[2.5ex]
+\small comma $\to$ \textcolor{hiorange}{punct} $\to$ \emph{летят}; \quad \emph{летят} $\to$ \textcolor{hiblue}{conj} $\to$ \emph{рубят}\\
+\small both sides clausal, no conjunction at the junction\\[0.4ex]
+\small $\Rightarrow$ \textcolor{higreen}{\texttt{comma\_asyndetic}} \; (Розенталь §116, БСП)\\[1.2ex]
+\small\texttt{corrupt: Лес рубят щепки летят .}\qquad \small\texttt{fix: \$APPEND\_,}\\
+\end{tabular}
+\end{document}
