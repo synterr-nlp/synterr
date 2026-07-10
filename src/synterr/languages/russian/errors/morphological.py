@@ -113,6 +113,25 @@ def _gen_pl_nonstandard_lexicon() -> dict[str, dict]:
     return _load_json_resource("gen_pl_nonstandard.json").get("lexemes", {})
 
 
+def _under_negated_predicate(
+    tokens: Sequence[AnalyzedToken], token: AnalyzedToken
+) -> bool:
+    """True when ``token``'s dep-arc head is a negated VERB/AUX predicate.
+
+    Used by NounCaseErrorHandler (audit fix M5/C7) to keep the Acc<->Gen
+    alternation under negation out of its random-case-flip territory —
+    ``_has_neg_particle`` is defined below alongside NegGenitiveErrorHandler
+    but is a plain module-level function, so the forward reference resolves
+    fine at call time.
+    """
+    if token.head_idx is None:
+        return False
+    head = _get_token_safe(tokens, token.head_idx)
+    if head is None or head.pos not in {"VERB", "AUX"}:
+        return False
+    return _has_neg_particle(tokens, token.head_idx)
+
+
 class NounCaseErrorHandler:
     """Change noun case to create morphological error.
 
@@ -238,7 +257,34 @@ class NounCaseErrorHandler:
             other_cases = [c for c in CASES if c != current_case]
             target_case = rng.choice(other_cases)
 
-        new_word = inflect_word(parse, {target_case}, word)
+        # Audit fix M5/C7: Acc<->Gen under negation is a normative
+        # alternation ("не читал книгу/книги" are both correct), not a
+        # recoverable error — that narrow territory belongs to
+        # NegGenitiveErrorHandler's lexicalized strong-genitive frames.
+        # Skip rather than risk manufacturing "errors" that are just
+        # correct Russian.
+        if (
+            subtype in ("noun_case_governed", "noun_case_other")
+            and {current_case, target_case} == {"accs", "gent"}
+            and _under_negated_predicate(tokens, token)
+        ):
+            return None
+
+        # Audit fix M1/C1 (defense-in-depth): pin Number (and, for the
+        # animacy-ambiguous Acc slot, Animacy) through the case-only
+        # inflection so a still-imperfect pymorphy parse cannot silently
+        # drift the noun's number as a side effect of the case flip.
+        grammemes = {target_case}
+        number_gram = UD_TO_PYMORPHY_NUMBER.get(token.get_feature("Number"))
+        if number_gram:
+            grammemes.add(number_gram)
+        if target_case == "accs" and _neg_genitive_needs_animacy(token):
+            animacy = _animacy_grammeme(token, None)
+            if animacy is None:
+                return None
+            grammemes.add(animacy)
+
+        new_word = inflect_word(parse, grammemes, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -500,6 +546,7 @@ class AdjCaseErrorHandler:
 
         # Reference case: prefer head noun's case (dep tree) if available
         ref_case_ud = token.get_feature("Case")
+        head = None
         if token.dep_rel in _MODIFIER_DEPRELS and token.head_idx is not None:
             head = _get_token_safe(tokens, token.head_idx)
             if head and head.has_feature("Case"):
@@ -523,7 +570,26 @@ class AdjCaseErrorHandler:
             other_cases = [c for c in CASES if c != current_case]
             target_case = rng.choice(other_cases)
 
-        new_word = inflect_word(parse, {target_case}, word)
+        # Audit fix M1/C1 (defense-in-depth): pin Number and (for singular
+        # targets) Gender, plus Animacy in the Acc-ambiguous slot, so an
+        # imperfect pymorphy parse cannot drift the adjective's number/
+        # gender as a side effect of the case-only flip ("молодым" ->
+        # a plural datv parse must not leak into the corrupted form).
+        grammemes = {target_case}
+        number_gram = UD_TO_PYMORPHY_NUMBER.get(token.get_feature("Number"))
+        if number_gram:
+            grammemes.add(number_gram)
+        if number_gram != "plur":
+            gender_gram = UD_TO_PYMORPHY_GENDER.get(token.get_feature("Gender"))
+            if gender_gram:
+                grammemes.add(gender_gram)
+        if target_case == "accs" and _neg_genitive_needs_animacy(token):
+            animacy = _animacy_grammeme(token, head)
+            if animacy is None:
+                return None
+            grammemes.add(animacy)
+
+        new_word = inflect_word(parse, grammemes, word)
 
         if new_word and new_word != word:
             sentence[idx] = new_word
@@ -686,7 +752,21 @@ class AdjGenderErrorHandler:
             or token.get_feature("Number") != "Sing"
         ):
             return False
-        return _passes_adj_agreement_guards(tokens, idx)
+        if not _passes_adj_agreement_guards(tokens, idx):
+            return False
+        return not self._head_is_common_gender(tokens, idx)
+
+    @staticmethod
+    def _head_is_common_gender(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        """Common-gender (ms-f) head nouns license both masc and fem modifier
+        agreement depending on the referent's sex ("бедную/бедного сироту"
+        are both correct) — audit fix M7/C9: a gender flip against them is
+        not a recoverable error."""
+        head = _amod_head_noun(tokens, idx)
+        if head is None:
+            return False
+        head_parse = _get_pymorphy_parse(head)
+        return head_parse is not None and "ms-f" in head_parse.tag
 
     def apply(
         self,
@@ -705,6 +785,8 @@ class AdjGenderErrorHandler:
         if parse is None:
             return None
         if not _passes_adj_agreement_guards(tokens, idx):
+            return None
+        if self._head_is_common_gender(tokens, idx):
             return None
 
         head = _amod_head_noun(tokens, idx)
@@ -796,6 +878,30 @@ def _find_overt_subject(
     return None
 
 
+def _parse_is_imperative(parse) -> bool:
+    """True when the pymorphy parse carries the ``impr`` (imperative) grammeme.
+
+    Audit fix M2/C4: stanza's own Mood feature is unreliable for imperatives
+    with an overt polite-form subject ("Вы идите домой" tags Mood=Ind, not
+    Imp), so verb_person_number/verb_tense would otherwise treat "идите" as
+    an ordinary indicative and flip its person/number/tense — silently
+    changing mood ("Вы идите" -> "Вы идут"/"Вы шли"). The pymorphy parse,
+    already disambiguated against stanza's tag by the backend, carries the
+    correct ``impr`` grammeme even when stanza's Mood feature does not.
+
+    Defensive against non-Parse stand-ins (some protocol tests wire a bare
+    sentinel string into ``extra["pymorphy_parse"]``): anything without a
+    usable ``.tag`` is treated as "not imperative" rather than raising.
+    """
+    tag = getattr(parse, "tag", None)
+    if tag is None:
+        return False
+    try:
+        return "impr" in tag
+    except TypeError:
+        return False
+
+
 class VerbPersonNumberErrorHandler:
     """Change verb person or number.
 
@@ -823,6 +929,11 @@ class VerbPersonNumberErrorHandler:
         if parse is None or not (
             token.has_feature("Person") or token.has_feature("Number")
         ):
+            return False
+        # Imperatives have no controlling nsubj in the agreement sense (an
+        # overt polite-form "Вы" is a vocative-like address, not a person/
+        # number controller) — see _parse_is_imperative.
+        if _parse_is_imperative(parse):
             return False
         subject = _find_overt_subject(tokens, idx)
         if subject is None:
@@ -864,6 +975,8 @@ class VerbPersonNumberErrorHandler:
         parse = _get_pymorphy_parse(token)
 
         if parse is None:
+            return None
+        if _parse_is_imperative(parse):
             return None
 
         # Overt subject is required (pro-drop guard, see can_apply).
@@ -979,6 +1092,11 @@ class VerbTenseErrorHandler:
         parse = _get_pymorphy_parse(token)
         if parse is None or not token.has_feature("Tense"):
             return False
+        # Imperatives have no real tense; stanza mislabels them Tense=Pres
+        # (see _parse_is_imperative) — flipping "идите" into a past/future
+        # form silently changes mood, not tense.
+        if _parse_is_imperative(parse):
+            return False
         return self._licensed_tenses(tokens, idx) is not None
 
     @staticmethod
@@ -1028,6 +1146,8 @@ class VerbTenseErrorHandler:
         parse = _get_pymorphy_parse(token)
 
         if parse is None or not self._is_finite(token):
+            return None
+        if _parse_is_imperative(parse):
             return None
 
         current_tense = UD_TO_PYMORPHY_TENSE.get(token.get_feature("Tense"))
@@ -1124,38 +1244,59 @@ class VerbTenseErrorHandler:
 # Prepositions that govern the second locative (-у) form.
 _PREP_E_U_TRIGGERS = {"в", "во", "на"}
 
-# Nouns where the standard -е locative is an acceptable literary variant, so
-# corrupting -у → -е does not reliably produce an error. Skip these.
-# (pymorphy marks loc2 for many nouns whose -е form is normative: в мозге,
-# в аэропорте, в ряде случаев, во льде, в мёде, в соке, в стоге сена...)
-_PREP_E_U_STOPLIST = {
-    "цех",
-    "чай",
-    "отпуск",
-    "ветер",
-    "дом",
+# Curated whitelist (audit fix M6/C8): pymorphy tags loc2 on far more nouns
+# than have a genuinely nonnormative -е locative (an open blocklist let
+# through "на краю" -> "на крае", an accepted literary variant, and "на
+# полу" -> "на поле", a homograph collision with the unrelated common noun
+# "поле" — see _is_dominant_lemma_reading for the runtime version of that
+# check). This list keeps only lexemes verified against pymorphy where the
+# -е form is both reliably wrong in the "в/на X" spatial frame and not the
+# more probable reading of a different lemma. Nouns whose -е form is a
+# legitimate variant or idiom (ряд "в ряде случаев", мозг, аэропорт, сок,
+# цех, год-adjacent "лёд/мёд", ...) are deliberately excluded, not merely
+# unlisted.
+_PREP_E_U_WHITELIST = {
+    "лес",
     "снег",
-    "пар",
-    "жир",
-    "холод",
-    "дым",
-    "круг",
+    "порт",
+    "шкаф",
+    "угол",
+    "берег",
+    "мост",
+    "сад",
+    "бой",
     "строй",
-    "клей",
-    "спирт",
-    "год",
-    "мозг",
-    "аэропорт",
-    "гроб",
-    "стог",
     "тыл",
-    "лёд",
-    "лед",
-    "мёд",
-    "мед",
-    "сок",
-    "ряд",
+    "плен",
+    "быт",
+    "нос",
+    "бок",
+    "год",
 }
+
+
+def _is_dominant_lemma_reading(surface: str, lemma: str) -> bool:
+    """True unless a different lemma is the more probable reading of ``surface``.
+
+    Output guard for audit fix M6/C8: a same-score competing lemma (лесе:
+    лес/леса tied at 0.2, угле: угол/уголь tied at 0.5) is an accepted,
+    context-disambiguated ambiguity — not the failure mode this guards
+    against. The failure mode is a *dominated* reading, where the intended
+    lemma is far down pymorphy's ranking and a completely different, more
+    salient word wins (полу -> поле: "пол" scores ~0.01 against "поле"
+    (field) at ~0.47). ``_morph()`` is defined later in this module (shared
+    with the о/а-iterative and short-form handlers) but, like those, is only
+    called at apply time, once the module is fully loaded.
+    """
+    own_best = 0.0
+    other_best = 0.0
+    for candidate in _morph().parse(surface):
+        score = float(candidate.score)
+        if candidate.normal_form == lemma:
+            own_best = max(own_best, score)
+        else:
+            other_best = max(other_best, score)
+    return own_best >= other_best
 
 
 class NounCasePrepErrorHandler:
@@ -1179,14 +1320,32 @@ class NounCasePrepErrorHandler:
         # also a Dat noun form and a present-tense form of беречь).
         if token.get_feature("Case") != "Loc":
             return False
-        if token.lemma.lower() in _PREP_E_U_STOPLIST:
+        if token.lemma.lower() not in _PREP_E_U_WHITELIST:
             return False
         parse = _get_pymorphy_parse(token)
         if parse is None or "loc2" not in str(parse.tag):
             return False
         # Require an immediately preceding в/во/на.
         prev = _get_token_safe(tokens, idx - 1)
-        return prev is not None and prev.text.lower() in _PREP_E_U_TRIGGERS
+        if prev is None or prev.text.lower() not in _PREP_E_U_TRIGGERS:
+            return False
+        return self._target_form(token, token.text) is not None
+
+    @staticmethod
+    def _target_form(token: AnalyzedToken, word: str) -> str | None:
+        """The corrupted -е surface, or None if inflection fails or the
+        result collides with a more probable different-lemma reading."""
+        parse = _get_pymorphy_parse(token)
+        if parse is None:
+            return None
+        new_word = inflect_word(parse, {"loct"}, word)
+        if not new_word or new_word == word:
+            return None
+        if not _is_dominant_lemma_reading(
+            new_word.lower(), (token.lemma or "").lower()
+        ):
+            return None
+        return new_word
 
     def apply(
         self,
@@ -1198,12 +1357,9 @@ class NounCasePrepErrorHandler:
     ) -> ErrorResult | None:
         token = tokens[idx]
         word = sentence[idx]
-        parse = _get_pymorphy_parse(token)
-        if parse is None:
-            return None
 
-        new_word = inflect_word(parse, {"loct"}, word)
-        if not new_word or new_word == word:
+        new_word = self._target_form(token, word)
+        if new_word is None:
             return None
 
         sentence[idx] = new_word
@@ -1375,13 +1531,19 @@ class DoubleComparativeHandler:
             return None
         sentence.insert(idx, "более")
         modified.add(idx)
+        # Insertion shape (audit fix M4/C6), mirroring WordInsertionHandler:
+        # this corrupts by inserting a token, not by replacing the
+        # comparative, so original/corrupted/span must describe the
+        # inserted "более" alone — the old original=word/corrupted=f"более
+        # {word}" shape read as a substitution of the comparative itself,
+        # breaking downstream token/span consumers.
         return ErrorResult(
             error_type="adj_double_comparative",
             category=self.category,
             start_idx=idx,
-            end_idx=idx + 1,
-            original=word,
-            corrupted=f"более {word}",
+            end_idx=idx,
+            original="",
+            corrupted="более",
             fix_tag="$DELETE",
         )
 
@@ -1533,9 +1695,10 @@ class NumeralDeclensionHandler:
                 new_lower = self._polutora_citation_form(tokens, idx, rng)
             else:
                 new_lower = rng.choice(_POLTORA_SUBSTITUTIONS[text_lower])
-            new_word = (
-                new_lower[0].upper() + new_lower[1:] if word[0].isupper() else new_lower
-            )
+            # match_capitalization (audit fix M3/C5): the old first-char-only
+            # transfer clobbered all-caps sources ("ПОЛТОРА" -> "Полутора"
+            # instead of "ПОЛУТОРА").
+            new_word = match_capitalization(word, new_lower)
 
             # §164 groups полтораста with полтора/полторы (two-form declension),
             # so the whole family carries the numeral_poltora subtype.

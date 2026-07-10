@@ -18,9 +18,108 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import AnalyzedToken
+from synterr.languages.russian.inflector import (
+    UD_TO_PYMORPHY_CASE,
+    UD_TO_PYMORPHY_GENDER,
+    UD_TO_PYMORPHY_NUMBER,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+# Audit fix M1/C1: pick the pymorphy parse most consistent with stanza's own
+# disambiguated UD features, instead of the first lemma-matching parse in
+# pymorphy's frequency order. The stored parse seeds every downstream
+# inflection (NounCase, AdjCase, AdjGender, ...), so a paradigm-cell mismatch
+# here silently drifts unrelated grammemes: "альтернативы" (Acc Plur) picked
+# pymorphy's highest-frequency gent-sing parse, so noun_case's Case-only
+# inflect() started from the wrong number too ("альтернативой" — Ins
+# *singular*, not just the intended case flip). Scoring is POS-class-first
+# (a wrong POS class is never a useful parse to inflect from), then
+# grammeme-overlap on Case/Number/Gender/VerbForm.
+_UD_POS_TO_PYMORPHY: dict[str, frozenset[str]] = {
+    "NOUN": frozenset({"NOUN"}),
+    "PROPN": frozenset({"NOUN"}),
+    "ADJ": frozenset({"ADJF", "ADJS", "COMP"}),
+    "PRON": frozenset({"NPRO"}),
+    "NUM": frozenset({"NUMR"}),
+    "ADV": frozenset({"ADVB", "COMP", "PRED"}),
+    "DET": frozenset({"NPRO", "ADJF"}),
+}
+
+# VERB/AUX tokens: VerbForm narrows which pymorphy POS class is the right
+# paradigm cell (finite vs infinitive vs participle vs converb). Without a
+# VerbForm feature, any verbal POS is acceptable.
+_VERB_FORM_TO_PYMORPHY_POS: dict[str, frozenset[str]] = {
+    "Fin": frozenset({"VERB"}),
+    "Inf": frozenset({"INFN"}),
+    "Part": frozenset({"PRTF", "PRTS"}),
+    "Conv": frozenset({"GRND"}),
+}
+_ANY_VERBAL_POS = frozenset({"VERB", "INFN", "PRTF", "PRTS", "GRND"})
+
+_FEATURE_GRAMMEME_MAPS = (
+    ("Case", UD_TO_PYMORPHY_CASE),
+    ("Number", UD_TO_PYMORPHY_NUMBER),
+    ("Gender", UD_TO_PYMORPHY_GENDER),
+)
+
+
+def _expected_pymorphy_pos(upos: str, features: dict) -> frozenset[str] | None:
+    """The pymorphy POS class(es) consistent with stanza's own tag, or None
+    when the UD tag has no known pymorphy analogue (no signal either way)."""
+    if upos in ("VERB", "AUX"):
+        return _VERB_FORM_TO_PYMORPHY_POS.get(features.get("VerbForm"), _ANY_VERBAL_POS)
+    return _UD_POS_TO_PYMORPHY.get(upos)
+
+
+def _parse_consistency_score(parse, upos: str, features: dict) -> int:
+    """Higher = more consistent with stanza's disambiguated tag.
+
+    POS-class agreement dominates (+/-2): an inflection seeded from the
+    wrong POS class is unusable regardless of how many grammemes happen to
+    overlap. Each of Case/Number/Gender then contributes +1 (present and
+    matching) or -1 (present and conflicting); features stanza left unset
+    contribute nothing, so an unannotated token still falls back to
+    pymorphy's own ranking (ties broken by candidate order == old
+    lemma-match-then-first behavior).
+    """
+    score = 0
+    expected_pos = _expected_pymorphy_pos(upos, features)
+    if expected_pos is not None:
+        score += 2 if parse.tag.POS in expected_pos else -2
+    grammemes = parse.tag.grammemes
+    for feature, mapping in _FEATURE_GRAMMEME_MAPS:
+        value = features.get(feature)
+        grammeme = mapping.get(value) if value else None
+        if grammeme:
+            score += 1 if grammeme in grammemes else -1
+    return score
+
+
+def _select_pymorphy_parse(parses, lemma: str, upos: str, features: dict):
+    """Pick the parse most consistent with stanza's UD features.
+
+    Restricts to lemma-matching parses first (as before), then breaks ties
+    by consistency score; the first candidate wins ties, so a token with no
+    usable feature signal reproduces the pre-fix behavior exactly (first
+    lemma match, else pymorphy's first parse).
+    """
+    if not parses:
+        return None
+
+    candidates = [p for p in parses if p.normal_form == lemma]
+    if not candidates:
+        candidates = list(parses)
+
+    best_idx = 0
+    best_score = None
+    for i, candidate in enumerate(candidates):
+        score = _parse_consistency_score(candidate, upos, features)
+        if best_score is None or score > best_score:
+            best_score = score
+            best_idx = i
+    return candidates[best_idx]
 
 
 class StanzaBackend:
@@ -141,18 +240,12 @@ class StanzaBackend:
             if hasattr(word, "deprel") and word.deprel is not None:
                 dep_rel = word.deprel
 
-        # Get pymorphy parse for inflection
+        # Get pymorphy parse for inflection: the parse most consistent with
+        # stanza's own POS/Case/Number/Gender/VerbForm (audit fix M1/C1) —
+        # see _select_pymorphy_parse for why an unconstrained lemma match
+        # silently picks the wrong paradigm cell.
         parses = self.morph.parse(word.text)
-        pymorphy_parse = None
-
-        # Try to match by lemma first
-        for p in parses:
-            if p.normal_form == word.lemma:
-                pymorphy_parse = p
-                break
-
-        if pymorphy_parse is None and parses:
-            pymorphy_parse = parses[0]
+        pymorphy_parse = _select_pymorphy_parse(parses, word.lemma, word.upos, features)
 
         return AnalyzedToken(
             text=word.text,

@@ -3653,3 +3653,600 @@ class TestAdjShortEnEnenHandler:
         result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
         assert result is not None
         assert sentence[idx] == "действенен"
+
+
+class TestPymorphyParseSelectionM1:
+    """Audit fix M1/C1: stanza_backend must pick the pymorphy parse most
+    consistent with its own UD tags (POS class + Case/Number/Gender), not
+    pymorphy's raw frequency-ranked candidate.
+
+    Regressions: "Мы рассмотрели альтернативы." (Acc Plur) picked pymorphy's
+    highest-frequency gent-sing parse, so noun_case's case-only inflect()
+    started from the wrong number too ("альтернативой" — Ins *singular*).
+    "Он был молодым." (Ins Sing Masc) picked a plur-datv parse, so adj_case
+    drifted into plural forms.
+    """
+
+    def test_picks_plural_accusative_not_frequency_top(self):
+        from synterr.languages.russian.backends.stanza_backend import (
+            _select_pymorphy_parse,
+        )
+
+        parses = morph.parse("альтернативы")
+        # Sanity: pymorphy's own top-ranked parse is the WRONG (gen sing) cell.
+        assert "gent" in parses[0].tag
+        assert "sing" in parses[0].tag
+
+        selected = _select_pymorphy_parse(
+            parses,
+            "альтернатива",
+            "NOUN",
+            {"Animacy": "Inan", "Case": "Acc", "Gender": "Fem", "Number": "Plur"},
+        )
+        assert "plur" in selected.tag
+        assert "accs" in selected.tag
+
+    def test_picks_masc_singular_instrumental_not_frequency_top(self):
+        from synterr.languages.russian.backends.stanza_backend import (
+            _select_pymorphy_parse,
+        )
+
+        parses = morph.parse("молодым")
+        assert "plur" in parses[0].tag  # pymorphy's top guess is plural datv
+
+        selected = _select_pymorphy_parse(
+            parses,
+            "молодой",
+            "ADJ",
+            {"Case": "Ins", "Degree": "Pos", "Gender": "Masc", "Number": "Sing"},
+        )
+        grammemes = set(selected.tag.grammemes)
+        assert {"masc", "sing", "ablt"} <= grammemes
+
+    def test_falls_back_to_first_lemma_match_without_features(self):
+        """No UD feature signal -> ties broken by candidate order, exactly
+        reproducing the pre-fix first-lemma-match behavior."""
+        from synterr.languages.russian.backends.stanza_backend import (
+            _select_pymorphy_parse,
+        )
+
+        parses = morph.parse("книгу")
+        selected = _select_pymorphy_parse(parses, "книга", "NOUN", {})
+        assert selected is parses[0]
+
+    def test_already_correct_parse_still_selected(self):
+        from synterr.languages.russian.backends.stanza_backend import (
+            _select_pymorphy_parse,
+        )
+
+        parses = morph.parse("книгу")
+        selected = _select_pymorphy_parse(
+            parses,
+            "книга",
+            "NOUN",
+            {"Animacy": "Inan", "Case": "Acc", "Gender": "Fem", "Number": "Sing"},
+        )
+        assert "accs" in selected.tag
+        assert "sing" in selected.tag
+
+    @pytest.mark.slow
+    def test_real_backend_noun_case_stays_plural(self):
+        """E2E: noun_case on "Мы рассмотрели альтернативы." must never
+        collapse the noun to singular."""
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        tokens = _stanza_backend().analyze("Мы рассмотрели альтернативы.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "альтернативы")
+        parse = tokens[idx].extra["pymorphy_parse"]
+        assert "plur" in parse.tag, "backend must pick the plur parse, not gent sing"
+
+        for seed in range(20):
+            sentence = [t.text for t in tokens]
+            result = handler.apply(
+                tokens, sentence, idx, set(), rng=random.Random(seed)
+            )
+            if result is None:
+                continue
+            matches = [
+                p for p in morph.parse(sentence[idx]) if p.normal_form == "альтернатива"
+            ]
+            assert matches, f"seed {seed}: {sentence[idx]!r} unrecognized"
+            assert all("sing" not in p.tag for p in matches), (
+                f"seed {seed}: {sentence[idx]!r} must stay plural"
+            )
+
+    @pytest.mark.slow
+    def test_real_backend_adj_case_stays_masc_singular(self):
+        """E2E: adj_case on "Он был молодым." must never drift number/gender
+        as a side effect of the case flip."""
+        from synterr.languages.russian.errors.morphological import AdjCaseErrorHandler
+
+        handler = AdjCaseErrorHandler()
+        tokens = _stanza_backend().analyze("Он был молодым.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "молодым")
+        parse = tokens[idx].extra["pymorphy_parse"]
+        assert {"masc", "sing"} <= set(parse.tag.grammemes), (
+            "backend must pick the masc-sing parse, not the plur-datv one"
+        )
+
+        for seed in range(20):
+            sentence = [t.text for t in tokens]
+            result = handler.apply(
+                tokens, sentence, idx, set(), rng=random.Random(seed)
+            )
+            if result is None:
+                continue
+            matches = [
+                p for p in morph.parse(sentence[idx]) if p.normal_form == "молодой"
+            ]
+            assert matches, f"seed {seed}: {sentence[idx]!r} unrecognized"
+            assert all("plur" not in p.tag for p in matches), (
+                f"seed {seed}: {sentence[idx]!r} must not become plural"
+            )
+
+
+class TestVerbImperativeGuardM2:
+    """Audit fix M2/C4: verb_person_number and verb_tense must not fire on
+    imperatives, even with an overt polite-form subject.
+
+    Regression: "Вы идите домой." -> "Вы идут/шли домой" — stanza tags the
+    imperative Mood=Ind (misleadingly), and the overt "Вы" satisfies the
+    pro-drop guard, so without a pymorphy-level ``impr`` check both handlers
+    silently changed mood instead of person/number/tense.
+    """
+
+    def _idite_tokens(self):
+        parse = next(p for p in morph.parse("идите") if "impr" in p.tag)
+        return [
+            AnalyzedToken(
+                text="Вы",
+                lemma="вы",
+                pos="PRON",
+                features={"Case": "Nom", "Number": "Plur", "Person": "2"},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="идите",
+                lemma="идти",
+                pos="VERB",
+                features={
+                    "Mood": "Ind",  # stanza's misleading tag for an imperative
+                    "Number": "Plur",
+                    "Person": "2",
+                    "Tense": "Pres",
+                    "VerbForm": "Fin",
+                },
+                idx=1,
+                dep_rel="root",
+                head_idx=1,
+                extra={"pymorphy_parse": parse},
+            ),
+            AnalyzedToken(
+                text="домой",
+                lemma="домой",
+                pos="ADV",
+                features={},
+                idx=2,
+                dep_rel="advmod",
+                head_idx=1,
+            ),
+        ]
+
+    def test_verb_person_number_skips_imperative_with_overt_subject(self):
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+        )
+
+        handler = VerbPersonNumberErrorHandler()
+        tokens = self._idite_tokens()
+        assert handler.can_apply(tokens, 1) is False
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["Вы", "идите", "домой"]
+
+    def test_verb_tense_skips_imperative(self):
+        from synterr.languages.russian.errors.morphological import VerbTenseErrorHandler
+
+        handler = VerbTenseErrorHandler()
+        tokens = [*self._idite_tokens(), _anchor_token("вчера", 3, 1)]
+        assert handler.can_apply(tokens, 1) is False
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is None
+
+    @pytest.mark.slow
+    def test_real_backend_imperative_does_not_fire(self):
+        from synterr.languages.russian.errors.morphological import (
+            VerbPersonNumberErrorHandler,
+            VerbTenseErrorHandler,
+        )
+
+        tokens = _stanza_backend().analyze("Вы идите домой.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "идите")
+        assert VerbPersonNumberErrorHandler().can_apply(tokens, idx) is False
+        assert VerbTenseErrorHandler().can_apply(tokens, idx) is False
+
+
+class TestNumeralPoltoraCapitalizationM3:
+    """Audit fix M3/C5: match_capitalization instead of a first-char-only
+    transfer.
+
+    Regression: "ПОЛТОРА" -> "Полутора" (only the first letter was
+    capitalized, clobbering the rest of an all-caps source).
+    """
+
+    def test_all_caps_source_preserved(self):
+        from synterr.languages.russian.errors.morphological import (
+            NumeralDeclensionHandler,
+        )
+
+        handler = NumeralDeclensionHandler()
+        tok = AnalyzedToken(
+            text="ПОЛТОРА",
+            lemma="полтора",
+            pos="NUM",
+            features={"Case": "Nom", "Gender": "Masc"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("ПОЛТОРА")[0]},
+        )
+        sentence = ["ПОЛТОРА"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "ПОЛУТОРА"
+
+    @pytest.mark.slow
+    def test_real_backend_all_caps(self):
+        from synterr.languages.russian.errors.morphological import (
+            NumeralDeclensionHandler,
+        )
+
+        handler = NumeralDeclensionHandler()
+        tokens = _stanza_backend().analyze("ПОЛТОРА часа.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "ПОЛТОРА")
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "ПОЛУТОРА"
+
+
+class TestDoubleComparativeInsertionShapeM4:
+    """Audit fix M4/C6: the ErrorResult must describe a pure insertion
+    (mirroring WordInsertionHandler), not a substitution of the comparative.
+
+    Regression: original="короче"/corrupted="более короче" read as if the
+    comparative word itself had been replaced, even though the corruption is
+    a pure token insertion — breaking downstream token/span consumers that
+    expect original/corrupted to describe exactly the start_idx:end_idx span.
+    """
+
+    def test_result_is_pure_insertion(self):
+        from synterr.languages.russian.errors.morphological import (
+            DoubleComparativeHandler,
+        )
+
+        handler = DoubleComparativeHandler()
+        tok = AnalyzedToken(
+            text="короче",
+            lemma="короткий",
+            pos="ADJ",
+            features={"Degree": "Cmp"},
+            idx=0,
+            extra={"pymorphy_parse": morph.parse("короче")[0]},
+        )
+        sentence = ["короче"]
+        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert result.original == ""
+        assert result.corrupted == "более"
+        assert result.start_idx == 0
+        assert result.end_idx == 0
+        assert result.fix_tag == "$DELETE"
+        assert sentence == ["более", "короче"]
+
+
+class TestNounCaseSkipsNegationAccGenAlternationM5:
+    """Audit fix M5/C7: noun_case must not flip Acc<->Gen on an object of a
+    negated predicate -- that alternation is normative Russian ("не читал
+    книгу/книги" are both correct), and NegGenitiveErrorHandler already owns
+    the narrow lexicalized frames where the flip is a real error.
+    """
+
+    def _chital_tokens(self, case):
+        text = "книгу" if case == "Acc" else "книги"
+        parse = morph.parse(text)[0]
+        return [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="не",
+                lemma="не",
+                pos="PART",
+                features={},
+                idx=1,
+                dep_rel="advmod",
+                head_idx=2,
+            ),
+            AnalyzedToken(
+                text="читал",
+                lemma="читать",
+                pos="VERB",
+                features={},
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text=text,
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": case, "Number": "Sing", "Gender": "Fem"},
+                idx=3,
+                dep_rel="obj",
+                head_idx=2,
+                extra={"pymorphy_parse": parse},
+            ),
+        ]
+
+    def test_acc_to_gen_flip_skipped_under_negation(self):
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        handler.set_confusion_matrix({"case": {"Acc": {"Gen": 1.0}}})
+        tokens = self._chital_tokens("Acc")
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == [t.text for t in tokens]
+
+    def test_gen_to_acc_flip_skipped_under_negation(self):
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        handler.set_confusion_matrix({"case": {"Gen": {"Acc": 1.0}}})
+        tokens = self._chital_tokens("Gen")
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is None
+
+    def test_other_case_flips_still_fire_under_negation(self):
+        """Only the Acc<->Gen alternation is protected -- a flip to Dat is
+        still a genuine, recoverable error under negation."""
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        handler.set_confusion_matrix({"case": {"Acc": {"Dat": 1.0}}})
+        tokens = self._chital_tokens("Acc")
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[3] == "книге"
+
+    def test_without_negation_acc_gen_flip_still_fires(self):
+        """The guard is negation-specific -- a plain governed object can
+        still flip Acc<->Gen."""
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        handler.set_confusion_matrix({"case": {"Acc": {"Gen": 1.0}}})
+        tokens = [
+            AnalyzedToken(
+                text="Он",
+                lemma="он",
+                pos="PRON",
+                features={},
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="читал",
+                lemma="читать",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text="книгу",
+                lemma="книга",
+                pos="NOUN",
+                features={"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+                idx=2,
+                dep_rel="obj",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse("книгу")[0]},
+            ),
+        ]
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 2, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[2] == "книги"
+
+    @pytest.mark.slow
+    def test_real_backend_never_produces_gen(self):
+        from synterr.languages.russian.errors.morphological import NounCaseErrorHandler
+
+        handler = NounCaseErrorHandler()
+        tokens = _stanza_backend().analyze("Он не читал книгу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "книгу")
+        fired = False
+        for seed in range(40):
+            sentence = [t.text for t in tokens]
+            result = handler.apply(
+                tokens, sentence, idx, set(), rng=random.Random(seed)
+            )
+            if result is None:
+                continue
+            fired = True
+            assert sentence[idx] != "книги", (
+                f"seed {seed}: Acc->Gen must be skipped under negation"
+            )
+        assert fired, "expected at least one non-Gen case flip across 40 seeds"
+
+
+class TestNounCasePrepWhitelistM6:
+    """Audit fix M6/C8: replace the open loc2-lemma blocklist with a curated
+    whitelist, plus a runtime dominant-lemma-reading guard.
+
+    Regressions: "на краю" -> "на крае" (край's -е form is itself an
+    accepted literary variant, not an error) and "на полу" -> "на поле" (a
+    homograph collision -- "поле" is a far more probable reading of the
+    produced surface than "пол").
+    """
+
+    @staticmethod
+    def _tokens(text, lemma, prep="в"):
+        loc2 = next(p for p in morph.parse(text) if "loc2" in str(p.tag))
+        prep_tok = AnalyzedToken(text=prep, lemma=prep, pos="ADP", features={}, idx=0)
+        noun_tok = AnalyzedToken(
+            text=text,
+            lemma=lemma,
+            pos="NOUN",
+            features={"Case": "Loc"},
+            idx=1,
+            extra={"pymorphy_parse": loc2},
+        )
+        return [prep_tok, noun_tok]
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            NounCasePrepErrorHandler,
+        )
+
+        return NounCasePrepErrorHandler()
+
+    def test_kray_excluded_as_variant_ok(self):
+        handler = self._handler()
+        tokens = self._tokens("краю", "край", prep="на")
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_pol_excluded_collision_with_pole(self):
+        handler = self._handler()
+        tokens = self._tokens("полу", "пол", prep="на")
+        assert handler.can_apply(tokens, 1) is False
+
+    def test_whitelisted_lemmas_still_fire(self):
+        handler = self._handler()
+        for text, lemma, expected in [
+            ("лесу", "лес", "лесе"),
+            ("берегу", "берег", "береге"),
+            ("углу", "угол", "угле"),
+        ]:
+            tokens = self._tokens(text, lemma, prep="в")
+            assert handler.can_apply(tokens, 1) is True, lemma
+            sentence = [t.text for t in tokens]
+            result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+            assert result is not None, lemma
+            assert sentence[1] == expected, lemma
+
+    def test_output_guard_rejects_dominant_other_lemma(self):
+        from synterr.languages.russian.errors.morphological import (
+            _is_dominant_lemma_reading,
+        )
+
+        assert _is_dominant_lemma_reading("поле", "пол") is False
+        assert _is_dominant_lemma_reading("лесе", "лес") is True
+
+    @pytest.mark.slow
+    def test_real_backend_polu_does_not_fire(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Кот спит на полу.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "полу")
+        assert handler.can_apply(tokens, idx) is False
+
+    @pytest.mark.slow
+    def test_real_backend_krayu_does_not_fire(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Он живёт на краю деревни.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "краю")
+        assert handler.can_apply(tokens, idx) is False
+
+
+class TestAdjGenderCommonGenderGuardM7:
+    """Audit fix M7/C9: AdjGenderErrorHandler must not fire on common-gender
+    (ms-f) head nouns -- "бедную сироту" is correct Russian for a male
+    referent, so a masc<->fem flip there is not a recoverable error.
+    """
+
+    @staticmethod
+    def _amod_pair(adj_text, adj_features, noun_text, noun_features=None):
+        noun_parse = morph.parse(noun_text)[0]
+        return [
+            AnalyzedToken(
+                text=adj_text,
+                lemma=morph.parse(adj_text)[0].normal_form,
+                pos="ADJ",
+                features=adj_features,
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
+                extra={"pymorphy_parse": morph.parse(adj_text)[0]},
+            ),
+            AnalyzedToken(
+                text=noun_text,
+                lemma=noun_parse.normal_form,
+                pos="NOUN",
+                features=noun_features or {"Case": "Acc", "Number": "Sing"},
+                idx=1,
+                dep_rel="obj",
+                head_idx=None,
+                extra={"pymorphy_parse": noun_parse},
+            ),
+        ]
+
+    def _handler(self):
+        from synterr.languages.russian.errors.morphological import (
+            AdjGenderErrorHandler,
+        )
+
+        return AdjGenderErrorHandler()
+
+    def test_common_gender_head_skipped(self):
+        handler = self._handler()
+        tokens = self._amod_pair(
+            "бедную", {"Case": "Acc", "Number": "Sing", "Gender": "Fem"}, "сироту"
+        )
+        assert "ms-f" in tokens[1].extra["pymorphy_parse"].tag  # sanity
+
+        assert handler.can_apply(tokens, 0) is False
+        sentence = ["бедную", "сироту"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence == ["бедную", "сироту"]
+
+    def test_regular_gender_head_still_fires(self):
+        """Sanity check: the guard is specific to common-gender heads."""
+        handler = self._handler()
+        handler.set_confusion_matrix({"gender": {"Fem": {"Masc": 1.0}}})
+        tokens = self._amod_pair(
+            "красивую",
+            {"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+            "книгу",
+            {"Case": "Acc", "Number": "Sing", "Gender": "Fem", "Animacy": "Inan"},
+        )
+        assert handler.can_apply(tokens, 0) is True
+        sentence = ["красивую", "книгу"]
+        result = handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[0] == "красивый"
+
+    @pytest.mark.slow
+    def test_real_backend_common_gender_skipped(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Он пожалел бедную сироту.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "бедную")
+        assert handler.can_apply(tokens, idx) is False

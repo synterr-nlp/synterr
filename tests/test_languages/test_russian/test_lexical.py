@@ -1,4 +1,5 @@
 import random
+from random import Random
 
 import pymorphy3
 
@@ -679,10 +680,10 @@ class TestConjunctionErrorHandler:
         sentence = ["знаю", "что", "чем", "вопрос", "чтобы"]
         modified = set()
 
-        self.handler.apply(tokens, sentence, 1, modified)
-        self.handler.apply(tokens, sentence, 2, modified)
-        self.handler.apply(tokens, sentence, 3, modified)
-        self.handler.apply(tokens, sentence, 4, modified)
+        self.handler.apply(tokens, sentence, 1, modified, rng=Random(42))
+        self.handler.apply(tokens, sentence, 2, modified, rng=Random(42))
+        self.handler.apply(tokens, sentence, 3, modified, rng=Random(42))
+        self.handler.apply(tokens, sentence, 4, modified, rng=Random(42))
         assert modified == {1, 2, 4}
         assert sentence[1] == "чтобы"  # mood mismatch error
         assert sentence[2] == "как"  # comparative error (directed group)
