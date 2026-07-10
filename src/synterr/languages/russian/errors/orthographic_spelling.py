@@ -298,7 +298,12 @@ class OrthographicSpellingHandler:
         token = tokens[idx]
         if not token.text.isalpha() or len(token.text) < 3:
             return False
+        # All-caps abbreviations (США, ФСБ, ГИБДД...) aren't subject to any
+        # of these spelling rules — skip across the whole handler.
+        if len(token.text) >= 2 and token.text.isupper():
+            return False
         text_lower = token.text.lower()
+        lemma = token.lemma.lower() if token.lemma else text_lower
 
         # Quick checks for any applicable subtype
         if _PRE_PRI_RE.match(text_lower) and len(text_lower) > 4:
@@ -318,13 +323,13 @@ class OrthographicSpellingHandler:
             return True
         if _can_ek_ik(text_lower):
             return True
-        if token.pos in ("VERB", "ADJ") and _has_participle_pattern(text_lower):
+        if token.pos in ("VERB", "ADJ") and _has_participle_pattern(text_lower, lemma):
             return True
         if "ц" in text_lower:
             return True
-        if any(c in text_lower for c in "шщжч"):
+        if token.pos != "PROPN" and any(c in text_lower for c in "шщжч"):
             return True
-        if token.pos == "ADJ" and _can_nn_swap(text_lower):
+        if token.pos == "ADJ" and _can_nn_swap(text_lower, lemma):
             return True
         return _can_adj_ending_swap(tokens, idx)
 
@@ -340,6 +345,7 @@ class OrthographicSpellingHandler:
         token = tokens[idx]
         word = sentence[idx]
         text_lower = word.lower()
+        lemma = token.lemma.lower() if token.lemma else text_lower
 
         # Collect applicable subtypes
         candidates: list[tuple[str, float]] = []
@@ -364,21 +370,21 @@ class OrthographicSpellingHandler:
         if _can_ek_ik(text_lower):
             candidates.append(("suffix_ek_ik", self._weights["suffix_ek_ik"]))
 
-        if token.pos in ("VERB", "ADJ") and _has_participle_pattern(text_lower):
+        if token.pos in ("VERB", "ADJ") and _has_participle_pattern(text_lower, lemma):
             candidates.append(("participle_suffix", self._weights["participle_suffix"]))
 
         if _can_ts_vowel(text_lower):
             candidates.append(("vowel_after_ts", self._weights["vowel_after_ts"]))
 
-        if _can_sibilant_vowel(text_lower):
+        if token.pos != "PROPN" and _can_sibilant_vowel(text_lower):
             candidates.append(
                 ("vowel_after_sibilant", self._weights["vowel_after_sibilant"])
             )
 
-        if token.pos == "ADJ" and _can_nn_swap(text_lower):
+        if token.pos == "ADJ" and _can_nn_swap(text_lower, lemma):
             candidates.append(("nn_suffix", self._weights["nn_suffix"]))
 
-        if _can_root_ts_vowel(text_lower):
+        if token.pos != "PROPN" and _can_root_ts_vowel(text_lower):
             candidates.append(
                 (
                     "root_vowel_after_sibilant",
@@ -406,7 +412,6 @@ class OrthographicSpellingHandler:
 
         # Look up stress: try exact form first, then lemma
         analyzer = self.analyzer
-        lemma = token.lemma.lower() if token.lemma else text_lower
         stress_pos = analyzer.get_stress(text_lower)
         if stress_pos < 0:
             stress_pos = analyzer.get_stress(lemma)
@@ -505,28 +510,66 @@ _PARTICIPLE_ENDING_RE = re.compile(
 )
 
 
-def _has_participle_pattern(text_lower: str) -> bool:
-    if not _PARTICIPLE_ENDING_RE.search(text_lower):
+def _is_suffix_boundary(
+    text_lower: str,
+    pos: int,
+    lemma: str | None,
+    analyzer: MorphemeAnalyzer | None = None,
+) -> bool:
+    """True if char position `pos` is confirmed NOT root/prefix-internal —
+    i.e. a legitimate suffix/ending edit site — via morpheme dict lookup
+    (surface first, lemma fallback, mirroring ``_swap_pre_pri``'s pattern).
+
+    Unverifiable positions (no morpheme data via either surface or lemma)
+    return False: precision-first, skip > wrong edit. This is what makes
+    the old "unknown word — allow" bypass into a skip.
+
+    Callers with a multi-char match span (participle suffixes, нн/ан/ян/ин)
+    should pass the position of the *last* character of that span, not the
+    first. Root-final-consonant + single-consonant-suffix words (данный =
+    да-ROOT + нн-SUFF; чугунный = чугун-ROOT + н-SUFF) place the *first*
+    character of the doubled/vowel-led span on the root side even though
+    the span as a whole is a legitimate suffix target — checking the last
+    character (which Tikhonov consistently places in the SUFF/END morpheme
+    for these families) avoids rejecting them.
+    """
+    analyzer = analyzer or get_morpheme_analyzer()
+    lemma_lower = lemma.lower() if lemma else None
+    has_data = analyzer.get_morphemes(text_lower) is not None or (
+        lemma_lower is not None and analyzer.get_morphemes(lemma_lower) is not None
+    )
+    if not has_data:
         return False
-    # Verify via morpheme dict: the matched suffix must be a real suffix
-    analyzer = get_morpheme_analyzer()
-    suffixes = analyzer.get_suffixes(text_lower)
-    if suffixes is None:
-        return True  # Unknown word — allow (could be a rare participle)
-    # Check if any participle suffix is present in the morpheme analysis
-    participle_suffixes = {
-        "ущ",
-        "ющ",
-        "ащ",
-        "ящ",
-        "ем",
-        "им",
-        "енн",
-        "янн",
-        "анн",
-        "нн",
-    }
-    return bool(participle_suffixes & set(suffixes))
+    in_root = analyzer.char_in_morpheme_type(text_lower, pos, "ROOT", lemma_lower)
+    in_pref = analyzer.char_in_morpheme_type(text_lower, pos, "PREF", lemma_lower)
+    return in_root is not True and in_pref is not True
+
+
+def _participle_match(text_lower: str) -> tuple[int, str] | None:
+    """Locate the exact terminal participle-suffix span via the anchored
+    ending regex. Returns (start_index, matched_suffix_text) or None.
+
+    Using the anchored match's own group span (rather than re-searching the
+    word with ``str.find``) is what prevents picking up a root-internal
+    lookalike — e.g. the "ущ" inside "Ущемляющий" (root у-щемл-) instead of
+    the real "ющ" suffix right before the "ий" ending.
+    """
+    m = _PARTICIPLE_ENDING_RE.search(text_lower)
+    if not m:
+        return None
+    for group_idx in (1, 4, 6):
+        matched = m.group(group_idx)
+        if matched is not None:
+            return (m.start(group_idx), matched)
+    return None
+
+
+def _has_participle_pattern(text_lower: str, lemma: str | None = None) -> bool:
+    match = _participle_match(text_lower)
+    if match is None:
+        return False
+    start, matched_suffix = match
+    return _is_suffix_boundary(text_lower, start + len(matched_suffix) - 1, lemma)
 
 
 # =============================================================================
@@ -569,7 +612,7 @@ def _apply_subtype(
     if subtype == "pre_pri":
         return _swap_pre_pri(word, text_lower, lemma)
     elif subtype == "y_i_after_prefix":
-        return _swap_yi_prefix(word, text_lower)
+        return _swap_yi_prefix(word, text_lower, lemma)
     elif subtype == "suffix_enk_onk":
         return _swap_enk_onk(word, text_lower)
     elif subtype == "suffix_insk_ensk":
@@ -579,7 +622,7 @@ def _apply_subtype(
     elif subtype == "suffix_ek_ik":
         return _swap_ek_ik(word, text_lower)
     elif subtype == "participle_suffix":
-        return _swap_participle(word, text_lower)
+        return _swap_participle(word, text_lower, lemma)
     elif subtype == "vowel_after_ts":
         return _swap_ts_vowel(word, text_lower, stressed_syllable, analyzer, lemma)
     elif subtype == "vowel_after_sibilant":
@@ -587,7 +630,7 @@ def _apply_subtype(
             word, text_lower, stressed_syllable, analyzer, lemma
         )
     elif subtype == "nn_suffix":
-        return _swap_nn(word, text_lower)
+        return _swap_nn(word, text_lower, lemma)
     elif subtype == "root_vowel_after_sibilant":
         return _swap_root_ts_vowel(word, text_lower, analyzer, lemma)
     elif subtype == "adj_ending_vowel":
@@ -623,9 +666,19 @@ def _swap_pre_pri(word: str, text_lower: str, lemma: str | None = None) -> str |
     return new_prefix + word[3:]
 
 
-def _swap_yi_prefix(word: str, text_lower: str) -> str | None:
-    """Swap и↔ы after prefix boundary — verified via morpheme dict."""
+def _swap_yi_prefix(word: str, text_lower: str, lemma: str | None = None) -> str | None:
+    """Swap и↔ы after prefix boundary — verified via morpheme dict, with a
+    lemma fallback for inflected surfaces (mirrors ``_swap_pre_pri``).
+
+    Requires ``has_prefix`` to resolve True on the surface or, failing
+    that, the lemma — anything else (False, or still unverified/None on
+    both) is skipped. Previously, an unverified ("None") result was only
+    rejected for prefixes of 2 chars or less, letting longer "prefixes"
+    through unchecked (политическому → политыческому, where "полит" is
+    actually the ROOT of "политический", not a prefix at all).
+    """
     analyzer = get_morpheme_analyzer()
+    lemma_lower = lemma.lower() if lemma else None
     for pfx in sorted(_ALL_PREFIXES_YI, key=len, reverse=True):
         if text_lower.startswith(pfx) and len(text_lower) > len(pfx):
             pos = len(pfx)
@@ -635,10 +688,10 @@ def _swap_yi_prefix(word: str, text_lower: str) -> str | None:
                 continue
             # Verify this is a real prefix, not part of the root
             has_pfx = analyzer.has_prefix(text_lower, pfx)
-            if has_pfx is False:
-                continue  # Not a prefix (сирень, обида)
-            if has_pfx is None and len(pfx) <= 2:
-                continue  # Short prefix (с, об, из) on unknown word — too risky
+            if has_pfx is None and lemma_lower and lemma_lower != text_lower:
+                has_pfx = analyzer.has_prefix(lemma_lower, pfx)
+            if has_pfx is not True:
+                continue  # Not confirmed as a real prefix — skip
             if char_lower == "и":
                 new_char = "Ы" if char.isupper() else "ы"
             else:
@@ -734,18 +787,36 @@ def _swap_ek_ik(word: str, text_lower: str) -> str | None:
     return word[:pos] + new_vowel + word[pos + 1 :]
 
 
-def _swap_participle(word: str, text_lower: str) -> str | None:
-    """Swap conjugation-dependent participle suffix vowels."""
-    for orig, target in _PARTICIPLE_SWAPS:
-        idx = text_lower.find(orig)
-        if idx >= 0:
-            # Build replacement preserving case
-            replacement = ""
-            for j, ch in enumerate(target):
-                src_ch = word[idx + j] if idx + j < len(word) else ch
-                replacement += ch.upper() if src_ch.isupper() else ch
-            return word[:idx] + replacement + word[idx + len(orig) :]
-    return None
+def _swap_participle(
+    word: str, text_lower: str, lemma: str | None = None
+) -> str | None:
+    """Swap conjugation-dependent participle suffix vowels.
+
+    Locates the suffix via the anchored terminal regex (``_participle_match``)
+    rather than a blind ``str.find`` — that was the bug: find() returns the
+    *first* textual occurrence, which can be root-internal (Ущемляющий →
+    Ащемляющий edited the root-initial "ущ", not the real "ющ" suffix near
+    the end; приемлемый → приимлемый edited the root-final "ем" instead of
+    the suffix "ем"). The matched span is then confirmed via the morpheme
+    dict (surface first, lemma fallback) to not be root/prefix-internal
+    before editing exactly that span.
+    """
+    match = _participle_match(text_lower)
+    if match is None:
+        return None
+    start, matched_suffix = match
+    if not _is_suffix_boundary(text_lower, start + len(matched_suffix) - 1, lemma):
+        return None
+    target = next(
+        (tgt for orig, tgt in _PARTICIPLE_SWAPS if orig == matched_suffix), None
+    )
+    if target is None:
+        return None
+    replacement = ""
+    for j, ch in enumerate(target):
+        src_ch = word[start + j] if start + j < len(word) else ch
+        replacement += ch.upper() if src_ch.isupper() else ch
+    return word[:start] + replacement + word[start + len(matched_suffix) :]
 
 
 def _swap_ts_vowel(
@@ -835,56 +906,63 @@ def _swap_sibilant_vowel(
     return None
 
 
-def _can_nn_swap(text_lower: str) -> bool:
-    """Check if word has нн that can be reduced or н that can be doubled."""
+def _can_nn_swap(text_lower: str, lemma: str | None = None) -> bool:
+    """Check if word has нн that can be reduced or н that can be doubled.
+
+    Both directions require the matched н/нн to sit at a confirmed
+    suffix/root boundary (via morpheme dict, lemma fallback) — not
+    root-internal, as in "тоннель" (нн is part of the loanword root) or
+    "алюмин" (root-internal "ин", not the "-ин-" adjectival suffix).
+    """
     if text_lower in _SINGLE_N_EXCEPTIONS:
         return False
-    # Has нн → can reduce to н
-    if _NN_RE.search(text_lower):
-        return True
-    # Has suffix pattern with single н → can double
-    return bool(_SINGLE_N_SUFFIX_RE.search(text_lower))
+    for m in _NN_RE.finditer(text_lower):
+        if _is_suffix_boundary(text_lower, m.end() - 1, lemma):
+            return True
+    suffix_m = _SINGLE_N_SUFFIX_RE.search(text_lower)
+    if suffix_m:
+        n_pos = suffix_m.start() + len(suffix_m.group(1)) - 1
+        if _is_suffix_boundary(text_lower, n_pos, lemma):
+            return True
+    return False
 
 
-def _swap_nn(word: str, text_lower: str) -> str | None:
+def _swap_nn(word: str, text_lower: str, lemma: str | None = None) -> str | None:
     """Swap н↔нн in adjective suffix.
 
     Direction 1 (67%): нн→н (государственный → государственый)
     Direction 2 (33%): н→нн (кожаный → кожанный)
-    """
-    analyzer = get_morpheme_analyzer()
 
-    # Direction 1: reduce нн→н
-    m = _NN_RE.search(text_lower)
-    if m:
+    Each candidate position is confirmed via the morpheme dict (surface
+    first, lemma fallback) to sit at a suffix/root or suffix/suffix
+    boundary before being edited — this rejects root-internal нн
+    (тоннельный → тонельный edited the root "тоннель") and root-internal
+    ан/ян/ин (алюминиевый → алюминниевый doubled inside the root "алюмин").
+    """
+    # Direction 1: reduce нн→н — first boundary-confirmed occurrence.
+    # Boundary check uses the *last* н of the pair — root-final-consonant +
+    # single-consonant-suffix words (данный = да-ROOT + нн-SUFF; чугунный =
+    # чугун-ROOT + н-SUFF) place the first н on the root side even though
+    # the pair as a whole is a legitimate suffix target.
+    for m in _NN_RE.finditer(text_lower):
         pos = m.start()
-        # Verify via morpheme dict that нн is in a suffix (not root)
-        suffixes = analyzer.get_suffixes(text_lower)
-        if suffixes is not None:
-            has_nn_suffix = any("нн" in s or s == "н" for s in suffixes)
-            if not has_nn_suffix:
-                # нн might be at morpheme boundary (root-н + suffix-н)
-                # Still a valid target for corruption
-                pass
-        # Remove one н
+        if not _is_suffix_boundary(text_lower, m.end() - 1, lemma):
+            continue
         corrupted = word[:pos] + word[pos + 1 :]
         if corrupted != word:
             return corrupted
 
     # Direction 2: double н→нн
-    suffix_m = _SINGLE_N_SUFFIX_RE.search(text_lower)
-    if suffix_m:
-        # Don't double exception words
-        if text_lower in _SINGLE_N_EXCEPTIONS:
-            return None
-        # Find the single н in the suffix and double it
-        suffix_start = suffix_m.start()
-        suffix_text = suffix_m.group(1)  # "ан", "ян", or "ин"
-        # The н is at suffix_start + len(suffix_text) - 1
-        n_pos = suffix_start + len(suffix_text) - 1
-        corrupted = word[: n_pos + 1] + "н" + word[n_pos + 1 :]
-        if corrupted != word:
-            return corrupted
+    if text_lower not in _SINGLE_N_EXCEPTIONS:
+        suffix_m = _SINGLE_N_SUFFIX_RE.search(text_lower)
+        if suffix_m:
+            suffix_text = suffix_m.group(1)  # "ан", "ян", or "ин"
+            # The н is at suffix_start + len(suffix_text) - 1
+            n_pos = suffix_m.start() + len(suffix_text) - 1
+            if _is_suffix_boundary(text_lower, n_pos, lemma):
+                corrupted = word[: n_pos + 1] + "н" + word[n_pos + 1 :]
+                if corrupted != word:
+                    return corrupted
 
     return None
 

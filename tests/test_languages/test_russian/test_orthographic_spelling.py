@@ -95,36 +95,90 @@ class TestPrePri:
 
 
 class TestYiAfterPrefix:
-    """ы/и after consonant-ending prefix."""
+    """ы/и after consonant-ending prefix.
+
+    Audit fix O3: has_prefix must resolve True (surface, or lemma fallback)
+    before swapping — previously an unverified ("None") result was only
+    rejected for prefixes of 2 chars or less, so longer "prefixes" (полит-,
+    сверх-...) passed through unverified. Words below are chosen so the
+    prefix is actually confirmed via the unified morpheme dict (surface
+    directly, or via an explicit lemma — mirroring how pre_pri's lemma
+    fallback is tested).
+    """
 
     def test_i_to_y_russian_prefix(self):
+        """без- (Russian prefix) is dict-confirmed directly on the surface."""
         h = _force_subtype("y_i_after_prefix")
-        tokens = [_tok("безинициативных", pos="ADJ")]
-        sentence = ["безинициативных"]
+        tokens = [_tok("безызвестный", pos="ADJ")]
+        sentence = ["безызвестный"]
         h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "безынициативных"
+        assert sentence[0] == "безизвестный"
+
+    def test_i_to_y_russian_prefix_lemma_fallback(self):
+        """Misspelled surface (и) is OOV; the correctly-spelled lemma (ы)
+        confirms без- as a real prefix, mirroring pre_pri's lemma fallback."""
+        h = _force_subtype("y_i_after_prefix")
+        tokens = [_tok("безизвестный", pos="ADJ", lemma="безызвестный")]
+        sentence = ["безизвестный"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "безызвестный"
 
     def test_y_to_i_foreign_prefix(self):
+        """дез- (foreign prefix) is dict-confirmed directly on the surface."""
         h = _force_subtype("y_i_after_prefix")
-        tokens = [_tok("трансыранский", pos="ADJ")]
-        sentence = ["трансыранский"]
+        tokens = [_tok("дезинфекция", pos="NOUN")]
+        sentence = ["дезинфекция"]
         h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "трансиранский"
+        assert sentence[0] == "дезынфекция"
 
-    def test_sverkh_keeps_i(self):
-        """сверх- is exception: и stays. Error = using ы."""
+    def test_y_to_i_foreign_prefix_kontr(self):
         h = _force_subtype("y_i_after_prefix")
-        tokens = [_tok("сверхындустриализации")]
-        sentence = ["сверхындустриализации"]
+        tokens = [_tok("контригра", pos="NOUN")]
+        sentence = ["контригра"]
         h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        assert sentence[0] == "сверхиндустриализации"
+        assert sentence[0] == "контрыгра"
 
-    def test_podytog(self):
+    def test_podytog_lemma_fallback(self):
+        """The inflected surface is OOV; the infinitive lemma подытожить
+        confirms под- as a real prefix (LoRuGEC-style inflected form)."""
         h = _force_subtype("y_i_after_prefix")
-        tokens = [_tok("подитожила", pos="VERB")]
+        tokens = [_tok("подитожила", pos="VERB", lemma="подытожить")]
         sentence = ["подитожила"]
-        h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
         assert sentence[0] == "подытожила"
+
+    def test_sverkh_unverifiable_now_skipped(self):
+        """сверх- has no и-initial-root entries at all in the morpheme
+        dict (neither surface nor lemma), so it can no longer be verified
+        — this now skips instead of guessing (was previously "fixed" only
+        because sверх (5 chars) fell through the old len(pfx)<=2 escape
+        hatch unverified)."""
+        h = _force_subtype("y_i_after_prefix")
+        tokens = [
+            _tok(
+                "сверхындустриализации",
+                pos="NOUN",
+                lemma="сверхындустриализация",
+            )
+        ]
+        sentence = ["сверхындустриализации"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "сверхындустриализации"
+
+    def test_politicheskomu_not_mangled(self):
+        """Audit bug: "полит" in политическому/-ий is the ROOT of
+        политический (per Tikhonov), not a real prefix — has_prefix on the
+        lemma correctly resolves False, so this must be skipped rather
+        than corrupted into "политыческому"."""
+        h = _force_subtype("y_i_after_prefix")
+        tokens = [_tok("политическому", pos="ADJ", lemma="политический")]
+        sentence = ["политическому"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "политическому"
 
 
 class TestSuffixEnkOnk:
@@ -231,12 +285,23 @@ class TestSuffixEkIk:
 
 
 class TestParticipleSuffix:
-    """Conjugation-dependent participle suffix swaps."""
+    """Conjugation-dependent participle suffix swaps.
+
+    Audit fix O1: the suffix span is now located via the anchored terminal
+    regex (not a blind ``str.find``, which could hit a root-internal
+    lookalike) and confirmed via the morpheme dict — surface first, then
+    the lemma, mirroring pre_pri's lemma fallback. Tikhonov's dictionary
+    covers word *formation*, not participle inflection, so live participle
+    surfaces (борющийся, дышащий...) are themselves always OOV; the
+    infinitive lemma is what actually resolves the check (it shares the
+    same PREF+ROOT region as the participle). Tokens below carry that
+    realistic lemma explicitly, exactly as the real stanza-backed pipeline
+    would for a VERB-tagged participle.
+    """
 
     def test_ushch_to_ashch(self):
         h = _force_subtype("participle_suffix")
-        # борющийся has -ющ- suffix in morpheme dict
-        tokens = [_tok("борющийся", pos="ADJ")]
+        tokens = [_tok("борющийся", pos="ADJ", lemma="бороться")]
         sentence = ["борющийся"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is not None
@@ -244,7 +309,7 @@ class TestParticipleSuffix:
 
     def test_ashch_to_ushch(self):
         h = _force_subtype("participle_suffix")
-        tokens = [_tok("дышащий", pos="ADJ")]
+        tokens = [_tok("дышащий", pos="ADJ", lemma="дышать")]
         sentence = ["дышащий"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is not None
@@ -252,28 +317,137 @@ class TestParticipleSuffix:
 
     def test_em_to_im(self):
         h = _force_subtype("participle_suffix")
-        tokens = [_tok("изучаемого", pos="ADJ")]
+        tokens = [_tok("изучаемого", pos="ADJ", lemma="изучать")]
         sentence = ["изучаемого"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        # May be None if morpheme dict doesn't match, or swap ем→им
-        if result is not None:
-            assert sentence[0] == "изучаимого"
+        assert result is not None
+        assert sentence[0] == "изучаимого"
 
     def test_im_to_em(self):
+        """зависимый is directly in the morpheme dict as its own lemma —
+        no lemma fallback needed."""
         h = _force_subtype("participle_suffix")
         tokens = [_tok("зависимый", pos="ADJ")]
         sentence = ["зависимый"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        if result is not None:
-            assert sentence[0] == "зависемый"
+        assert result is not None
+        assert sentence[0] == "зависемый"
 
     def test_yushch_to_yashch(self):
         h = _force_subtype("participle_suffix")
-        tokens = [_tok("колющей", pos="ADJ")]
+        tokens = [_tok("колющей", pos="ADJ", lemma="колоть")]
         sentence = ["колющей"]
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
-        if result is not None:
-            assert sentence[0] == "колящей"
+        assert result is not None
+        assert sentence[0] == "колящей"
+
+    def test_unverifiable_participle_skipped(self):
+        """No dict data at all (surface OOV, lemma also OOV/absent) —
+        must skip rather than fall back to the old "unknown word — allow"
+        bypass."""
+        h = _force_subtype("participle_suffix")
+        tokens = [_tok("бренчащий", pos="ADJ", lemma="бренчащий")]
+        sentence = ["бренчащий"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "бренчащий"
+
+    def test_ushchemlyayushchiy_not_mangled(self):
+        """Audit bug B2: a blind textual find() for "ущ" hit the
+        root-initial "ущ" of "Ущемляющий" (root у-щемл-) instead of the
+        real "ющ" suffix right before the "ий" ending. The anchored
+        terminal regex must locate the real suffix and swap only that."""
+        h = _force_subtype("participle_suffix")
+        tokens = [_tok("Ущемляющий", pos="VERB", lemma="ущемлять")]
+        sentence = ["Ущемляющий"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "Ущемляящий"
+
+    def test_priemlemyy_not_mangled(self):
+        """Audit bug B2: find() hit the root-final "ем" inside "приемл"
+        instead of the real suffix "ем" right before "ый"."""
+        h = _force_subtype("participle_suffix")
+        tokens = [_tok("приемлемый", pos="ADJ")]
+        sentence = ["приемлемый"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "приемлимый"
+
+    def test_nepримirimykh_not_mangled(self):
+        """Audit bug B2 (lenta): find() hit "им" spanning the при-/мир-
+        prefix/root boundary instead of the real suffix "им" before "ых"."""
+        h = _force_subtype("participle_suffix")
+        tokens = [_tok("непримиримых", pos="ADJ", lemma="непримиримый")]
+        sentence = ["непримиримых"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "непримиремых"
+
+
+class TestNNSuffix:
+    """н/нн in adjective suffixes.
+
+    Audit fix O2: the н/нн position is now confirmed via the morpheme dict
+    (surface first, lemma fallback) to sit at a root/suffix boundary
+    before editing — not just "some нн/ан/ян/ин exists somewhere in the
+    word" (which picked up root-internal doubles/sequences).
+    """
+
+    def test_nn_to_n_gosudarstvenny(self):
+        h = _force_subtype("nn_suffix")
+        tokens = [_tok("государственный", pos="ADJ")]
+        sentence = ["государственный"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "государственый"
+
+    def test_nn_to_n_gosudarstvennogo_oblique(self):
+        """Genitive form — surface OOV, verified via the lemma fallback."""
+        h = _force_subtype("nn_suffix")
+        tokens = [_tok("государственного", pos="ADJ", lemma="государственный")]
+        sentence = ["государственного"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "государственого"
+
+    def test_n_to_nn_kozhanyy(self):
+        h = _force_subtype("nn_suffix")
+        tokens = [_tok("кожаный", pos="ADJ")]
+        sentence = ["кожаный"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == "кожанный"
+
+    def test_yaltinskiy_still_fires(self):
+        """-инск- (SUFF at a confirmed root boundary) is a valid doubling
+        target — preserves the existing TestEnabledSubtypes coverage."""
+        h = _force_subtype("nn_suffix")
+        tokens = [_tok("ялтинский", pos="ADJ")]
+        sentence = ["ялтинский"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is not None
+
+    def test_tonnelnyy_not_mangled(self):
+        """Audit bug B3: "нн" in тоннельный is entirely root-internal (the
+        loanword root "тоннель") — the real suffix is a single "н". No
+        genuine нн/ан/ян/ин target exists, so this must be skipped."""
+        h = _force_subtype("nn_suffix")
+        tokens = [_tok("тоннельный", pos="ADJ")]
+        sentence = ["тоннельный"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "тоннельный"
+
+    def test_alyuminievyy_not_mangled(self):
+        """Audit bug B3: "ин" in алюминиевый is root-internal (root
+        "алюмин"), not the -ин- adjectival suffix — must be skipped."""
+        h = _force_subtype("nn_suffix")
+        tokens = [_tok("алюминиевый", pos="ADJ")]
+        sentence = ["алюминиевый"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "алюминиевый"
 
 
 class TestVowelAfterTs:
@@ -335,6 +509,17 @@ class TestVowelAfterSibilant:
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is not None
         assert sentence[0] == "щотка"
+
+    def test_propn_surname_not_swapped(self):
+        """Audit bug B8 (ortho scope): Шолохов is a surname whose spelling
+        is lexicalized — Шолохов → Шёлохов is not a real spelling error.
+        PROPN tokens must be excluded from this subtype."""
+        h = _force_subtype("vowel_after_sibilant")
+        tokens = [_tok("Шолохов", pos="PROPN")]
+        sentence = ["Шолохов"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "Шолохов"
 
 
 class TestRootVowelAfterSibilant:
@@ -450,6 +635,17 @@ class TestRootVowelAfterSibilant:
         result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
         assert result is None
         assert sentence[0] == "цирк"
+
+    def test_propn_not_swapped(self):
+        """Audit bug B8 (ortho scope): PROPN tokens are excluded from this
+        subtype too — a ц+и/ы root pattern in a proper noun is lexicalized,
+        not a spelling error candidate."""
+        h = _force_subtype("root_vowel_after_sibilant")
+        tokens = [_tok("Цирк", pos="PROPN")]
+        sentence = ["Цирк"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(42))
+        assert result is None
+        assert sentence[0] == "Цирк"
 
 
 class TestAdjEndingVowel:
@@ -572,6 +768,18 @@ class TestCanApplyEdgeCases:
 
     def test_short_word_rejected(self):
         tokens = [_tok("да", pos="PART")]
+        assert not self.handler.can_apply(tokens, 0)
+
+    def test_allcaps_abbreviation_rejected(self):
+        """Audit fix O4: all-caps abbreviations (США, ФСБ, ГИБДД...) are
+        skipped across the whole handler, not just individual subtypes."""
+        tokens = [_tok("США", pos="PROPN")]
+        assert not self.handler.can_apply(tokens, 0)
+
+    def test_allcaps_abbreviation_with_nn_rejected(self):
+        """ИНН contains "НН" — without the abbreviation gate this could
+        tempt nn_suffix's textual candidacy check."""
+        tokens = [_tok("ИНН", pos="PROPN")]
         assert not self.handler.can_apply(tokens, 0)
 
 
