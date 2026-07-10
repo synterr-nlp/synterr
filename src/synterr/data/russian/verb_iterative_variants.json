@@ -3,42 +3,81 @@
     "description": "Closed set of imperfective -ивать/-ывать verbs with a contested root-vowel alternation (Rozental §172.2). Two sub-families, both folded into one lexicon keyed by the standard (norm) infinitive with the corruption always going norm -> marked: (1) 'o_exception' — verbs that RESIST the otherwise-productive o->a alternation (обусловливать, узаконивать, ...); keeping the root 'o' is the prescriptive norm, and the colloquial/journalistic overgeneralization to 'a' (обуславливать) is the marked variant. (2) 'a_regular' — verbs where the o->a alternation IS the prescriptive norm (затрагивать, опаздывать, ...); FAILING to alternate (keeping 'o': затрогивать, опоздывать) is the hypercorrected/marked error. Each pair differs from its norm at exactly one character position (verified at load time); that position is a fixed offset from the start of the word and holds across the verb's entire paradigm (conjugated forms, participles, gerunds), since prefixes/roots never shift and only material after the alternating vowel varies with inflection. A subset of the transitive lexemes is frequently used reflexively (сосредоточиваться, затрагиваться, оспариваться, устраиваться, осваиваться, приурочиваться, застраиваться, удваиваться, утраиваться, удостаиваться, обеспокоиваться, озабочиваться); stanza lemmatizes those tokens under the -ся form, which is a different dictionary string than the transitive infinitive, so each is listed as its own lexicon entry rather than being derived from the transitive pair.",
     "source": "manual curation cross-checked against pymorphy3 (dictionary entries and/or KnownSuffixAnalyzer heuristic recognition for both the norm and marked infinitive)",
     "rozental_paragraph": "172.2",
-    "version": "1.0"
+    "version": "1.0",
+    "note": "Pruned 2026-07-07 (audit): the o_exception family (обуславливать, сосредотачивать...) consists of accepted modern variants (gramota) — corrupting to them creates no error. Only a_regular hypercorrections (затрогивать, освоивать, устроивать...) are genuine errors."
   },
   "lexemes": {
-    "обусловливать": {"marked": "обуславливать", "family": "o_exception"},
-    "сосредоточивать": {"marked": "сосредотачивать", "family": "o_exception"},
-    "подытоживать": {"marked": "подытаживать", "family": "o_exception"},
-    "узаконивать": {"marked": "узаканивать", "family": "o_exception"},
-    "уполномочивать": {"marked": "уполномачивать", "family": "o_exception"},
-    "опорочивать": {"marked": "опорачивать", "family": "o_exception"},
-    "приурочивать": {"marked": "приурачивать", "family": "o_exception"},
-    "озабочивать": {"marked": "озабачивать", "family": "o_exception"},
-    "обеспокоивать": {"marked": "обеспокаивать", "family": "o_exception"},
-    "приохочивать": {"marked": "приохачивать", "family": "o_exception"},
-    "обезболивать": {"marked": "обезбаливать", "family": "o_exception"},
-    "отсрочивать": {"marked": "отсрачивать", "family": "o_exception"},
-    "затрагивать": {"marked": "затрогивать", "family": "a_regular"},
-    "осваивать": {"marked": "освоивать", "family": "a_regular"},
-    "оспаривать": {"marked": "оспоривать", "family": "a_regular"},
-    "усваивать": {"marked": "усвоивать", "family": "a_regular"},
-    "удваивать": {"marked": "удвоивать", "family": "a_regular"},
-    "утраивать": {"marked": "утроивать", "family": "a_regular"},
-    "устраивать": {"marked": "устроивать", "family": "a_regular"},
-    "застраивать": {"marked": "застроивать", "family": "a_regular"},
-    "удостаивать": {"marked": "удостоивать", "family": "a_regular"},
-    "опаздывать": {"marked": "опоздывать", "family": "a_regular"},
-    "сосредоточиваться": {"marked": "сосредотачиваться", "family": "o_exception"},
-    "приурочиваться": {"marked": "приурачиваться", "family": "o_exception"},
-    "обеспокоиваться": {"marked": "обеспокаиваться", "family": "o_exception"},
-    "озабочиваться": {"marked": "озабачиваться", "family": "o_exception"},
-    "затрагиваться": {"marked": "затрогиваться", "family": "a_regular"},
-    "оспариваться": {"marked": "оспориваться", "family": "a_regular"},
-    "осваиваться": {"marked": "освоиваться", "family": "a_regular"},
-    "устраиваться": {"marked": "устроиваться", "family": "a_regular"},
-    "застраиваться": {"marked": "застроиваться", "family": "a_regular"},
-    "удваиваться": {"marked": "удвоиваться", "family": "a_regular"},
-    "утраиваться": {"marked": "утроиваться", "family": "a_regular"},
-    "удостаиваться": {"marked": "удостоиваться", "family": "a_regular"}
+    "затрагивать": {
+      "marked": "затрогивать",
+      "family": "a_regular"
+    },
+    "осваивать": {
+      "marked": "освоивать",
+      "family": "a_regular"
+    },
+    "оспаривать": {
+      "marked": "оспоривать",
+      "family": "a_regular"
+    },
+    "усваивать": {
+      "marked": "усвоивать",
+      "family": "a_regular"
+    },
+    "удваивать": {
+      "marked": "удвоивать",
+      "family": "a_regular"
+    },
+    "утраивать": {
+      "marked": "утроивать",
+      "family": "a_regular"
+    },
+    "устраивать": {
+      "marked": "устроивать",
+      "family": "a_regular"
+    },
+    "застраивать": {
+      "marked": "застроивать",
+      "family": "a_regular"
+    },
+    "удостаивать": {
+      "marked": "удостоивать",
+      "family": "a_regular"
+    },
+    "опаздывать": {
+      "marked": "опоздывать",
+      "family": "a_regular"
+    },
+    "затрагиваться": {
+      "marked": "затрогиваться",
+      "family": "a_regular"
+    },
+    "оспариваться": {
+      "marked": "оспориваться",
+      "family": "a_regular"
+    },
+    "осваиваться": {
+      "marked": "освоиваться",
+      "family": "a_regular"
+    },
+    "устраиваться": {
+      "marked": "устроиваться",
+      "family": "a_regular"
+    },
+    "застраиваться": {
+      "marked": "застроиваться",
+      "family": "a_regular"
+    },
+    "удваиваться": {
+      "marked": "удвоиваться",
+      "family": "a_regular"
+    },
+    "утраиваться": {
+      "marked": "утроиваться",
+      "family": "a_regular"
+    },
+    "удостаиваться": {
+      "marked": "удостоиваться",
+      "family": "a_regular"
+    }
   }
 }

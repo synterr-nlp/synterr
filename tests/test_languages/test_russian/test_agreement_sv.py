@@ -625,8 +625,11 @@ class TestAgrSvCompound:
         tokens = [subj, verb]
         assert handler.can_apply(tokens, 1) is False
 
-    def test_comitative_pl_to_sg_fires(self):
-        """«Брат с сестрой пришли» -> «...пришёл» (collapses to nom subject)."""
+    def test_comitative_does_not_fire(self):
+        """§186 licenses BOTH agreements for comitative subjects («Брат с
+        сестрой пришли») -- the collapse-to-singular branch was REMOVED
+        (audit, 2026-07-07) because it produced correct Russian, not an
+        error. Regression test: this shape must never trigger the handler."""
         handler = AgrSvCompoundErrorHandler()
         subj = _plain_token(
             "Брат",
@@ -657,15 +660,12 @@ class TestAgrSvCompound:
             parse=morph.parse("пришли")[1],
         )
         tokens = [subj, marker, companion, verb]
-        assert handler.can_apply(tokens, 3) is True
+        assert handler.can_apply(tokens, 3) is False
 
         sentence = [t.text for t in tokens]
         result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
-        assert result is not None
-        assert result.fix_tag == "$TRANSFORM_NUMBER_Plur"
-        # "пришли" (the original surface form) has no ё, so inflect_word's
-        # ё->е normalization applies to the corrupted form too.
-        assert sentence[3] == "пришел"
+        assert result is None
+        assert sentence[3] == "пришли"
 
     def test_comitative_already_singular_blocks(self):
         handler = AgrSvCompoundErrorHandler()

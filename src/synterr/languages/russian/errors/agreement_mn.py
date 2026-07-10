@@ -179,6 +179,11 @@ class AgrMnAppositionErrorHandler:
         lemma = (token.lemma or token.text).lower()
         if lemma.endswith("о"):
             return False
+        # Compound toponyms (Усть-Джегута, Южно-Сахалинск) mostly resist
+        # declension per §196, and per-segment capitalization does not
+        # survive inflection round-trips — skip them (audit, 2026-07-07).
+        if "-" in token.text:
+            return False
         if _has_any_dependent(tokens, idx):
             return False
         parse = _get_pymorphy_parse(token)
@@ -191,7 +196,7 @@ class AgrMnAppositionErrorHandler:
             return False
         word = token.text
         nomn_form = inflect_word(parse, {"nomn"}, word)
-        if not nomn_form or nomn_form == word:
+        if not nomn_form or nomn_form.lower() == word.lower():
             return False
         return True
 
@@ -210,7 +215,7 @@ class AgrMnAppositionErrorHandler:
             return None
 
         new_word = inflect_word(parse, {"nomn"}, word)
-        if not new_word or new_word == word:
+        if not new_word or new_word.lower() == word.lower():
             return None
 
         sentence[idx] = new_word
@@ -299,6 +304,14 @@ class AgrMnCompoundTermErrorHandler:
             token.text
         ):
             return False
+        # The three-token NOUN "-" NOUN shape also matches an explanatory
+        # dash typed as ASCII hyphen («работе - поиску пострадавших»), which
+        # is not a §197 compound. Require the fused surface to be a
+        # dictionary-known hyphenated lexeme (вагоне-ресторане ✓); real
+        # compounds missing from the dictionary are skipped — precision
+        # over recall (audit, 2026-07-07).
+        if not analyzer.word_is_known(f"{head.text}-{token.text}"):
+            return False
 
         parse = _get_pymorphy_parse(token)
         if parse is None:
@@ -308,7 +321,7 @@ class AgrMnCompoundTermErrorHandler:
             return False
         word = token.text
         nomn_form = inflect_word(parse, {"nomn"}, word)
-        if not nomn_form or nomn_form == word:
+        if not nomn_form or nomn_form.lower() == word.lower():
             return False
         return True
 

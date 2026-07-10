@@ -3,30 +3,93 @@
     "description": "Closed confusion set of genitive-plural forms (Rozental §154): nouns taking -ов/-ев frequently overgeneralized to a zero ending (апельсинов -> апельсин), and nouns taking a zero ending frequently hypercorrected with -ов (мест -> местов). 'norm' is the standard form the handler looks for; 'error' is the corrupted target. Nouns where both forms are accepted in the standard (e.g. грамм/граммов) are deliberately excluded.",
     "source": "manual curation; classic Rozental gen.pl confusion pairs (носков/чулок)",
     "rozental_paragraph": "154",
-    "version": "1.0"
+    "version": "1.0",
+    "note": "баклажан removed 2026-07-07 (audit): пять баклажан is an accepted variant (gramota), not an error."
   },
   "lexemes": {
-    "апельсин": {"norm": "апельсинов", "error": "апельсин"},
-    "мандарин": {"norm": "мандаринов", "error": "мандарин"},
-    "помидор": {"norm": "помидоров", "error": "помидор"},
-    "носок": {"norm": "носков", "error": "носок"},
-    "баклажан": {"norm": "баклажанов", "error": "баклажан"},
-    "гектар": {"norm": "гектаров", "error": "гектар"},
-    "рельс": {"norm": "рельсов", "error": "рельс"},
-    "место": {"norm": "мест", "error": "местов"},
-    "дело": {"norm": "дел", "error": "делов"},
-    "сапог": {"norm": "сапог", "error": "сапогов"},
-    "чулок": {"norm": "чулок", "error": "чулков"},
-    "ботинок": {"norm": "ботинок", "error": "ботинков"},
-    "погон": {"norm": "погон", "error": "погонов"},
-    "глаз": {"norm": "глаз", "error": "глазов"},
-    "солдат": {"norm": "солдат", "error": "солдатов"},
-    "партизан": {"norm": "партизан", "error": "партизанов"},
-    "грузин": {"norm": "грузин", "error": "грузинов"},
-    "турок": {"norm": "турок", "error": "турков"},
-    "цыган": {"norm": "цыган", "error": "цыганов"},
-    "армянин": {"norm": "армян", "error": "армянов"},
-    "яблоко": {"norm": "яблок", "error": "яблоков"},
-    "полотенце": {"norm": "полотенец", "error": "полотенцев"}
+    "апельсин": {
+      "norm": "апельсинов",
+      "error": "апельсин"
+    },
+    "мандарин": {
+      "norm": "мандаринов",
+      "error": "мандарин"
+    },
+    "помидор": {
+      "norm": "помидоров",
+      "error": "помидор"
+    },
+    "носок": {
+      "norm": "носков",
+      "error": "носок"
+    },
+    "гектар": {
+      "norm": "гектаров",
+      "error": "гектар"
+    },
+    "рельс": {
+      "norm": "рельсов",
+      "error": "рельс"
+    },
+    "место": {
+      "norm": "мест",
+      "error": "местов"
+    },
+    "дело": {
+      "norm": "дел",
+      "error": "делов"
+    },
+    "сапог": {
+      "norm": "сапог",
+      "error": "сапогов"
+    },
+    "чулок": {
+      "norm": "чулок",
+      "error": "чулков"
+    },
+    "ботинок": {
+      "norm": "ботинок",
+      "error": "ботинков"
+    },
+    "погон": {
+      "norm": "погон",
+      "error": "погонов"
+    },
+    "глаз": {
+      "norm": "глаз",
+      "error": "глазов"
+    },
+    "солдат": {
+      "norm": "солдат",
+      "error": "солдатов"
+    },
+    "партизан": {
+      "norm": "партизан",
+      "error": "партизанов"
+    },
+    "грузин": {
+      "norm": "грузин",
+      "error": "грузинов"
+    },
+    "турок": {
+      "norm": "турок",
+      "error": "турков"
+    },
+    "цыган": {
+      "norm": "цыган",
+      "error": "цыганов"
+    },
+    "армянин": {
+      "norm": "армян",
+      "error": "армянов"
+    },
+    "яблоко": {
+      "norm": "яблок",
+      "error": "яблоков"
+    },
+    "полотенце": {
+      "norm": "полотенец",
+      "error": "полотенцев"
+    }
   }
 }

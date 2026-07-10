@@ -486,7 +486,7 @@ _SVOY_TO_PERSONAL_INVARIABLE = {"он": "его", "оно": "его", "она": 
 # reflexive-possessive slot: swapping in a personal possessive would not read
 # as the target error, just as a broken idiom (не в своей тарелке, в своё
 # время, на свой лад, идти своим чередом), so these are never corrupted.
-_SVOY_IDIOM_HEAD_LEMMAS = {"тарелка", "время", "лад", "черёд"}
+_SVOY_IDIOM_HEAD_LEMMAS = {"тарелка", "время", "лад", "черёд", "очередь"}
 
 
 def _svoy_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
@@ -691,6 +691,38 @@ class PronounSvoyErrorHandler:
 # reflexive argument: swapping in a personal pronoun would not read as the
 # target case-selection error, just as broken idiom. Checked by neighboring
 # lemma (works identically with or without depparse) rather than a parse.
+_SEBYA_FRAME_VERB_LEMMAS = frozenset(
+    {
+        "чувствовать",
+        "почувствовать",
+        "вести",
+        "повести",
+        "представлять",
+        "представить",
+        "позволить",
+        "позволять",
+        "мнить",
+        "возомнить",
+    }
+)
+
+_SEBYA_PREP_FRAME_VERBS = frozenset(
+    {
+        "принять",
+        "принимать",
+        "брать",
+        "взять",
+        "давать",
+        "дать",
+        "выйти",
+        "выходить",
+        "представлять",
+        "представить",
+        "знать",
+    }
+)
+
+
 def _is_sebya_set_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     def lemma_at(i: int) -> str | None:
         return tokens[i].lemma if 0 <= i < len(tokens) else None
@@ -706,6 +738,25 @@ def _is_sebya_set_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return True
     if prev1 == "в" and prev2 in ("прийти", "приходить"):  # прийти/приходить в себя
         return True
+    # Lexicalized predicate frames where себя is not a referential slot
+    # (audit, 2026-07-07): чувствовать себя, вести себя, представлять
+    # собой/из себя, принять/брать/взять на себя, позволить себе,
+    # дать/давать знать о себе, выйти из себя.
+    governor = None
+    token = tokens[idx]
+    if token.head_idx is not None and 0 <= token.head_idx < len(tokens):
+        governor = tokens[token.head_idx]
+    gov_lemma = (governor.lemma or "").lower() if governor is not None else ""
+    if gov_lemma in _SEBYA_FRAME_VERB_LEMMAS:
+        return True
+    # preposition + себя frames: «на себя», «из себя», «о себе» governed by
+    # a frame verb anywhere leftward in the clause
+    if prev1 in ("на", "из", "о", "об") and gov_lemma in _SEBYA_PREP_FRAME_VERBS:
+        return True
+    if prev1 in ("на", "из", "о", "об"):
+        for j in range(idx - 2, max(-1, idx - 6), -1):
+            if (tokens[j].lemma or "").lower() in _SEBYA_PREP_FRAME_VERBS:
+                return True
     return False
 
 
@@ -1079,10 +1130,18 @@ class PronounNFormErrorHandler:
 
         bare = _N_AUGMENTED_TO_BARE.get(word_lower)
         if bare is not None:
+            # Loc cells (о ней, о них) have no bare counterpart in the
+            # paradigm — dropping н there lands in a different case
+            # (audit, 2026-07-07; the class docstring always promised this
+            # guard). UD Case first, Loc-only prepositions as fallback.
+            if token.get_feature("Case") == "Loc":
+                return None
             governor = _n_form_case_governor(tokens, idx)
             if governor is None and idx - 1 >= 0 and tokens[idx - 1].pos == "ADP":
                 governor = tokens[idx - 1]
             if governor is None or governor.lemma in _N_EXCEPTION_GOVERNOR_LEMMAS:
+                return None
+            if (governor.lemma or "").lower() in ("о", "об", "обо", "при"):
                 return None
             return ("drop_n", bare)
 

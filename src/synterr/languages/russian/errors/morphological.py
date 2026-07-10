@@ -6,7 +6,7 @@ import json
 import random as random_module
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from synterr.core.protocol import ErrorResult
 from synterr.languages.russian.inflector import (
@@ -1873,16 +1873,37 @@ def _neg_genitive_needs_animacy(token: AnalyzedToken) -> bool:
 
 
 class NegGenitiveErrorHandler:
-    """Flip Acc<->Gen on the direct object of a negated verb (Rozental §201).
+    """Flip Gen->Acc inside strong-genitive negation frames (Rozental §201).
 
-    Under negation Russian allows both the genitive ("не читал книги") and
-    the accusative ("не читал книгу") for a transitive verb's direct object;
-    the choice is governed by aspect/definiteness factors a learner often
-    gets backwards. Requires dep info: without an ``obj`` arc whose head verb
-    has an overt «не» dependent there is no evidence a case flip is
-    recoverable as an error, so both ``can_apply`` and ``apply`` return
-    False/None when depparse is unavailable.
+    Under negation Russian generally allows BOTH cases ("не читал
+    книги/книгу"), so a bare Acc<->Gen flip mostly produces correct Russian
+    (audit, 2026-07-07). The handler is therefore restricted to lexicalized
+    verb+object frames where the genitive is (near-)obligatory — «не имеет
+    значения», «не обращает внимания», «не играет роли» — and corrupts
+    Gen -> Acc there («не имеет значение» is an unambiguous error). Objects
+    carrying agreeing dependents (det/amod) are skipped so the flip never
+    leaves a stranded modifier. Requires dep info.
     """
+
+    _STRONG_GEN_FRAMES: ClassVar[dict[str, frozenset[str]]] = {
+        "иметь": frozenset(
+            {"значение", "смысл", "право", "отношение", "понятие", "представление"}
+        ),
+        "обращать": frozenset({"внимание"}),
+        "обратить": frozenset({"внимание"}),
+        "играть": frozenset({"роль"}),
+        "сыграть": frozenset({"роль"}),
+        "придавать": frozenset({"значение"}),
+        "придать": frozenset({"значение"}),
+        "производить": frozenset({"впечатление"}),
+        "произвести": frozenset({"впечатление"}),
+        "принимать": frozenset({"участие"}),
+        "принять": frozenset({"участие"}),
+        "терять": frozenset({"время", "надежда"}),
+        "потерять": frozenset({"время", "надежда"}),
+        "вызывать": frozenset({"сомнение"}),
+        "вызвать": frozenset({"сомнение"}),
+    }
 
     name = "neg_genitive"
     subtypes = ["neg_genitive"]
@@ -1895,26 +1916,34 @@ class NegGenitiveErrorHandler:
             return False
         return self._target_grammemes(tokens, idx) is not None
 
-    @staticmethod
+    @classmethod
     def _target_grammemes(
-        tokens: Sequence[AnalyzedToken], idx: int
+        cls, tokens: Sequence[AnalyzedToken], idx: int
     ) -> tuple[str, set[str]] | None:
         """(original_case_ud, target_grammemes) for a qualifying negated
-        direct object, or None if this token doesn't qualify."""
+        strong-genitive frame object, or None if this token doesn't qualify."""
         token = tokens[idx]
         if token.pos != "NOUN":
             return None
-        if token.dep_rel != "obj" or token.head_idx is None:
+        # stanza tags the genitive-of-negation object obl as often as obj;
+        # the frame lexicon (verb+noun pair) carries the precision here.
+        if token.dep_rel not in ("obj", "obl", "iobj") or token.head_idx is None:
             return None
         head = _get_token_safe(tokens, token.head_idx)
         if head is None or head.pos not in {"VERB", "AUX"}:
             return None
         if not _has_neg_particle(tokens, token.head_idx):
             return None
+        frame_nouns = cls._STRONG_GEN_FRAMES.get((head.lemma or "").lower())
+        if frame_nouns is None or (token.lemma or "").lower() not in frame_nouns:
+            return None
+        # Agreeing dependents would be stranded in the old case — skip.
+        if any(
+            t.head_idx == idx and (t.dep_rel or "") in ("det", "amod") for t in tokens
+        ):
+            return None
 
         case = token.get_feature("Case")
-        if case == "Acc":
-            return "Acc", {"gent"}
         if case == "Gen":
             if _neg_genitive_needs_animacy(token):
                 animacy = _animacy_grammeme(token, None)

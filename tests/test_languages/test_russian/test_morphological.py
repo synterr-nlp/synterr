@@ -2631,31 +2631,23 @@ class TestNounCaseInstrPlHandler:
             head_idx=head_idx,
         )
 
-    def test_default_direction_fires(self):
+    def test_dver_no_longer_in_lexicon_does_not_fire(self):
+        """дверями/дверьми are fully normative variants, not an error
+        (audit, 2026-07-07) -- дверь was pruned from the lexicon entirely,
+        so this no longer fires in either direction."""
         handler = self._handler()
         tok = self._tok("дверями", "дверь")
-        assert handler.can_apply([tok], 0) is True
+        assert handler.can_apply([tok], 0) is False
 
         sentence = ["дверями"]
         result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[0] == "дверьми"
-        assert result.error_type == "noun_case_instr_pl"
-        assert result.fix_tag == "$REPLACE_дверями"
+        assert result is None
+        assert sentence[0] == "дверями"
 
-    def test_marked_form_does_not_fire(self):
-        """Already-marked -ьми form is not corrupted further."""
+    def test_dver_marked_form_also_does_not_fire(self):
         handler = self._handler()
         tok = self._tok("дверьми", "дверь")
         assert handler.can_apply([tok], 0) is False
-
-    def test_capitalization_preserved(self):
-        handler = self._handler()
-        tok = self._tok("Дверями", "дверь")
-        sentence = ["Дверями"]
-        result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[0] == "Дверьми"
 
     def test_kost_idiom_reversal(self):
         """Inside "лечь костьми" -ьми is the norm -- corrupt to -ями."""
@@ -2669,6 +2661,23 @@ class TestNounCaseInstrPlHandler:
         result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
         assert result is not None
         assert sentence[1] == "костями"
+        assert result.error_type == "noun_case_instr_pl"
+        assert result.fix_tag == "$REPLACE_костьми"
+
+    def test_kost_idiom_capitalization_preserved(self):
+        """ "Костьми" as the idiom noun at sentence start (e.g. "Полечь
+        Костьми..." is not idiomatic word order, but a capitalized surface
+        must still round-trip through match_capitalization correctly)."""
+        handler = self._handler()
+        polech = AnalyzedToken(
+            text="Полечь", lemma="полечь", pos="VERB", features={}, idx=0
+        )
+        kost = self._tok("Костьми", "кость", idx=1, head_idx=0, dep_rel="obl")
+        tokens = [polech, kost]
+        sentence = ["Полечь", "Костьми"]
+        result = handler.apply(tokens, sentence, 1, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[1] == "Костями"
 
     def test_kost_default_direction_outside_idiom(self):
         handler = self._handler()
@@ -2693,8 +2702,8 @@ class TestNounCaseInstrPlHandler:
     def test_wrong_case_or_number_does_not_fire(self):
         handler = self._handler()
         tok = AnalyzedToken(
-            text="дверями",
-            lemma="дверь",
+            text="костями",
+            lemma="кость",
             pos="NOUN",
             features={"Case": "Ins", "Number": "Sing"},
             idx=0,
@@ -2713,16 +2722,26 @@ class TestNounCaseInstrPlHandler:
         assert handler.can_apply([tok], 0) is False
 
     @pytest.mark.slow
-    def test_real_backend_dveryami(self):
+    def test_real_backend_kost_idiom(self):
         handler = self._handler()
-        tokens = _stanza_backend().analyze("Соседи хлопали дверями всю ночь.")
-        idx = next(i for i, t in enumerate(tokens) if t.text == "дверями")
+        tokens = _stanza_backend().analyze("Воины поклялись лечь костьми за родину.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "костьми")
         assert handler.can_apply(tokens, idx) is True
 
         sentence = [t.text for t in tokens]
         result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
         assert result is not None
-        assert sentence[idx] == "дверьми"
+        assert sentence[idx] == "костями"
+
+    @pytest.mark.slow
+    def test_real_backend_dveryami_does_not_fire(self):
+        """дверями is a fully normative variant now (pruned from the
+        lexicon, audit 2026-07-07) -- must not fire against the real
+        backend either."""
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Соседи хлопали дверями всю ночь.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "дверями")
+        assert handler.can_apply(tokens, idx) is False
 
 
 class TestNounNumberGenPlHandler:
@@ -2841,14 +2860,25 @@ class TestNegGenitiveErrorHandler:
         assert handler.category == "MORPH"
         assert handler.changes_length is False
 
-    def _neg_obj_tokens(
-        self, obj_text, obj_lemma, obj_case, obj_number="Sing", **feats
+    def _neg_frame_tokens(
+        self,
+        *,
+        verb_text="имеет",
+        verb_lemma="иметь",
+        obj_text="значения",
+        obj_lemma="значение",
+        obj_case="Gen",
+        obj_dep_rel="obl",
+        obj_number="Sing",
+        obj_gender="Neut",
+        extra_obj_children=(),
     ):
-        features = {"Case": obj_case, "Number": obj_number, **feats}
-        return [
+        """«(Это) не VERB OBJ» -- a strong-genitive negation frame."""
+        features = {"Case": obj_case, "Number": obj_number, "Gender": obj_gender}
+        tokens = [
             AnalyzedToken(
-                text="Он",
-                lemma="он",
+                text="Это",
+                lemma="это",
                 pos="PRON",
                 features={"Case": "Nom"},
                 idx=0,
@@ -2865,8 +2895,8 @@ class TestNegGenitiveErrorHandler:
                 head_idx=2,
             ),
             AnalyzedToken(
-                text="читал",
-                lemma="читать",
+                text=verb_text,
+                lemma=verb_lemma,
                 pos="VERB",
                 features={},
                 idx=2,
@@ -2879,60 +2909,97 @@ class TestNegGenitiveErrorHandler:
                 pos="NOUN",
                 features=features,
                 idx=3,
-                dep_rel="obj",
+                dep_rel=obj_dep_rel,
                 head_idx=2,
                 extra={"pymorphy_parse": morph.parse(obj_text)[0]},
             ),
         ]
+        for i, (child_text, child_lemma, child_dep_rel) in enumerate(
+            extra_obj_children, start=4
+        ):
+            tokens.append(
+                AnalyzedToken(
+                    text=child_text,
+                    lemma=child_lemma,
+                    pos="DET" if child_dep_rel == "det" else "ADJ",
+                    features={},
+                    idx=i,
+                    dep_rel=child_dep_rel,
+                    head_idx=3,
+                )
+            )
+        return tokens
 
-    def test_acc_to_gen(self):
+    def test_gen_to_acc_imet_znachenie(self):
+        """«не имеет значения» -> «не имеет значение» (obl arc, strong-gen
+        frame): the Gen->Acc flip is a real, unambiguous error here."""
         handler = self._handler()
-        tokens = self._neg_obj_tokens("книгу", "книга", "Acc", Gender="Fem")
+        tokens = self._neg_frame_tokens()
         assert handler.can_apply(tokens, 3) is True
 
         sentence = [t.text for t in tokens]
         result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
         assert result is not None
-        assert sentence[3] == "книги"
+        assert sentence[3] == "значение"
         assert result.error_type == "neg_genitive"
-        assert result.fix_tag == "$TRANSFORM_CASE_Acc"
-
-    def test_gen_to_acc_fem_singular(self):
-        handler = self._handler()
-        tokens = self._neg_obj_tokens("книги", "книга", "Gen", Gender="Fem")
-        assert handler.can_apply(tokens, 3) is True
-
-        sentence = [t.text for t in tokens]
-        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[3] == "книгу"
         assert result.fix_tag == "$TRANSFORM_CASE_Gen"
 
-    def test_gen_to_acc_plural_uses_animacy(self):
-        """Plural Acc is animacy-ambiguous; the noun's own inanimacy resolves it."""
+    def test_gen_to_acc_obrashchat_vnimanie(self):
+        """«не обращает внимания» -> «не обращает внимание»."""
         handler = self._handler()
-        tokens = self._neg_obj_tokens("газет", "газета", "Gen", obj_number="Plur")
+        tokens = self._neg_frame_tokens(
+            verb_text="обращает",
+            verb_lemma="обращать",
+            obj_text="внимания",
+            obj_lemma="внимание",
+        )
+        assert handler.can_apply(tokens, 3) is True
+
         sentence = [t.text for t in tokens]
         result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
         assert result is not None
-        assert sentence[3] == "газеты"
+        assert sentence[3] == "внимание"
 
-    def test_gen_to_acc_animate_masc_syncretism_is_a_no_op(self):
-        """друга: animate masc singular Gen and Acc forms coincide -- no
-        recoverable error, apply must not report a false corruption."""
+    def test_acc_to_gen_direction_is_gone(self):
+        """Acc->Gen was REMOVED (audit, 2026-07-07): under negation both
+        cases are generally licensed outside the strong-gen frames, so the
+        handler now only flips Gen->Acc. An Acc object must not fire even
+        inside a recognized frame."""
         handler = self._handler()
-        tokens = self._neg_obj_tokens("друга", "друг", "Gen", Gender="Masc")
-        sentence = [t.text for t in tokens]
-        result = handler.apply(tokens, sentence, 3, set(), rng=random.Random(0))
-        assert result is None
-        assert sentence[3] == "друга"
+        tokens = self._neg_frame_tokens(
+            obj_text="значение", obj_case="Acc", obj_gender="Neut"
+        )
+        assert handler.can_apply(tokens, 3) is False
+
+    def test_non_frame_verb_object_pair_does_not_fire(self):
+        """«не читал книги» is NOT one of the lexicalized strong-genitive
+        frames -- the bare Gen<->Acc flip it used to license is gone."""
+        handler = self._handler()
+        tokens = self._neg_frame_tokens(
+            verb_text="читал",
+            verb_lemma="читать",
+            obj_text="книги",
+            obj_lemma="книга",
+            obj_dep_rel="obj",
+            obj_gender="Fem",
+        )
+        assert handler.can_apply(tokens, 3) is False
+
+    def test_frame_object_with_det_child_does_not_fire(self):
+        """A determiner/adjective dependent on the frame object would be
+        stranded in the old case after the flip -- skip."""
+        handler = self._handler()
+        tokens = self._neg_frame_tokens(
+            extra_obj_children=[("никакого", "никакой", "det")]
+        )
+        assert handler.can_apply(tokens, 3) is False
 
     def test_no_neg_particle_does_not_fire(self):
         handler = self._handler()
         tokens = [
             AnalyzedToken(
-                text="Он",
-                lemma="он",
+                text="Это",
+                lemma="это",
                 pos="PRON",
                 features={},
                 idx=0,
@@ -2940,8 +3007,8 @@ class TestNegGenitiveErrorHandler:
                 head_idx=1,
             ),
             AnalyzedToken(
-                text="читал",
-                lemma="читать",
+                text="имеет",
+                lemma="иметь",
                 pos="VERB",
                 features={},
                 idx=1,
@@ -2949,24 +3016,17 @@ class TestNegGenitiveErrorHandler:
                 head_idx=None,
             ),
             AnalyzedToken(
-                text="книгу",
-                lemma="книга",
+                text="значения",
+                lemma="значение",
                 pos="NOUN",
-                features={"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+                features={"Case": "Gen", "Number": "Sing", "Gender": "Neut"},
                 idx=2,
-                dep_rel="obj",
+                dep_rel="obl",
                 head_idx=1,
-                extra={"pymorphy_parse": morph.parse("книгу")[0]},
+                extra={"pymorphy_parse": morph.parse("значения")[0]},
             ),
         ]
         assert handler.can_apply(tokens, 2) is False
-
-    def test_non_obj_deprel_does_not_fire(self):
-        """obl (oblique/indirect) is not the direct-object slot -- skip."""
-        handler = self._handler()
-        tokens = self._neg_obj_tokens("книги", "книга", "Gen", Gender="Fem")
-        tokens[3].dep_rel = "obl"
-        assert handler.can_apply(tokens, 3) is False
 
     def test_pronoun_object_does_not_fire(self):
         handler = self._handler()
@@ -3014,38 +3074,47 @@ class TestNegGenitiveErrorHandler:
     def test_without_dep_info_does_not_fire(self):
         handler = self._handler()
         tok = AnalyzedToken(
-            text="книгу",
-            lemma="книга",
+            text="значения",
+            lemma="значение",
             pos="NOUN",
-            features={"Case": "Acc", "Number": "Sing", "Gender": "Fem"},
+            features={"Case": "Gen", "Number": "Sing", "Gender": "Neut"},
             idx=0,
-            extra={"pymorphy_parse": morph.parse("книгу")[0]},
+            extra={"pymorphy_parse": morph.parse("значения")[0]},
         )
         assert handler.can_apply([tok], 0) is False
 
     @pytest.mark.slow
-    def test_real_backend_acc_to_gen(self):
+    def test_real_backend_imet_znachenie(self):
         handler = self._handler()
-        tokens = _stanza_backend().analyze("Я не читал эту книгу.")
-        idx = next(i for i, t in enumerate(tokens) if t.text == "книгу")
+        tokens = _stanza_backend().analyze("Это не имеет значения для нас.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "значения")
         assert handler.can_apply(tokens, idx) is True
 
         sentence = [t.text for t in tokens]
         result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
         assert result is not None
-        assert sentence[idx] == "книги"
+        assert sentence[idx] == "значение"
 
     @pytest.mark.slow
-    def test_real_backend_gen_to_acc(self):
+    def test_real_backend_obrashchat_vnimanie(self):
+        handler = self._handler()
+        tokens = _stanza_backend().analyze("Она не обращает внимания на критику.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "внимания")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "внимание"
+
+    @pytest.mark.slow
+    def test_real_backend_non_frame_does_not_fire(self):
+        """«не читал книги» is outside the lexicalized frame set -- the
+        old bare Gen<->Acc flip is gone."""
         handler = self._handler()
         tokens = _stanza_backend().analyze("Он не читал книги.")
         idx = next(i for i, t in enumerate(tokens) if t.text == "книги")
-        assert handler.can_apply(tokens, idx) is True
-
-        sentence = [t.text for t in tokens]
-        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[idx] == "книгу"
+        assert handler.can_apply(tokens, idx) is False
 
 
 class TestVerbIterativeSuffixHandler:
@@ -3078,18 +3147,18 @@ class TestVerbIterativeSuffixHandler:
             extra={"pymorphy_parse": morph.parse(word)[0]},
         )
 
-    def test_o_exception_family_fires(self):
-        """обусловливает (norm, keeps 'o') -> обуславливает (marked 'a')."""
+    def test_o_exception_family_no_longer_fires(self):
+        """обусловливать (o_exception family) was pruned from the lexicon
+        (audit, 2026-07-07): обуславливать is an accepted modern variant
+        (gramota), not an error, so the whole family was removed."""
         handler = self._handler()
         tok = self._tok("обусловливает", "обусловливать")
-        assert handler.can_apply([tok], 0) is True
+        assert handler.can_apply([tok], 0) is False
 
         sentence = ["обусловливает"]
         result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[0] == "обуславливает"
-        assert result.error_type == "verb_iterative_suffix"
-        assert result.fix_tag == "$REPLACE_обусловливает"
+        assert result is None
+        assert sentence[0] == "обусловливает"
 
     def test_a_regular_family_fires(self):
         """затрагивает (norm, alternates to 'a') -> затрогивает (marked,
@@ -3102,14 +3171,18 @@ class TestVerbIterativeSuffixHandler:
         result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
         assert result is not None
         assert sentence[0] == "затрогивает"
+        assert result.error_type == "verb_iterative_suffix"
+        assert result.fix_tag == "$REPLACE_затрагивает"
 
     def test_infinitive_fires(self):
+        """The lexicon is now pruned to the a_regular family only (audit,
+        2026-07-07): затрагивать (infinitive) -> затрогивать."""
         handler = self._handler()
-        tok = self._tok("сосредоточивать", "сосредоточивать")
-        sentence = ["сосредоточивать"]
+        tok = self._tok("затрагивать", "затрагивать")
+        sentence = ["затрагивать"]
         result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
         assert result is not None
-        assert sentence[0] == "сосредотачивать"
+        assert sentence[0] == "затрогивать"
 
     def test_reflexive_lemma_fires(self):
         """Reflexive passives (затрагиваться) are separate lexicon entries
@@ -3125,11 +3198,11 @@ class TestVerbIterativeSuffixHandler:
 
     def test_capitalization_preserved(self):
         handler = self._handler()
-        tok = self._tok("Обусловливает", "обусловливать")
-        sentence = ["Обусловливает"]
+        tok = self._tok("Затрагивает", "затрагивать")
+        sentence = ["Затрагивает"]
         result = handler.apply([tok], sentence, 0, set(), rng=random.Random(0))
         assert result is not None
-        assert sentence[0] == "Обуславливает"
+        assert sentence[0] == "Затрогивает"
 
     def test_non_lexicon_verb_does_not_fire(self):
         handler = self._handler()
@@ -3139,8 +3212,8 @@ class TestVerbIterativeSuffixHandler:
     def test_wrong_pos_does_not_fire(self):
         handler = self._handler()
         tok = AnalyzedToken(
-            text="обусловливание",
-            lemma="обусловливание",
+            text="затрагивание",
+            lemma="затрагивание",
             pos="NOUN",
             features={},
             idx=0,
@@ -3150,8 +3223,8 @@ class TestVerbIterativeSuffixHandler:
     def test_missing_pymorphy_parse_does_not_fire(self):
         handler = self._handler()
         tok = AnalyzedToken(
-            text="обусловливает",
-            lemma="обусловливать",
+            text="затрагивает",
+            lemma="затрагивать",
             pos="VERB",
             features={},
             idx=0,
@@ -3159,14 +3232,14 @@ class TestVerbIterativeSuffixHandler:
         assert handler.can_apply([tok], 0) is False
 
     def test_swap_position_mismatch_does_not_fire(self):
-        """Lemma matches but the surface doesn't have the expected 'o' at
-        the alternation position (index 5 for this lexeme) -- must skip
+        """Lemma matches but the surface doesn't have the expected 'а' at
+        the alternation position (index 4 for this lexeme) -- must skip
         rather than mangle the word."""
         handler = self._handler()
-        broken_word = "обуслявливает"  # index 5 is 'я', not the expected 'o'
+        broken_word = "затригивает"  # index 4 is 'и', not the expected 'а'
         broken = AnalyzedToken(
             text=broken_word,
-            lemma="обусловливать",
+            lemma="затрагивать",
             pos="VERB",
             features={},
             idx=0,
@@ -3175,16 +3248,14 @@ class TestVerbIterativeSuffixHandler:
         assert handler.can_apply([broken], 0) is False
 
     @pytest.mark.slow
-    def test_real_backend_o_exception(self):
+    def test_real_backend_o_exception_no_longer_fires(self):
+        """обусловливать (o_exception family) was pruned from the lexicon
+        (audit, 2026-07-07) -- must not fire against the real backend
+        either."""
         handler = self._handler()
         tokens = _stanza_backend().analyze("Этот фактор обусловливает результат.")
         idx = next(i for i, t in enumerate(tokens) if t.text == "обусловливает")
-        assert handler.can_apply(tokens, idx) is True
-
-        sentence = [t.text for t in tokens]
-        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[idx] == "обуславливает"
+        assert handler.can_apply(tokens, idx) is False
 
     @pytest.mark.slow
     def test_real_backend_a_regular_reflexive(self):
@@ -3240,8 +3311,10 @@ class TestVerbIterativeSuffixHandler:
         assert sentence[idx] == "устроивает"
 
     @pytest.mark.slow
-    def test_real_backend_upolnomochivayuschuyu_participle(self):
-        """Real-corpus sentence (lenta): participle form, o_exception family."""
+    def test_real_backend_upolnomochivayuschuyu_participle_no_longer_fires(self):
+        """Real-corpus sentence (lenta): participle form, o_exception family
+        (уполномочивать) -- pruned from the lexicon (audit, 2026-07-07),
+        so this must no longer fire."""
         handler = self._handler()
         text = (
             "Делегация Северной Кореи в ООН категорически отвергла "
@@ -3250,12 +3323,7 @@ class TestVerbIterativeSuffixHandler:
         )
         tokens = _stanza_backend().analyze(text)
         idx = next(i for i, t in enumerate(tokens) if t.text == "уполномочивающую")
-        assert handler.can_apply(tokens, idx) is True
-
-        sentence = [t.text for t in tokens]
-        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[idx] == "уполномачивающую"
+        assert handler.can_apply(tokens, idx) is False
 
     @pytest.mark.slow
     def test_real_backend_osvaivayutsya(self):

@@ -298,10 +298,18 @@ class TestAgrMnApposition:
 
 
 class TestAgrMnCompoundTerm:
-    def _tokens(self, *, second_text="ресторане", second_lemma="ресторан", case="Loc"):
+    def _tokens(
+        self,
+        *,
+        first_text="вагоне",
+        first_lemma="вагон",
+        second_text="ресторане",
+        second_lemma="ресторан",
+        case="Loc",
+    ):
         first = _plain_token(
-            "вагоне",
-            "вагон",
+            first_text,
+            first_lemma,
             "NOUN",
             0,
             features={"Case": case, "Number": "Sing"},
@@ -362,6 +370,21 @@ class TestAgrMnCompoundTerm:
         tokens = self._tokens(second_text="ксывзюм", second_lemma="ксывзюм")
         assert handler.can_apply(tokens, 2) is False
 
+    def test_skip_fused_surface_not_dictionary_known(self):
+        """Both halves can be individually dictionary-known words while the
+        FUSED hyphenated surface is not (an explanatory dash typed as an
+        ASCII hyphen, e.g. «работе - поиску», rather than a real §197
+        compound noun) -- the new fused ``word_is_known`` guard (audit,
+        2026-07-07) rejects this shape."""
+        handler = AgrMnCompoundTermErrorHandler()
+        tokens = self._tokens(
+            first_text="работе",
+            first_lemma="работа",
+            second_text="поиску",
+            second_lemma="поиск",
+        )
+        assert handler.can_apply(tokens, 2) is False
+
     def test_no_dep_info_blocks(self):
         handler = AgrMnCompoundTermErrorHandler()
         tokens = self._tokens()
@@ -409,16 +432,16 @@ class TestAgrMnCompoundTerm:
         assert result.error_type == "ag_mn_compound_term"
 
     @pytest.mark.slow
-    def test_real_backend_kresle_kachalke(self):
+    def test_real_backend_kresle_kachalke_does_not_fire(self):
+        """«кресле-качалке» is NOT ``word_is_known`` as a fused hyphenated
+        lexeme (audit, 2026-07-07): the new guard requires the fused
+        surface to be a dictionary-known compound (rejects explanatory
+        dashes typed as hyphens), so this real compound -- missing from the
+        pymorphy dictionary -- is skipped rather than corrupted."""
         handler = AgrMnCompoundTermErrorHandler()
         tokens = _stanza_backend().analyze("Дети играли в кресле-качалке.")
         idx = next(i for i, t in enumerate(tokens) if t.text == "качалке")
-        assert handler.can_apply(tokens, idx) is True
-
-        sentence = [t.text for t in tokens]
-        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
-        assert result is not None
-        assert sentence[idx] == "качалка"
+        assert handler.can_apply(tokens, idx) is False
 
 
 # =============================================================================

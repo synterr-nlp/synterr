@@ -187,9 +187,10 @@ def _corrupt_predicate_number(
 # blocks masса/половина/много/несколько/тысяча/... for VerbPersonNumber's
 # purposes) — this handler's trigger is specifically the §183 collective
 # class, not every quantity word.
-_COLLECTIVE_LEMMAS = frozenset(
-    {"большинство", "ряд", "часть", "множество", "меньшинство"}
-)
+# часть/ряд excluded: their lexical senses (воинская часть, ряд домов "row")
+# dominate in text and a lemma test cannot separate them from the §183
+# quantifier reading (audit finding, 2026-07-07).
+_COLLECTIVE_LEMMAS = frozenset({"большинство", "множество", "меньшинство"})
 
 
 def _has_gen_plural_dependent(tokens: Sequence[AnalyzedToken], head_idx: int) -> bool:
@@ -242,7 +243,15 @@ class AgrSvCollectiveErrorHandler:
         subj_idx, subject = found
         if (subject.lemma or "").lower() not in _COLLECTIVE_LEMMAS:
             return False
-        return not _has_gen_plural_dependent(tokens, subj_idx)
+        # "Bare" means bare: any nmod dependent (Gen-plural OR otherwise —
+        # «часть Паутины») signals a partitive/lexical reading where §183
+        # licenses both agreements or does not apply at all.
+        if any(
+            t.head_idx == subj_idx and (t.dep_rel or "").startswith("nmod")
+            for t in tokens
+        ):
+            return False
+        return True
 
     def apply(
         self,
@@ -553,22 +562,6 @@ def _is_acronym_subject(token: AnalyzedToken) -> bool:
     )
 
 
-def _has_comitative_dependent(tokens: Sequence[AnalyzedToken], subj_idx: int) -> bool:
-    """A "с/со + Instrumental" comitative dependent of the subject ("брат С
-    СЕСТРОЙ"): an Ins-cased dependent whose own "case" child is с/со."""
-    for i, t in enumerate(tokens):
-        if t.head_idx != subj_idx or t.get_feature("Case") != "Ins":
-            continue
-        for marker in tokens:
-            if (
-                marker.head_idx == i
-                and marker.dep_rel == "case"
-                and marker.text.lower() in ("с", "со")
-            ):
-                return True
-    return False
-
-
 class AgrSvCompoundErrorHandler:
     """Corrupt subject-verb agreement for three §186-189 special-subject
     triggers, each independently sufficient (first match wins):
@@ -579,14 +572,11 @@ class AgrSvCompoundErrorHandler:
       the real, extremely common learner/native error of agreeing with the
       semantically-plural antecedent instead of the syntactic кто subject.
       Direction: sing → plur.
-    - **comitative** ("брат с сестрой пришли", §188-ish): a
-      с+Instrumental dependent of the subject turns it into a two-agent
-      conjunct reading that normatively takes a plural predicate; the
-      marked error collapses to singular, agreeing with the nominative
-      subject alone and demoting the comitative to an adjunct. Direction:
-      plur → sing, gender pinned to the nominative subject's own gender
-      (a real syntactic subject, unlike the impersonal-neuter quantity
-      subjects in §183-185).
+    The comitative subcase («брат с сестрой пришли» → «пришёл») was REMOVED
+    after audit (2026-07-07): §186 licenses BOTH agreements — plural for
+    joint agents, singular for the accompaniment reading — so the collapse
+    to singular yields correct Russian, and the trigger also over-fired on
+    non-agent «с»-modifiers («концерты с участием музыкантов»).
     - **acronym/indeclinable subject** (§189): a past-tense predicate whose
       gender should track the acronym's core-noun gender is instead
       flipped to a different, wrong gender (e.g. МГУ + masc-correct
@@ -609,7 +599,7 @@ class AgrSvCompoundErrorHandler:
         found = _find_subject(tokens, idx)
         if found is None:
             return None
-        subj_idx, subject = found
+        _subj_idx, subject = found
 
         if (subject.lemma or subject.text or "").lower() == "кто":
             if token.get_feature("Number") == "Sing":
@@ -619,11 +609,6 @@ class AgrSvCompoundErrorHandler:
         if _is_acronym_subject(subject):
             if token.get_feature("Tense") == "Past" and token.has_feature("Gender"):
                 return "acronym", subject
-            return None
-
-        if _has_comitative_dependent(tokens, subj_idx):
-            if token.get_feature("Number") == "Plur":
-                return "comitative", subject
             return None
 
         return None
@@ -643,7 +628,7 @@ class AgrSvCompoundErrorHandler:
         classified = self._classify(tokens, idx)
         if classified is None:
             return None
-        branch, subject = classified
+        branch, _subject = classified
         token = tokens[idx]
         word = sentence[idx]
 
@@ -685,23 +670,7 @@ class AgrSvCompoundErrorHandler:
                 fix_tag=f"$TRANSFORM_GENDER_{original_gender}",
             )
 
-        # branch == "comitative": plur -> sing, subject's own gender.
-        ref_gender = _gender_grammeme(subject)
-        new_word = _corrupt_predicate_number(token, word, "sing", ref_gender=ref_gender)
-        if new_word is None:
-            return None
-        sentence[idx] = new_word
-        modified.add(idx)
-        original_number = token.get_feature("Number", "Plur")
-        return ErrorResult(
-            error_type="agr_sv_compound",
-            category=self.category,
-            start_idx=idx,
-            end_idx=idx + 1,
-            original=word,
-            corrupted=new_word,
-            fix_tag=f"$TRANSFORM_NUMBER_{original_number}",
-        )
+        return None
 
 
 # =============================================================================

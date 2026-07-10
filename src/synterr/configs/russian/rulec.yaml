@@ -31,12 +31,12 @@ weights:
   agr_mn_numeral_adj: 0.008 # §193 два/три/четыре + adj + noun (estimated)
   agr_sv_collective: 0.008 # §183 collective-noun subjects (estimated)
   agr_sv_counting: 0.008 # §184 counting constructions (estimated)
-  agr_sv_approximate: 0.006 # §185 approximate quantity (estimated)
+  agr_sv_approximate: 0.0 # §185 — QUARANTINED 2026-07-07: both agreements normative (audit); keep for variant generation
   agr_sv_compound: 0.005 # §186–189 кто/comitative/acronym (estimated)
   agr_sv_coordinated: 0.003 # §190 coordinated subjects (estimated)
   verb_iterative_suffix: 0.003 # §172.2 o/a iterative suffix (estimated)
-  adj_possessive_form: 0.003 # §162 possessive-adj oblique variant (estimated)
-  adj_short_en_enen: 0.003 # §160 short-form -ен/-енен (estimated)
+  adj_possessive_form: 0.0 # §162 — QUARANTINED 2026-07-07: Infr forms are dated-but-valid (audit); register variant, not error
+  adj_short_en_enen: 0.0 # §160 — QUARANTINED 2026-07-07: -ен/-енен both dictionary-listed (audit); register variant, not error
   noun_number: 0.053    # 2.4%
 
   # Morphological - Adjectives: 5.4% total
