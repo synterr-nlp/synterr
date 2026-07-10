@@ -413,10 +413,37 @@ class PleonasmHandler:
     def _entry_blocked(
         self, tokens: Sequence[AnalyzedToken], idx: int, entry: dict[str, str]
     ) -> bool:
+        word = entry["word"]
         pos = entry.get("pos", "before")
-        if self._redundant_present(tokens, idx, entry["word"], pos):
+        # C3 (2026-07 audit): a multiword insertion ("в первый раз") lands as
+        # a single element of the corrupted-token list carrying one $DELETE
+        # tag; re-splitting the joined sentence on whitespace downstream then
+        # desyncs the token/tag counts (one tag, three surface tokens). The
+        # ErrorResult contract has no span-aware way to emit per-token tags
+        # for an insertion (mirrors the single-token filler filter in
+        # WordInsertionHandler, structural.py), so these entries are never
+        # selected. They stay in pleonasms.json as documentation of the
+        # attested pattern but are permanently inert until span-aware output
+        # lands.
+        if " " in word:
             return True
-        return pos == "after" and self._after_insert_blocked(tokens, idx, entry["word"])
+        if self._redundant_present(tokens, idx, word, pos):
+            return True
+        if pos == "after" and self._after_insert_blocked(tokens, idx, word):
+            return True
+        # C2 (2026-07 audit): a sentence-initial capitalized core needs two
+        # edits to reconstruct from a corruption that both capitalizes the
+        # inserted word and lowercases the core ("Ветеран выступил" ->
+        # "Старый ветеран выступил") — but only one $DELETE fix tag is
+        # emitted, on the inserted word. Deleting it restores "ветеран
+        # выступил" (lowercase), not the original "Ветеран выступил": the
+        # core's capitalization is unrecoverable from the single edit. Skip
+        # rather than emit an uncorrectable corruption (mirrors
+        # DoubleComparativeHandler's `if word[:1].isupper(): return None` in
+        # morphological.py).
+        if pos == "before" and idx == 0 and tokens[idx].text[:1].isupper():
+            return True
+        return False
 
     # Inserted single words in these POS classes must agree with the core
     # word; anything else (adverbs like "вновь", "заранее") is invariant.
@@ -522,9 +549,10 @@ class PleonasmHandler:
         for entry in entry_order:
             candidate = entry["word"]
             pos = entry.get("pos", "before")
-            # Fixed phrases ("из армии", "первый раз") and after-inserts
-            # (invariant genitives like "времени") go in as-is.
-            if pos == "before" and " " not in candidate:
+            # Multiword entries never reach `usable` (_entry_blocked filters
+            # them, C3 audit); after-inserts (invariant genitives like
+            # "времени") go in as-is.
+            if pos == "before":
                 candidate = self._prepare_before_insert(candidate, token)
             if candidate is not None:
                 redundant = candidate
@@ -533,21 +561,11 @@ class PleonasmHandler:
             return None
 
         if pos == "before":
-            # Sentence-initial core: transfer capitalization to the inserted
-            # word ("Ветеран выступил" → "Старый ветеран выступил", not
-            # "старый Ветеран"). Acronyms/proper nouns are left alone.
-            core_word = sentence[idx]
-            transfer_cap = (
-                idx == 0
-                and core_word[:1].isupper()
-                and not core_word.isupper()
-                and str(token.pos) != "PROPN"
-            )
-            if transfer_cap:
-                redundant = redundant[:1].upper() + redundant[1:]
+            # Sentence-initial capitalized cores are filtered out by
+            # _entry_blocked (C2, 2026-07 audit) — a single $DELETE tag can't
+            # also restore the core's original capitalization, so entries
+            # reaching this branch at idx == 0 always have a lowercase core.
             sentence.insert(idx, redundant)
-            if transfer_cap:
-                sentence[idx + 1] = core_word[0].lower() + core_word[1:]
             return ErrorResult(
                 error_type="pleonasm_pleonasm",
                 category=self.category,

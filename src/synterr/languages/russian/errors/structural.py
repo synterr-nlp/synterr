@@ -19,6 +19,66 @@ if TYPE_CHECKING:
 OMITTABLE_POS = {"ADP", "CCONJ", "SCONJ"}
 CONJ_POS = {"CCONJ", "SCONJ"}
 
+# Bounds the leftward adjacency scan in _repeated_prep_in_coordination so a
+# malformed/very long sentence can't make it scan indefinitely.
+_REPEATED_PREP_SCAN_CAP = 6
+
+# POS that terminate the leftward scan: past them we've left the coordination
+# span this preposition could be repeating within.
+_REPEATED_PREP_SCAN_STOP_POS = {"PUNCT", "VERB", "SCONJ"}
+
+
+def _repeated_prep_in_coordination(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Whether the ADP at ``idx`` repeats a preposition an earlier conjunct in
+    the same coordination already carries (C14, 2026-07 audit).
+
+    "по почерку и по количеству" -> deleting the second "по" still yields
+    grammatical shared-case coordination ("по почерку и количеству") — a
+    non-error, since Russian coordination may share a single governing
+    preposition across conjuncts. Dep-tree check: the ADP's head is its
+    governed nominal; if that nominal is a ``conj`` dependent of an earlier
+    nominal which already has a ``case`` child with the same lemma, the
+    preposition is redundant. Adjacency fallback (no dep info): the same
+    preposition text appears earlier in the sentence, before a coordinating
+    conjunction, within a short scan window.
+    """
+    token = tokens[idx]
+    lemma = (token.lemma or token.text).lower()
+
+    head_idx = token.head_idx
+    if head_idx is not None and 0 <= head_idx < len(tokens) and head_idx != idx:
+        nominal = tokens[head_idx]
+        if nominal.dep_rel == "conj":
+            first_idx = nominal.head_idx
+            if (
+                first_idx is not None
+                and 0 <= first_idx < len(tokens)
+                and first_idx != head_idx
+            ):
+                return any(
+                    other.head_idx == first_idx
+                    and other.dep_rel == "case"
+                    and (other.lemma or other.text).lower() == lemma
+                    for other in tokens
+                )
+        return False
+
+    seen_cconj = False
+    for j in range(idx - 1, max(-1, idx - 1 - _REPEATED_PREP_SCAN_CAP), -1):
+        other = tokens[j]
+        if other.pos == "CCONJ":
+            seen_cconj = True
+            continue
+        if other.pos in _REPEATED_PREP_SCAN_STOP_POS:
+            break
+        if (
+            seen_cconj
+            and other.pos == "ADP"
+            and (other.lemma or other.text).lower() == lemma
+        ):
+            return True
+    return False
+
 
 class WordOmissionHandler:
     """Delete a function word (preposition or conjunction)."""
@@ -38,6 +98,11 @@ class WordOmissionHandler:
         # сложное предложение, Rozental §116), i.e. a non-error. Phrase-level
         # coordination without punctuation ("кошки и собаки") stays deletable.
         if tokens[idx].pos in CONJ_POS and tokens[idx - 1].pos == "PUNCT":
+            return False
+        # A repeated preposition in shared-case coordination is redundant but
+        # grammatical (C14, 2026-07 audit): deleting it doesn't create an
+        # error.
+        if tokens[idx].pos == "ADP" and _repeated_prep_in_coordination(tokens, idx):
             return False
         return True
 

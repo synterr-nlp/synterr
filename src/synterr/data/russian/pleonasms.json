@@ -3,7 +3,8 @@
     "description": "Pleonasm lexicon: core word -> redundant modifiers that create pleonastic expressions",
     "source": "LoRuGEC rule 35 (Плеоназмы) + standard ЕГЭ pleonasm lists",
     "format": "core_word -> [{word: redundant, pos: before|after}]",
-    "usage": "Find core_word in clean text, INSERT redundant word at pos to create pleonasm error"
+    "usage": "Find core_word in clean text, INSERT redundant word at pos to create pleonasm error",
+    "note_2026_07_audit_C3": "Entries whose 'word' contains a space ('в первый раз', 'из армии', 'из-за рубежа', 'по работе', 'по родине', 'на будущее', 'за рубеж') are permanently filtered as unusable by PleonasmHandler._entry_blocked in errors/semantics.py: a multiword insertion occupies a single corrupted-token slot with one $DELETE tag, so re-splitting the corrupted sentence on whitespace desyncs the token/tag counts. Kept here as documentation of the attested pattern (7 core lemmas — впервые, демобилизоваться, импорт, коллега, ностальгия, прогноз, экспорт — currently have no other entry and so no longer generate a pleonasm error at all) pending span-aware output support."
   },
   "автобиография": [{"word": "своя", "pos": "before"}],
   "абстракция": [{"word": "отвлечённая", "pos": "before"}],

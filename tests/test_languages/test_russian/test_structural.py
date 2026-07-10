@@ -160,6 +160,109 @@ class TestWordOmissionHandler:
         assert result.fix_tag == "$APPEND_с"
         assert result.start_idx == 1
 
+    def test_repeated_preposition_in_coordination_refused(self):
+        """ "по почерку и по количеству" -> deleting the second "по" still
+        yields grammatical shared-case coordination ("по почерку и
+        количеству"), a non-error (C14, 2026-07 audit)."""
+        tokens = [
+            AnalyzedToken(text="по", lemma="по", pos="ADP", features={}, idx=0),
+            AnalyzedToken(
+                text="почерку", lemma="почерк", pos="NOUN", features={}, idx=1
+            ),
+            AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=2),
+            AnalyzedToken(text="по", lemma="по", pos="ADP", features={}, idx=3),
+            AnalyzedToken(
+                text="количеству", lemma="количество", pos="NOUN", features={}, idx=4
+            ),
+        ]
+        sentence = ["по", "почерку", "и", "по", "количеству"]
+
+        assert self.handler.can_apply(tokens, 3) is False
+        assert self.handler.apply(tokens, sentence, 3, set()) is None
+        assert sentence == ["по", "почерку", "и", "по", "количеству"]
+
+    def test_repeated_preposition_in_coordination_refused_with_dep_info(self):
+        """Same guard via the dep tree: the second ADP's governed nominal is
+        a `conj` dependent of the first, which already has a `case` child
+        with the same lemma."""
+        tokens = [
+            AnalyzedToken(
+                text="по",
+                lemma="по",
+                pos="ADP",
+                features={},
+                idx=0,
+                dep_rel="case",
+                head_idx=1,
+            ),
+            AnalyzedToken(
+                text="почерку",
+                lemma="почерк",
+                pos="NOUN",
+                features={},
+                idx=1,
+                dep_rel="obl",
+                head_idx=5,
+            ),
+            AnalyzedToken(
+                text="и", lemma="и", pos="CCONJ", features={}, idx=2, head_idx=4
+            ),
+            AnalyzedToken(
+                text="по",
+                lemma="по",
+                pos="ADP",
+                features={},
+                idx=3,
+                dep_rel="case",
+                head_idx=4,
+            ),
+            AnalyzedToken(
+                text="количеству",
+                lemma="количество",
+                pos="NOUN",
+                features={},
+                idx=4,
+                dep_rel="conj",
+                head_idx=1,
+            ),
+        ]
+        assert self.handler.can_apply(tokens, 3) is False
+
+    def test_different_preposition_in_coordination_stays_deletable(self):
+        """A genuinely different preposition after a coordinating
+        conjunction is not a repetition and must stay deletable."""
+        tokens = [
+            AnalyzedToken(
+                text="смотрел", lemma="смотреть", pos="VERB", features={}, idx=0
+            ),
+            AnalyzedToken(text="на", lemma="на", pos="ADP", features={}, idx=1),
+            AnalyzedToken(text="кошку", lemma="кошка", pos="NOUN", features={}, idx=2),
+            AnalyzedToken(text="и", lemma="и", pos="CCONJ", features={}, idx=3),
+            AnalyzedToken(text="по", lemma="по", pos="ADP", features={}, idx=4),
+            AnalyzedToken(
+                text="собаке", lemma="собака", pos="NOUN", features={}, idx=5
+            ),
+        ]
+        assert self.handler.can_apply(tokens, 4) is True
+
+    def test_repeated_preposition_without_coordination_stays_deletable(self):
+        """A preposition occurring twice without an intervening coordinating
+        conjunction is not the target pattern and must stay deletable."""
+        tokens = [
+            AnalyzedToken(text="Он", lemma="он", pos="PRON", features={}, idx=0),
+            AnalyzedToken(
+                text="говорил", lemma="говорить", pos="VERB", features={}, idx=1
+            ),
+            AnalyzedToken(text="о", lemma="о", pos="ADP", features={}, idx=2),
+            AnalyzedToken(text="доме", lemma="дом", pos="NOUN", features={}, idx=3),
+            AnalyzedToken(
+                text="подумал", lemma="подумать", pos="VERB", features={}, idx=4
+            ),
+            AnalyzedToken(text="о", lemma="о", pos="ADP", features={}, idx=5),
+            AnalyzedToken(text="саде", lemma="сад", pos="NOUN", features={}, idx=6),
+        ]
+        assert self.handler.can_apply(tokens, 5) is True
+
 
 class TestWordInsertionError:
     handler = WordInsertionHandler()
@@ -338,7 +441,13 @@ class TestWordInsertionError:
         as ordinary adverbs/particles/verbs (так, там, просто, буквально,
         ведь, однако, это, значит, получается) read as normal content words at
         random insertion sites ('Он так хотел помочь маме' is perfect Russian),
-        producing $DELETE targets on correct text."""
+        producing $DELETE targets on correct text.
+
+        C15 (2026-07 audit): «вот» removed for the same reason — it is an
+        ordinary deictic particle that heads noun phrases in almost any
+        position ("Вот дом", "Я вот думаю", "вот тут"), so random insertion
+        frequently yields grammatical (non-error) Russian.
+        """
         ambiguous = {
             "так",
             "там",
@@ -349,13 +458,14 @@ class TestWordInsertionError:
             "это",
             "значит",
             "получается",
+            "вот",
         }
         loaded = set(self.handler.fillers)
 
         assert not loaded & ambiguous, (
             f"ambiguous fillers in lexicon: {sorted(loaded & ambiguous)}"
         )
-        assert loaded <= {"вот", "ну", "типа", "короче", "понимаешь"}
+        assert loaded <= {"ну", "типа", "короче", "понимаешь"}
         assert loaded  # pruning must not empty the lexicon
 
     def test_guard_filters_multiword_fillers_from_raw_lexicon(self, monkeypatch):

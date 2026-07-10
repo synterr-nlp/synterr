@@ -109,17 +109,53 @@ class TestPleonasmHandler:
         assert self.handler.apply(tokens, sentence, 0, set()) is None
         assert sentence == [text]
 
-    def test_sentence_initial_insert_transfers_capitalization(self):
-        # "Ветеран выступил" → "Старый ветеран выступил", not "старый Ветеран"
+    def test_sentence_initial_capitalized_core_skipped(self):
+        # Audit C2 (2026-07): the old behavior capitalized the inserted word
+        # and demoted the core to lowercase ("Ветеран выступил" → "Старый
+        # ветеран выступил"), but only a single $DELETE tag is emitted (on
+        # "Старый"). Reconstructing from that one edit yields "ветеран
+        # выступил" — the core's original capital "Ветеран" is permanently
+        # lost. Precision-first fix: skip rather than emit an uncorrectable
+        # corruption (mirrors DoubleComparativeHandler's
+        # `if word[:1].isupper(): return None`).
         tokens = [
             _tok("Ветеран", lemma="ветеран", idx=0),
             _tok("выступил", pos="VERB", lemma="выступить", idx=1),
         ]
+        assert self.handler.can_apply(tokens, 0) is False
         sentence = ["Ветеран", "выступил"]
         result = self.handler.apply(tokens, sentence, 0, set())
+        assert result is None
+        assert sentence == ["Ветеран", "выступил"]
+
+    def test_sentence_initial_lowercase_core_still_fires(self):
+        # A lowercase sentence-initial core (e.g. a fragment) has nothing to
+        # lose from a single $DELETE, so it must still fire.
+        tokens = [
+            _tok("ветеран", lemma="ветеран", idx=0),
+            _tok("выступил", pos="VERB", lemma="выступить", idx=1),
+        ]
+        assert self.handler.can_apply(tokens, 0) is True
+        sentence = ["ветеран", "выступил"]
+        result = self.handler.apply(tokens, sentence, 0, set())
         assert result is not None
-        assert sentence == ["Старый", "ветеран", "выступил"]
-        assert result.corrupted == "Старый"
+        assert sentence == ["старый", "ветеран", "выступил"]
+
+    def test_capitalized_core_mid_sentence_still_fires(self):
+        # The C2 guard is specific to idx == 0 (sentence-initial); a
+        # capitalized core elsewhere in the sentence (e.g. after a colon or
+        # in a subordinate clause) is unaffected.
+        tokens = [
+            _tok("сказал", pos="VERB", lemma="сказать", idx=0),
+            _tok(":", pos="PUNCT", lemma=":", idx=1),
+            _tok("Ветеран", lemma="ветеран", idx=2),
+            _tok("выступил", pos="VERB", lemma="выступить", idx=3),
+        ]
+        assert self.handler.can_apply(tokens, 2) is True
+        sentence = ["сказал", ":", "Ветеран", "выступил"]
+        result = self.handler.apply(tokens, sentence, 2, set())
+        assert result is not None
+        assert sentence == ["сказал", ":", "старый", "Ветеран", "выступил"]
 
     def test_adjective_core_agreement(self):
         # "на конечной остановке" → "на окончательной конечной остановке",
@@ -189,21 +225,26 @@ class TestPleonasmHandler:
     # 2026-07 annotation pass: 10/100 pleonasm outputs were non-words.
     # Root causes fixed below; per-record regressions.
 
-    def test_vpervye_insert_carries_preposition(self):
-        # "впервые" + "первый раз" produced "впервые первый раз ..." — the
-        # inserted phrase needs its preposition ("в первый раз") to stay
-        # grammatical (6/10 flagged records).
+    def test_vpervye_entry_inert_multiword(self):
+        # Audit C3 (2026-07): the "впервые" -> "в первый раз" entry inserts a
+        # 3-word phrase into a single corrupted-token slot with one $DELETE
+        # tag. Re-splitting the corrupted sentence on whitespace downstream
+        # then desyncs token/tag counts (one tag, three surface tokens) —
+        # the ErrorResult contract can't express a per-token multiword
+        # insertion, so multiword entries are now permanently filtered out
+        # (see PleonasmHandler._entry_blocked and pleonasms.json's _meta).
+        # "впервые" has no other entry, so it no longer fires at all.
         tokens = [
             _tok("посещает", pos="VERB", lemma="посещать", idx=0),
             _tok("впервые", pos="ADV", lemma="впервые", idx=1),
             _tok("за", pos="ADP", lemma="за", idx=2),
             _tok("десятилетие", lemma="десятилетие", idx=3),
         ]
+        assert self.handler.can_apply(tokens, 1) is False
         sentence = ["посещает", "впервые", "за", "десятилетие"]
         result = self.handler.apply(tokens, sentence, 1, set())
-        assert result is not None
-        assert result.corrupted == "в первый раз"
-        assert sentence == ["посещает", "впервые", "в первый раз", "за", "десятилетие"]
+        assert result is None
+        assert sentence == ["посещает", "впервые", "за", "десятилетие"]
 
     def test_tolpa_blocked_when_complement_follows(self):
         # "учиненный толпой демонстрантов" → inserting the genitive attribute
@@ -306,6 +347,21 @@ class TestPleonasmHandler:
         result = self.handler.apply(tokens, sentence, 1, set())
         assert result is not None
         assert sentence == ["каждую", "минуту", "времени"]
+
+    def test_no_multiword_entry_ever_selected(self):
+        # Audit C3 invariant, checked against the full loaded lexicon: no
+        # entry whose "word" contains a space may ever be picked, for any
+        # core lemma, regardless of position/context. A single $DELETE tag
+        # cannot express a multiword insertion without desyncing the
+        # token/tag counts once the corrupted sentence is re-split on
+        # whitespace.
+        for lemma, entries in self.handler.pleonasms.items():
+            for entry in entries:
+                if " " not in entry["word"]:
+                    continue
+                assert self.handler._entry_blocked(
+                    [_tok(lemma, lemma=lemma, idx=0)], 0, entry
+                ), (lemma, entry)
 
 
 class TestCollocationHandler:

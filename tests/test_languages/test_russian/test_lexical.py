@@ -641,42 +641,52 @@ class TestConjunctionErrorHandler:
         assert self.handler.changes_length is False
 
     def test_can_apply_finds_conjunctions(self):
-        """Test ConjunctionErrorHandler finds conjunctions correctly."""
+        """Test ConjunctionErrorHandler finds conjunctions correctly.
+
+        "что" is preceded by "знаю" (что-only matrix verb, C12 gate) so the
+        fallback adjacency governor scan licenses the что -> чтобы swap.
+        """
         tokens = [
-            AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=0),
-            AnalyzedToken(text="чем", lemma="чем", pos="SCONJ", features={}, idx=1),
+            AnalyzedToken(text="знаю", lemma="знать", pos="VERB", features={}, idx=0),
+            AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=1),
+            AnalyzedToken(text="чем", lemma="чем", pos="SCONJ", features={}, idx=2),
             AnalyzedToken(
-                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=3
             ),
-            AnalyzedToken(text="чтобы", lemma="чтобы", pos="SCONJ", features={}, idx=3),
+            AnalyzedToken(text="чтобы", lemma="чтобы", pos="SCONJ", features={}, idx=4),
         ]
 
-        assert self.handler.can_apply(tokens, 0) is True
         assert self.handler.can_apply(tokens, 1) is True
-        assert self.handler.can_apply(tokens, 2) is False
-        assert self.handler.can_apply(tokens, 3) is True
+        assert self.handler.can_apply(tokens, 2) is True
+        assert self.handler.can_apply(tokens, 3) is False
+        assert self.handler.can_apply(tokens, 4) is True
 
     def test_apply_substitutes_correctly(self):
-        """Test ConjunctionErrorHandler substitutes conjunctions correctly."""
+        """Test ConjunctionErrorHandler substitutes conjunctions correctly.
+
+        "что" is preceded by "знаю" (что-only matrix verb, C12 gate) so the
+        fallback adjacency governor scan licenses the что -> чтобы swap.
+        """
         tokens = [
-            AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=0),
-            AnalyzedToken(text="чем", lemma="чем", pos="SCONJ", features={}, idx=1),
+            AnalyzedToken(text="знаю", lemma="знать", pos="VERB", features={}, idx=0),
+            AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=1),
+            AnalyzedToken(text="чем", lemma="чем", pos="SCONJ", features={}, idx=2),
             AnalyzedToken(
-                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=2
+                text="вопрос", lemma="вопрос", pos="NOUN", features={}, idx=3
             ),
-            AnalyzedToken(text="чтобы", lemma="чтобы", pos="SCONJ", features={}, idx=3),
+            AnalyzedToken(text="чтобы", lemma="чтобы", pos="SCONJ", features={}, idx=4),
         ]
-        sentence = ["что", "чем", "вопрос", "чтобы"]
+        sentence = ["знаю", "что", "чем", "вопрос", "чтобы"]
         modified = set()
 
-        self.handler.apply(tokens, sentence, 0, modified)
         self.handler.apply(tokens, sentence, 1, modified)
         self.handler.apply(tokens, sentence, 2, modified)
         self.handler.apply(tokens, sentence, 3, modified)
-        assert modified == {0, 1, 3}
-        assert sentence[0] == "чтобы"  # mood mismatch error
-        assert sentence[1] == "как"  # comparative error (directed group)
-        assert sentence[3] == "что"
+        self.handler.apply(tokens, sentence, 4, modified)
+        assert modified == {1, 2, 4}
+        assert sentence[1] == "чтобы"  # mood mismatch error
+        assert sentence[2] == "как"  # comparative error (directed group)
+        assert sentence[4] == "что"
 
     def test_synonym_conjunctions_not_corrupted(self):
         """Pure-synonym conjunction swaps are non-errors and must be gone.
@@ -758,6 +768,116 @@ class TestConjunctionErrorHandler:
         result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
         assert result is not None
         assert result.corrupted == "как"
+
+    def test_chto_chtoby_gated_on_matrix_verb(self):
+        """C12 (2026-07 audit): что -> чтобы must fire only under matrix
+        predicates that license ONLY что (indicative complement); verbs that
+        license both что and чтобы (сказать/попросить/потребовать-class) must
+        not be corrupted, since both readings are already grammatical.
+        """
+        # "Я сказал, что он придёт." -- сказать licenses both что (report of
+        # fact) and чтобы (request); swapping corrupts already-correct text.
+        tokens = [
+            AnalyzedToken(
+                text="Я", lemma="я", pos="PRON", features={}, idx=0, head_idx=1
+            ),
+            AnalyzedToken(
+                text="сказал",
+                lemma="сказать",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text=",", lemma=",", pos="PUNCT", features={}, idx=2, head_idx=4
+            ),
+            AnalyzedToken(
+                text="что",
+                lemma="что",
+                pos="SCONJ",
+                features={},
+                idx=3,
+                dep_rel="mark",
+                head_idx=4,
+            ),
+            AnalyzedToken(
+                text="придёт",
+                lemma="прийти",
+                pos="VERB",
+                features={},
+                idx=4,
+                dep_rel="ccomp",
+                head_idx=1,
+            ),
+        ]
+        assert self.handler.can_apply(tokens, 3) is False
+        sentence = ["Я", "сказал", ",", "что", "придёт"]
+        for seed in range(30):
+            result = self.handler.apply(
+                tokens, sentence, 3, set(), rng=random.Random(seed)
+            )
+            assert result is None
+            assert sentence[3] == "что"
+
+        # "Я знаю, что он придёт." -- знать licenses only что (report of
+        # fact, no request reading); the swap is a genuine mood error.
+        tokens2 = [
+            AnalyzedToken(
+                text="Я", lemma="я", pos="PRON", features={}, idx=0, head_idx=1
+            ),
+            AnalyzedToken(
+                text="знаю",
+                lemma="знать",
+                pos="VERB",
+                features={},
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+            ),
+            AnalyzedToken(
+                text=",", lemma=",", pos="PUNCT", features={}, idx=2, head_idx=4
+            ),
+            AnalyzedToken(
+                text="что",
+                lemma="что",
+                pos="SCONJ",
+                features={},
+                idx=3,
+                dep_rel="mark",
+                head_idx=4,
+            ),
+            AnalyzedToken(
+                text="придёт",
+                lemma="прийти",
+                pos="VERB",
+                features={},
+                idx=4,
+                dep_rel="ccomp",
+                head_idx=1,
+            ),
+        ]
+        assert self.handler.can_apply(tokens2, 3) is True
+        sentence2 = ["Я", "знаю", ",", "что", "придёт"]
+        result = self.handler.apply(tokens2, sentence2, 3, set(), rng=random.Random(0))
+        assert result is not None
+        assert result.corrupted == "чтобы"
+
+    def test_chto_chtoby_no_governor_skipped(self):
+        """No determinable matrix governor (no dep info, no preceding verb)
+        -> skip rather than guess (precision-first)."""
+        tokens = [
+            AnalyzedToken(text="что", lemma="что", pos="SCONJ", features={}, idx=0),
+            AnalyzedToken(
+                text="случилось", lemma="случиться", pos="VERB", features={}, idx=1
+            ),
+        ]
+        assert self.handler.can_apply(tokens, 0) is False
+        sentence = ["что", "случилось"]
+        result = self.handler.apply(tokens, sentence, 0, set(), rng=random.Random(0))
+        assert result is None
+        assert sentence[0] == "что"
 
 
 class TestPronounSvoyErrorHandler:

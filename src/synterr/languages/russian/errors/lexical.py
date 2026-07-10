@@ -278,8 +278,10 @@ _PREP_GOVERNMENT: dict[str, set[str]] = {
 _GOVERNED_SCAN_STOP_POS = {"PUNCT", "VERB", "ADP", "CCONJ", "SCONJ"}
 
 
-def _governed_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
-    """Case of the nominal governed by the ADP at ``idx``.
+def _governed_nominal(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> AnalyzedToken | None:
+    """The nominal governed by the ADP at ``idx``, or None.
 
     With depparse enabled, the ADP's head *is* its complement (UD ``case``
     relation). Without it, fall back to the first Case-bearing token to the
@@ -289,16 +291,73 @@ def _governed_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     token = tokens[idx]
     head_idx = token.head_idx
     if head_idx is not None and 0 <= head_idx < len(tokens) and head_idx != idx:
-        case = tokens[head_idx].get_feature("Case")
-        if case:
-            return case
+        if tokens[head_idx].get_feature("Case"):
+            return tokens[head_idx]
     for other in tokens[idx + 1 : idx + 5]:
         if other.pos in _GOVERNED_SCAN_STOP_POS:
             break
-        case = other.get_feature("Case")
-        if case:
-            return case
+        if other.get_feature("Case"):
+            return other
     return None
+
+
+def _governed_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
+    """Case of the nominal governed by the ADP at ``idx``."""
+    nominal = _governed_nominal(tokens, idx)
+    return nominal.get_feature("Case") if nominal is not None else None
+
+
+# Transport lexemes and boarding/riding verbs where в and на are both
+# standard, interchangeable choices (Rozental treats the в/на split here as
+# convention, not error: "сесть в поезд" / "сесть на поезд", "ехать в
+# автобусе" / "ехать на автобусе" are both attested norm). Swapping под these
+# verbs would corrupt already-correct text into a non-error, so the в<->на
+# swap is skipped whenever both conditions hold (C11, 2026-07 audit).
+_TRANSPORT_NOUN_LEMMAS = {
+    "поезд",
+    "автобус",
+    "самолёт",
+    "трамвай",
+    "троллейбус",
+    "метро",
+    "электричка",
+    "маршрутка",
+    "корабль",
+    "паром",
+}
+_BOARDING_VERB_LEMMAS = {
+    "сесть",
+    "садиться",
+    "сходить",
+    "ехать",
+    "ездить",
+    "лететь",
+    "летать",
+    "плыть",
+}
+
+
+def _v_na_transport_boarding_context(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """Whether the ADP at ``idx`` governs a transport noun under a
+    boarding/riding verb -- the в/на choice is free variation there, not an
+    error (C11, 2026-07 audit)."""
+    noun = _governed_nominal(tokens, idx)
+    if noun is None or (noun.lemma or "").lower() not in _TRANSPORT_NOUN_LEMMAS:
+        return False
+
+    governor = None
+    noun_head = noun.head_idx
+    if noun_head is not None and 0 <= noun_head < len(tokens) and noun_head != noun.idx:
+        governor = tokens[noun_head]
+    if governor is None:
+        # No dep info: fall back to the nearest preceding verb.
+        for j in range(idx - 1, -1, -1):
+            if tokens[j].pos == "VERB":
+                governor = tokens[j]
+                break
+    return (
+        governor is not None and (governor.lemma or "").lower() in _BOARDING_VERB_LEMMAS
+    )
 
 
 class PrepositionErrorHandler:
@@ -353,6 +412,10 @@ class PrepositionErrorHandler:
         if case not in _PREP_GOVERNMENT.get(word, set()):
             # Sense outside the lexicon's frames (e.g. comitative с+Ins) —
             # the confusion group does not apply here.
+            return []
+        if word in ("в", "на") and _v_na_transport_boarding_context(tokens, idx):
+            # Transport noun + boarding verb: both в and на are standard
+            # here, so swapping would corrupt already-correct text (C11).
             return []
         return [
             candidate
@@ -909,6 +972,63 @@ class PronounSebyaErrorHandler:
         )
 
 
+# C12 (2026-07 audit): matrix predicates that license ONLY the indicative
+# что-complementizer, never чтобы -- verbs of cognition/perception/reporting
+# a fact. что -> чтобы is a genuine mood-selection error only when the matrix
+# verb is one of these; сказать/попросить/потребовать-class verbs license
+# чтобы too ("Я сказал, что он придёт" and "Я сказал, чтобы он пришёл" are
+# both grammatical, just different meanings -- request vs. report of fact),
+# so что must not be corrupted there.
+_CHTO_ONLY_MATRIX_LEMMAS = {
+    "знать",
+    "думать",
+    "понимать",
+    "видеть",
+    "слышать",
+    "помнить",
+    "считать",
+    "полагать",
+    "казаться",
+    "означать",
+    "выяснить",
+    "сообщать",
+    "сообщить",
+    "заявлять",
+    "заявить",
+    "отмечать",
+    "отметить",
+    "подчёркивать",
+    "подчеркнуть",
+}
+
+
+def _chto_matrix_governor(
+    tokens: Sequence[AnalyzedToken], idx: int
+) -> AnalyzedToken | None:
+    """Finite matrix predicate governing the что-clause at ``idx``.
+
+    With dep info: что attaches (``mark``) to its own clause's verb; that
+    verb's head is the matrix predicate (``ccomp``). Without dep info, fall
+    back to the nearest preceding verb.
+    """
+    token = tokens[idx]
+    head_idx = token.head_idx
+    if head_idx is not None and 0 <= head_idx < len(tokens) and head_idx != idx:
+        clause_verb = tokens[head_idx]
+        matrix_idx = clause_verb.head_idx
+        if (
+            matrix_idx is not None
+            and 0 <= matrix_idx < len(tokens)
+            and matrix_idx != head_idx
+        ):
+            return tokens[matrix_idx]
+        return None
+    for j in range(idx - 1, -1, -1):
+        if tokens[j].pos == "VERB":
+            return tokens[j]
+    return None
+
+
 class ConjunctionErrorHandler:
     """Replace conjunction with an attested confusion from the same group.
 
@@ -917,6 +1037,10 @@ class ConjunctionErrorHandler:
     Rozental's rules on homogeneous members) are excluded because swapping
     them yields correct Russian. ``directed_*`` groups corrupt only their
     first member (чем→как is an attested error; как→чем is impossible).
+
+    что -> чтобы is additionally gated (C12, 2026-07 audit) on a positive
+    lexicon of matrix predicates that license only что: see
+    ``_CHTO_ONLY_MATRIX_LEMMAS``.
     """
 
     name = "conjunction"
@@ -935,10 +1059,23 @@ class ConjunctionErrorHandler:
             self._conjunctions = get_conjunction_list()
         return self._conjunctions
 
+    def _candidates(
+        self, tokens: Sequence[AnalyzedToken], idx: int, word: str
+    ) -> list[str]:
+        candidates = _all_confusion_candidates(self.conjunctions, word)
+        if word == "что" and "чтобы" in candidates:
+            governor = _chto_matrix_governor(tokens, idx)
+            if (
+                governor is None
+                or (governor.lemma or "").lower() not in _CHTO_ONLY_MATRIX_LEMMAS
+            ):
+                candidates = [c for c in candidates if c != "чтобы"]
+        return candidates
+
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if tokens[idx].pos not in ["CCONJ", "SCONJ"]:
             return False
-        return _has_confusion(self.conjunctions, tokens[idx].lemma)
+        return bool(self._candidates(tokens, idx, tokens[idx].lemma))
 
     def apply(
         self,
@@ -957,9 +1094,10 @@ class ConjunctionErrorHandler:
         if token.pos not in ["CCONJ", "SCONJ"]:
             return None
 
-        new_word = _pick_confusion(self.conjunctions, word.lower(), rng)
-        if new_word is None:
+        candidates = self._candidates(tokens, idx, word.lower())
+        if not candidates:
             return None
+        new_word = rng.choice(candidates)
 
         new_word = match_capitalization(word, new_word)
 
