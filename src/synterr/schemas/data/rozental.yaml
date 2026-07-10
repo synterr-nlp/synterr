@@ -565,10 +565,10 @@ fine_grained_tags:
     l2_note: "Rozental: variant forms; L2: wrong aspect entirely"
   mo_verb_asp_iterative:
     parent: mo_verb_aspect
-    description: "Iterative/semelfactive aspect"
+    description: "Iterative-suffix hypercorrections (затрогивать, освоивать)"
     paras: "§172.2"
-    l2_applicability: none
-    l2_note: "Rozental: iterative variants; L2: fundamental confusion"
+    l2_applicability: partial
+    l2_note: "updated 2026-07-08: lexicon pruned to failure-to-alternate hypercorrections, which learners do produce; the old о/а-variant conception (none) no longer describes the handler"
 
   # --- mo_verb_form children ---
   mo_verb_reflexive:
@@ -751,6 +751,18 @@ fine_grained_tags:
     description: "Dash with isolated appositions"
     paras: "§93"
     l2_applicability: full
+  ag_mn_agreement:
+    parent: ag_modifier_noun
+    description: "Basic modifier-noun agreement (case/number/gender) — learner heartland, RLC-matrix driven"
+    paras: "§191 (frame); phenomenon exceeds Rozental's native scope"
+    l2_applicability: full
+    l2_note: "natives rarely err here; generation distributions are fitted to RLC learner confusions"
+  ag_sv_agreement:
+    parent: ag_subject_verb
+    description: "Basic subject-verb person/number agreement — learner heartland"
+    paras: "§183 (frame); phenomenon exceeds Rozental's native scope"
+    l2_applicability: full
+    l2_note: "natives rarely err here; RLC-matrix driven"
   pu_dash_ellipsis:
     parent: pu_dash
     description: "Dash in an elliptical (incomplete) clause"
@@ -929,10 +941,13 @@ mappings:
   # Morphological handler subtypes — adjectives (RECLASSIFIED as agreement)
   adj_case:
     primary: ag_modifier_noun
+    l2_tag: ag_mn_agreement
   adj_number:
     primary: ag_modifier_noun
+    l2_tag: ag_mn_agreement
   adj_gender:
     primary: ag_modifier_noun
+    l2_tag: ag_mn_agreement
   # Adjective form (short/full, comparative) — true morphological form errors
   adj_short_full:
     primary: mo_adj_form
@@ -944,6 +959,7 @@ mappings:
   # Morphological handler subtypes — verbs
   verb_person_number:
     primary: mo_verb_person_num
+    l2_tag: ag_sv_agreement
   verb_tense:
     primary: mo_verb_tense
   # reserved: no VerbAspect handler yet (mapping kept for planned handler)
