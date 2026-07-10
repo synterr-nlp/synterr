@@ -958,7 +958,7 @@ mappings:
 
   # Morphological handler subtypes — verbs
   verb_person_number:
-    primary: mo_verb_person_num
+    primary: ag_subject_verb
     l2_tag: ag_sv_agreement
   verb_tense:
     primary: mo_verb_tense
