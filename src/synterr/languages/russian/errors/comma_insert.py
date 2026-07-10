@@ -679,6 +679,57 @@ def _extends_to_compound_sconj(
     )
 
 
+def _kak_concludes_compound_sconj(
+    tokens: Sequence[AnalyzedToken], kak_idx: int
+) -> bool:
+    """`kak_idx` is the trailing «как» of a non-splittable compound
+    conjunction from _COMPOUND_SCONJ («в то время как», «тогда как», «даже
+    если»-family whose last word is «как», …), at ANY position in the
+    sentence — not just sentence-initial (audit A10).
+
+    Distinct from `_match_compound_sconj`, whose sentence-initial gate
+    governs only which SITE fires `comma_compound_conj_split` (the
+    annotation-driven precision restriction on that subtype's own error
+    generation): a mid-sentence "тогда как" is still a non-splittable
+    conjunction, so `comma_before_kak` must never treat its «как» as a
+    standalone appositive/comparative site, whether or not
+    `comma_compound_conj_split` is licensed to fire there.
+    """
+    for compound, _comma_pos in _COMPOUND_SCONJ:
+        if compound[-1] != "как":
+            continue
+        start = kak_idx - (len(compound) - 1)
+        if start < 0 or not _match_phrase(tokens, start, compound):
+            continue
+        # «тогда как раз», «словно как будто»: trailing как opens a fixed
+        # phrase, not the conjunction — same exception as
+        # _match_compound_sconj.
+        after = kak_idx + 1
+        if (
+            after < len(tokens)
+            and tokens[after].text.lower() in _KAK_PHRASE_CONTINUATIONS
+        ):
+            continue
+        return True
+    return False
+
+
+_CORRELATIVE_SAME_LEMMA = "же"
+
+
+def _kak_has_correlative_same(tokens: Sequence[AnalyzedToken], kak_idx: int) -> bool:
+    """«так же как», «точно так же как», «столь же как»: a correlative
+    comparison where the comma before «как» is standard punctuation, not an
+    error (audit A14). Detected via a bare «же» lemma anywhere in the 4
+    tokens preceding «как».
+    """
+    lo = max(0, kak_idx - 4)
+    return any(
+        (tokens[j].lemma or tokens[j].text).lower() == _CORRELATIVE_SAME_LEMMA
+        for j in range(lo, kak_idx)
+    )
+
+
 def _opens_following_clause(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """The word introduces the clause of a head to its right.
 
@@ -868,12 +919,16 @@ class CommaInsertHandler:
         detected: list[str] = []
 
         # "как" not preceded by ANY punctuation (comma, «, (, dash, colon —
-        # inserting after those double-punctuates), and NOT clause-introducing
+        # inserting after those double-punctuates), NOT clause-introducing,
+        # NOT the tail of a non-splittable compound conjunction (audit A10),
+        # and NOT part of a «так же как» correlative comparison (audit A14)
         if (
             text_lower == "как"
             and idx > 0
             and tokens[idx - 1].pos != "PUNCT"
             and tokens[idx - 1].text not in _PUNCT_CHARS
+            and not _kak_concludes_compound_sconj(tokens, idx)
+            and not _kak_has_correlative_same(tokens, idx)
         ):
             allow = False
             if token.dep_rel in _KAK_CLAUSE_DEPRELS:

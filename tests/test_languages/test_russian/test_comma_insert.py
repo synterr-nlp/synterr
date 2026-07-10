@@ -1011,6 +1011,69 @@ class TestCommaXNeX:
         assert "comma_x_ne_x" not in CommaInsertHandler()._detect_subtypes(tokens, 0)
 
 
+class TestAuditFixesJuly2026:
+    """C1/C2 (A10/A14): comma_before_kak must not fire on "как" that
+    belongs to a non-splittable compound conjunction or a correlative
+    comparison. Fake-token reconstructions mirroring live-stanza dep shapes
+    (verified via ErrorPipeline with use_depparse=True before being written).
+    """
+
+    def test_compound_sconj_kak_never_fires_before_kak(self):
+        # "В то время как я работал, он спал." — comma_before_kak must
+        # never fire on this "как"; comma_compound_conj_split (sentence-
+        # initial) is the correct label for the site instead.
+        tokens = [
+            _tok("В", pos="ADP", idx=0, dep_rel="mark", head_idx=5),
+            _tok("то", pos="DET", idx=1, dep_rel="fixed", head_idx=0),
+            _tok("время", idx=2, dep_rel="fixed", head_idx=0),
+            _tok("как", pos="SCONJ", idx=3, dep_rel="fixed", head_idx=0),
+            _tok("я", pos="PRON", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "работал",
+                pos="VERB",
+                idx=5,
+                dep_rel="advcl",
+                head_idx=8,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", pos="PUNCT", idx=6, dep_rel="punct", head_idx=5),
+            _tok("он", pos="PRON", idx=7, dep_rel="nsubj", head_idx=8),
+            _tok(
+                "спал", pos="VERB", idx=8, dep_rel="root", features={"VerbForm": "Fin"}
+            ),
+        ]
+        detected = CommaInsertHandler()._detect_subtypes(tokens, 3)
+        assert "comma_before_kak" not in detected
+        assert "comma_compound_conj_split" in CommaInsertHandler()._detect_subtypes(
+            tokens, 0
+        )
+
+    def test_correlative_tak_zhe_kak_never_fires_before_kak(self):
+        # "Так же как и предыдущий доклад, этот вызвал споры." — a
+        # correlative comparison; the comma before "как" is standard.
+        tokens = [
+            _tok("Так", pos="ADV", idx=0, dep_rel="mark", head_idx=5),
+            _tok("же", pos="PART", idx=1, dep_rel="fixed", head_idx=0),
+            _tok("как", pos="SCONJ", idx=2, dep_rel="mark", head_idx=5),
+            _tok("и", pos="PART", idx=3, dep_rel="advmod", head_idx=5),
+            _tok("предыдущий", pos="ADJ", idx=4, dep_rel="amod", head_idx=5),
+            _tok("доклад", idx=5, dep_rel="advcl", head_idx=8),
+            _tok(",", pos="PUNCT", idx=6, dep_rel="punct", head_idx=5),
+            _tok("этот", pos="DET", idx=7, dep_rel="nsubj", head_idx=8),
+            _tok(
+                "вызвал",
+                pos="VERB",
+                idx=8,
+                dep_rel="root",
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("споры", idx=9, dep_rel="obj", head_idx=8),
+        ]
+        assert "comma_before_kak" not in CommaInsertHandler()._detect_subtypes(
+            tokens, 2
+        )
+
+
 class TestZeroWeightExclusion:
     """Zero-weighted new subtypes never fire even when they are the only
     detected candidate at a token."""

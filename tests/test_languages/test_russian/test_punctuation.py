@@ -1524,8 +1524,16 @@ class TestEstoConnectorDash:
 
 
 class TestPairedAppositionDash:
-    """Paired dashes bounding an explanatory apposition must classify
-    dash_apposition — not subj_pred (opening) or asyndetic (closing)."""
+    """Paired dashes bounding an explanatory apposition must classify None
+    (skip) — not subj_pred (opening) or asyndetic (closing).
+
+    Audit A3: deleting only ONE of the two framing dashes of a §93 п.8-в
+    pair mangles the construction (unlike a single sentence-final
+    apposition dash, still caught via _appositional_dash_arcs), so neither
+    dash may be generated as a comma_delete/dash_delete error. Previously
+    both dashes classified dash_apposition and DashDeleteHandler could fire
+    on either one alone.
+    """
 
     def _paired_tokens(self):
         # "Мы — весёлая детвора — шли домой." — deps mirror the live stanza
@@ -1556,20 +1564,21 @@ class TestPairedAppositionDash:
             _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=3),
         ]
 
-    def test_opening_dash_is_apposition(self):
-        assert _classify_dash(self._paired_tokens(), 1) == "dash_apposition"
+    def test_opening_dash_is_skipped(self):
+        assert _classify_dash(self._paired_tokens(), 1) is None
 
-    def test_closing_dash_is_apposition(self):
-        assert _classify_dash(self._paired_tokens(), 4) == "dash_apposition"
+    def test_closing_dash_is_skipped(self):
+        assert _classify_dash(self._paired_tokens(), 4) is None
 
-    def test_noun_subject_paired_apposition(self):
+    def test_noun_subject_paired_apposition_skipped(self):
         # "Ребята — весёлая детвора — шли домой." — with a NOUN subject the
         # opening dash used to surface-match dash_subj_pred (amod right
-        # neighbor resolves to its NP head right of the dash).
+        # neighbor resolves to its NP head right of the dash); both framing
+        # dashes of the pair must still classify None (audit A3).
         tokens = self._paired_tokens()
         tokens[0] = _tok("Ребята", "NOUN", idx=0, dep_rel="nsubj", head_idx=3)
-        assert _classify_dash(tokens, 1) == "dash_apposition"
-        assert _classify_dash(tokens, 4) == "dash_apposition"
+        assert _classify_dash(tokens, 1) is None
+        assert _classify_dash(tokens, 4) is None
 
     def test_contrast_pattern_still_subj_pred(self):
         # "Я — фабрикант, ты — судовладелец." (§79 contrast, Rozental's own
@@ -2402,3 +2411,354 @@ class TestDashToCommaEllipsisGuard:
             _tok(".", "PUNCT", idx=6, dep_rel="punct", head_idx=1),
         ]
         assert DashToCommaHandler().can_apply(tokens, 4) is False
+
+
+# ── Regressions from the 2026-07 coordinator audit (14 verified findings) ───
+# Fake-token reconstructions mirroring live-stanza dep shapes (verified via
+# ErrorPipeline with use_depparse=True before each test was written).
+
+
+class TestAuditFixesJuly2026:
+    """One regression per verified audit finding (A2–A16)."""
+
+    # ── P1 (A6): fallback branches must route finite clauses to subordinate
+
+    def test_neighbor_loop_fallback_routes_finite_acl_relcl_to_subordinate(self):
+        # Comma has no head info (forces the POS/lemma fallback); the right
+        # neighbor is itself a FINITE acl:relcl — must not fall into the
+        # generic "acl/acl:relcl/advcl neighbor → isolation" branch.
+        tokens = [
+            _tok("текст", "NOUN", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok(
+                "значащий",
+                "VERB",
+                idx=2,
+                dep_rel="acl:relcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("школьник", "NOUN", idx=3, dep_rel="nsubj", head_idx=2),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_subordinate"
+
+    def test_closing_scan_fallback_routes_finite_acl_relcl_to_subordinate(self):
+        # "Дом, который построил отец, стоит на холме." — closing comma has
+        # no head info; the fallback left-scan finds the finite acl:relcl
+        # "построил" and must route it to subordinate, not isolation.
+        tokens = [
+            _tok("дом", "NOUN", idx=0, dep_rel="nsubj", head_idx=6),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok(
+                "который",
+                "PRON",
+                idx=2,
+                dep_rel="obj",
+                head_idx=3,
+                features={"PronType": "Rel"},
+            ),
+            _tok(
+                "построил",
+                "VERB",
+                idx=3,
+                dep_rel="acl:relcl",
+                head_idx=0,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("отец", "NOUN", idx=4, dep_rel="nsubj", head_idx=3),
+            _tok(",", "PUNCT", idx=5),  # no head info → fallback path
+            _tok("стоит", "VERB", idx=6),
+        ]
+        assert _classify_comma(tokens, 5) == "comma_subordinate"
+
+    # ── P2 (A16): comma_delete must skip a split compound conjunction comma
+
+    def test_comma_delete_skips_split_compound_conjunction(self):
+        # "После того, как дождь кончился, мы вышли." — the internal comma
+        # of "после того, как" must never be a standalone comma_delete site.
+        tokens = [
+            _tok("после", "ADP", idx=0, dep_rel="case", head_idx=1),
+            _tok("того", "PRON", idx=1, lemma="то", dep_rel="obl", head_idx=5),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=5),
+            _tok("как", "SCONJ", idx=3, dep_rel="mark", head_idx=5),
+            _tok("дождь", "NOUN", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "кончился",
+                "VERB",
+                idx=5,
+                dep_rel="acl",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        handler = CommaDeleteHandler()
+        assert handler.can_apply(tokens, 2) is False
+        sentence = [t.text for t in tokens]
+        assert handler.apply(tokens, sentence, 2, set()) is None
+        assert sentence == [t.text for t in tokens]
+
+    # ── P3 (A7): opening-comma right-scan for parenthetical, before subordinate
+
+    def test_opening_comma_parenthetical_before_subordinate_fallback(self):
+        # "Руководство, как ясно из записи, разрешило съёмку." — "как" is
+        # dep_rel=mark (would win the generic SCONJ/mark subordinate check)
+        # but bounds a parataxis subtree that starts right after the comma
+        # and ends before the closing comma → parenthetical wins.
+        tokens = [
+            _tok("Руководство", "NOUN", idx=0, dep_rel="nsubj", head_idx=7),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("как", "SCONJ", idx=2, dep_rel="mark", head_idx=3),
+            _tok(
+                "ясно",
+                "ADJ",
+                idx=3,
+                dep_rel="parataxis",
+                head_idx=7,
+                features={"Variant": "Short"},
+            ),
+            _tok("из", "ADP", idx=4, dep_rel="case", head_idx=5),
+            _tok("записи", "NOUN", idx=5, dep_rel="obl", head_idx=3),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=3),
+            _tok("разрешило", "VERB", idx=7, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_comma(tokens, 1) == "comma_parenthetical"
+
+    # ── P4 (A8): speech-verb word-order gate replaces the span cutoff
+
+    def test_speech_verb_precedes_subject_is_parenthetical(self):
+        # "Продажа отложена, сообщает РИА..." — verb precedes its own
+        # subject (attribution order) → parenthetical, regardless of the
+        # (long) subtree span.
+        tokens = [
+            _tok("Продажа", "NOUN", idx=0, dep_rel="nsubj:pass", head_idx=1),
+            _tok(
+                "отложена",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Part", "Variant": "Short"},
+            ),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "сообщает",
+                "VERB",
+                lemma="сообщать",
+                idx=3,
+                dep_rel="parataxis",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("РИА", "PROPN", idx=4, dep_rel="nsubj", head_idx=3),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_parenthetical"
+
+    def test_speech_verb_subject_precedes_verb_stays_asyndetic(self):
+        # Subject-verb order (real БСП): "..., мать говорила." — short span,
+        # but the subject precedes the speech verb → genuine §116 clause.
+        tokens = [
+            _tok("Все", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "ушли",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("мать", "NOUN", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok(
+                "говорила",
+                "VERB",
+                lemma="говорить",
+                idx=4,
+                dep_rel="parataxis",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_asyndetic"
+
+    # ── P5 (A2): skip a pair whose span crosses another comma
+
+    def test_pair_partner_skips_when_span_crosses_another_comma(self):
+        # "Иван, мой друг, который живёт в Москве, приехал вчера." — the
+        # apposition "мой друг" ends up enclosing the relative clause (its
+        # subtree includes "который живёт в Москве"), so its span crosses
+        # the comma at idx=4: must skip rather than orphan it. The inner
+        # relative-clause pair (idx 4/9) contains no internal comma and
+        # still fires correctly.
+        tokens = [
+            _tok("Иван", "PROPN", idx=0, dep_rel="nsubj", head_idx=10),
+            _tok(",", "PUNCT", idx=1, dep_rel="punct", head_idx=3),
+            _tok("мой", "DET", idx=2, dep_rel="det", head_idx=3),
+            _tok("друг", "NOUN", idx=3, dep_rel="appos", head_idx=0),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=6),
+            _tok(
+                "который",
+                "PRON",
+                idx=5,
+                dep_rel="nsubj",
+                head_idx=6,
+                features={"PronType": "Rel"},
+            ),
+            _tok(
+                "живёт",
+                "VERB",
+                idx=6,
+                dep_rel="acl:relcl",
+                head_idx=3,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("в", "ADP", idx=7, dep_rel="case", head_idx=8),
+            _tok("Москве", "PROPN", idx=8, dep_rel="obl", head_idx=6),
+            _tok(",", "PUNCT", idx=9, dep_rel="punct", head_idx=3),
+            _tok("приехал", "VERB", idx=10, dep_rel="root", head_idx=None),
+        ]
+        assert _find_comma_partner(tokens, 1) is None
+        assert _find_comma_partner(tokens, 4) == (9, "pair_relative")
+
+    # P6 (A3) is covered by the updated TestPairedAppositionDash assertions
+    # above (test_opening_dash_is_skipped / test_closing_dash_is_skipped /
+    # test_noun_subject_paired_apposition_skipped).
+
+    # ── P7 (A4): dash inside an open quotation span must skip
+
+    def test_dash_inside_quotation_span_skipped(self):
+        # «Фонд ассоциации "Гематологи мира — детям" собрал средства.»
+        tokens = [
+            _tok("Фонд", "NOUN", idx=0, dep_rel="nsubj", head_idx=8),
+            _tok("ассоциации", "NOUN", idx=1, dep_rel="nmod", head_idx=0),
+            _tok('"', "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("Гематологи", "NOUN", idx=3, dep_rel="appos", head_idx=1),
+            _tok("мира", "NOUN", idx=4, dep_rel="nmod", head_idx=3),
+            _tok("—", "PUNCT", idx=5, dep_rel="punct", head_idx=6),
+            _tok("детям", "NOUN", idx=6, dep_rel="appos", head_idx=3),
+            _tok('"', "PUNCT", idx=7, dep_rel="punct", head_idx=3),
+            _tok("собрал", "VERB", idx=8, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_dash(tokens, 5) is None
+
+    # ── P8 (A5): temporal-endpoint NOUN—NOUN connective dash
+
+    def test_temporal_endpoint_dash_is_connective(self):
+        # "План составлен на период январь — март 2026 года."
+        tokens = [
+            _tok("период", "NOUN", idx=0, dep_rel="obl", head_idx=None),
+            _tok("январь", "NOUN", idx=1, dep_rel="nmod", head_idx=0),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("март", "NOUN", idx=3, dep_rel="nmod", head_idx=1),
+        ]
+        assert _classify_dash(tokens, 2) is None
+
+    # ── P9 (A9): «Понять — значит простить» is dash_subj_pred
+
+    def test_znachit_connector_with_infinitive_subject(self):
+        tokens = [
+            _tok(
+                "Понять",
+                "VERB",
+                idx=0,
+                dep_rel="xcomp",
+                head_idx=2,
+                features={"VerbForm": "Inf"},
+            ),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok(
+                "значит",
+                "VERB",
+                lemma="значить",
+                idx=2,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(
+                "простить",
+                "VERB",
+                idx=3,
+                dep_rel="xcomp",
+                head_idx=2,
+                features={"VerbForm": "Inf"},
+            ),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+
+    # ── P10 (A12): demonstrative-subject «это» dash is optional
+
+    def test_demonstrative_eto_subject_dash_is_optional(self):
+        # "Это — здоровый детина." — это on the LEFT (demonstrative subject).
+        tokens = [
+            _tok(
+                "Это",
+                "PRON",
+                idx=0,
+                dep_rel="nsubj",
+                head_idx=3,
+                features={"PronType": "Dem"},
+            ),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok("здоровый", "ADJ", idx=2, dep_rel="amod", head_idx=3),
+            _tok("детина", "NOUN", idx=3, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_dash(tokens, 1) is None
+
+    def test_eto_connector_on_right_still_fires(self):
+        # "Жизнь — это движение." — это on the RIGHT (§79 connector) must
+        # still fire, unaffected by the new left-side это exception.
+        tokens = [
+            _tok("Жизнь", "NOUN", idx=0, dep_rel="nsubj", head_idx=3),
+            _tok("—", "PUNCT", idx=1, dep_rel="punct", head_idx=0),
+            _tok(
+                "это",
+                "PRON",
+                idx=2,
+                dep_rel="expl",
+                head_idx=3,
+                features={"PronType": "Dem"},
+            ),
+            _tok("движение", "NOUN", idx=3, dep_rel="root", head_idx=None),
+        ]
+        assert _classify_dash(tokens, 1) == "dash_subj_pred"
+
+    # ── P11 (A11): authorial adjunct dash before ADP, no following predicate
+
+    def test_authorial_adjunct_dash_before_adp_skipped(self):
+        # "Он передал письмо — без лишних слов." — deletion is normative.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "передал",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("письмо", "NOUN", idx=2, dep_rel="obj", head_idx=1),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
+            _tok("без", "ADP", idx=4, dep_rel="case", head_idx=6),
+            _tok("лишних", "ADJ", idx=5, dep_rel="amod", head_idx=6),
+            _tok("слов", "NOUN", idx=6, dep_rel="obl", head_idx=1),
+        ]
+        assert _classify_dash(tokens, 3) is None
+
+    # ── P12 (A15): dual-function words removed from PARENTHETICAL_WORDS
+
+    def test_removed_words_not_in_parenthetical_words(self):
+        from synterr.languages.russian.errors.punctuation import PARENTHETICAL_WORDS
+
+        for word in ("наконец", "действительно", "правда", "значит"):
+            assert word not in PARENTHETICAL_WORDS
+
+    def test_bare_nakonets_neighbor_no_longer_parenthetical_via_fallback(self):
+        # Mirrors the pre-existing test_parenthetical_word_list_fallback
+        # shape, but with a removed word: must NOT classify parenthetical
+        # via the lexical fallback now that "наконец" is gone from the list.
+        tokens = [
+            _tok("Он", "PRON", idx=0),
+            _tok(",", "PUNCT", idx=1),
+            _tok("наконец", "ADV", lemma="наконец", idx=2),
+        ]
+        assert _classify_comma(tokens, 1) != "comma_parenthetical"
