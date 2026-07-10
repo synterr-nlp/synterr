@@ -580,6 +580,96 @@ class TestWeightedSubtypeSelection:
         assert sentence == ["так", "же"]
 
 
+class TestAllCapsCapitalization:
+    """Regression (audit B10): an all-caps source token must produce
+    all-caps segments on every split/merge subtype, not just a capitalized
+    first letter — "ЧТОБЫ" -> "Что бы" silently destroyed the caps-lock
+    shape ("НЕКОГО СПРОСИТЬ" -> "НиКОГО СПРОСИТЬ")."""
+
+    def _force(self, subtype):
+        h = FunctionSpellingHandler()
+        weights = dict.fromkeys(
+            [
+                "ne_attachment",
+                "ne_detachment",
+                "conjunction_split",
+                "conjunction_merge",
+                "taki_hyphen",
+                "neg_pronoun_ne_ni",
+            ],
+            0,
+        )
+        weights[subtype] = 100
+        h.set_subtype_weights(weights)
+        return h
+
+    def test_conjunction_split_all_caps(self):
+        h = self._force("conjunction_split")
+        tokens = [_tok("ЧТОБЫ", pos="SCONJ", idx=0)]
+        sentence = ["ЧТОБЫ"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["ЧТО", "БЫ"]
+
+    def test_conjunction_merge_all_caps(self):
+        h = self._force("conjunction_merge")
+        tokens = [
+            _tok("ЧТО", pos="SCONJ", idx=0),
+            _tok("БЫ", pos="PART", idx=1),
+        ]
+        sentence = ["ЧТО", "БЫ"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["ЧТОБЫ"]
+
+    def test_ne_attachment_all_caps(self):
+        h = self._force("ne_attachment")
+        tokens = [
+            _tok("НЕ", pos="PART", idx=0),
+            _tok("ПРАВДА", pos="NOUN", idx=1),
+        ]
+        sentence = ["НЕ", "ПРАВДА"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["НЕПРАВДА"]
+
+    def test_ne_detachment_all_caps(self):
+        h = self._force("ne_detachment")
+        tokens = [_tok("НЕСЧАСТЬЕ", pos="NOUN", idx=0)]
+        sentence = ["НЕСЧАСТЬЕ"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["НЕ", "СЧАСТЬЕ"]
+
+    def test_taki_hyphen_all_caps(self):
+        h = self._force("taki_hyphen")
+        tokens = [_tok("ВСЁ-ТАКИ", pos="PART", idx=0)]
+        sentence = ["ВСЁ-ТАКИ"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["ВСЁ", "ТАКИ"]
+
+    def test_neg_pronoun_all_caps(self):
+        h = self._force("neg_pronoun_ne_ni")
+        tokens = [
+            _tok("НЕКОГО", pos="PRON", idx=0),
+            _tok("СПРОСИТЬ", pos="VERB", idx=1, features={"VerbForm": "Inf"}),
+        ]
+        sentence = ["НЕКОГО", "СПРОСИТЬ"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["НИКОГО", "СПРОСИТЬ"]
+
+    def test_title_case_still_only_capitalizes_first_letter(self):
+        """Regression guard: title-case source must not be over-corrected
+        into all-caps parts."""
+        h = self._force("conjunction_split")
+        tokens = [_tok("Чтобы", pos="SCONJ", idx=0)]
+        sentence = ["Чтобы"]
+        h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert sentence == ["Что", "бы"]
+
+
 class TestEnabledSubtypes:
     """set_enabled_subtypes restricts which subtype apply() may emit."""
 

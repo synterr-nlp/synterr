@@ -8,12 +8,12 @@ from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.adverb_spelling import AdverbSpellingHandler
 
 
-def _tok(text, pos="ADV", lemma=None, idx=0, head_idx=None):
+def _tok(text, pos="ADV", lemma=None, idx=0, head_idx=None, features=None):
     return AnalyzedToken(
         text=text,
         lemma=lemma or text.lower(),
         pos=pos,
-        features={},
+        features=features or {},
         idx=idx,
         head_idx=head_idx,
     )
@@ -214,6 +214,121 @@ class TestPodryadNounGuard:
         result = h.apply(tokens, sentence, 1, set(), rng=Random(0))
         assert result is not None
         assert sentence == ["шли", "по", "дряд", "часами"]
+
+
+class TestSplitAmbiguityGuards:
+    """Regression (audit B12): solid→separate lacked the ambiguity guards the
+    merge direction has. A governed genitive sanctions the separate spelling
+    (§53 прим.: 'движение в глубь Чечни' is normative), and homographs like
+    навстречу/вначале have a fluent PP reading even bare ('идёт на встречу',
+    'В начале было слово') — splitting there is not an error."""
+
+    GEN_BLOCKED_CASES = [
+        # (adverb, following genitive nominal)
+        ("вглубь", "Чечни"),
+        ("вдаль", "моря"),
+        ("вверх", "страницы"),
+        ("вовремя", "грозы"),
+        ("наконец", "года"),
+        ("сначала", "века"),
+    ]
+
+    @pytest.mark.parametrize(("adverb", "gen_noun"), GEN_BLOCKED_CASES)
+    def test_gen_complement_blocks_split(self, adverb, gen_noun):
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok(adverb),
+            _tok(gen_noun, pos="NOUN", idx=1, features={"Case": "Gen"}),
+        ]
+        sentence = [adverb, gen_noun]
+        assert h.can_apply(tokens, 0) is False
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+        assert sentence == [adverb, gen_noun]
+
+    def test_gen_agreeing_adjective_blocks_split(self):
+        """'в глубь синего моря' — the agreeing ADJ carries the genitive."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok("вглубь"),
+            _tok("синего", pos="ADJ", idx=1, features={"Case": "Gen"}),
+            _tok("моря", pos="NOUN", idx=2, features={"Case": "Gen"}),
+        ]
+        sentence = ["вглубь", "синего", "моря"]
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+
+    def test_bare_vverh_still_fires(self):
+        """'Он посмотрел вверх' — no governed noun, split is a clear error."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok("посмотрел", pos="VERB", lemma="посмотреть"),
+            _tok("вверх", idx=1),
+            _tok(".", pos="PUNCT", idx=2),
+        ]
+        sentence = ["посмотрел", "вверх", "."]
+        result = h.apply(tokens, sentence, 1, set(), rng=Random(0))
+        assert result is not None
+        assert result.error_type == "adverb_spelling_adverb_solid_to_separate"
+        assert sentence == ["посмотрел", "в", "верх", "."]
+
+    def test_non_gen_complement_still_fires(self):
+        """A following non-genitive nominal does not sanction the separate
+        spelling — 'ушёл вовремя' with Nom subject after stays corruptible."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok("наконец"),
+            _tok("он", pos="PRON", idx=1, features={"Case": "Nom"}),
+        ]
+        sentence = ["наконец", "он"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["на", "конец", "он"]
+
+    def test_navstrechu_bare_blocked(self):
+        """'Он идёт навстречу' → 'идёт на встречу' (to a meeting) is fully
+        normative — a fluent meaning change, not a spelling error."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok("идёт", pos="VERB", lemma="идти"),
+            _tok("навстречу", idx=1),
+            _tok(".", pos="PUNCT", idx=2),
+        ]
+        sentence = ["идёт", "навстречу", "."]
+        assert h.can_apply(tokens, 1) is False
+        assert h.apply(tokens, sentence, 1, set(), rng=Random(0)) is None
+
+    def test_navstrechu_with_dative_fires(self):
+        """'навстречу ветру' → 'на встречу ветру' IS an error (§53 п.5):
+        the PP 'на встречу' does not govern a bare dative."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok("навстречу"),
+            _tok("ветру", pos="NOUN", idx=1, features={"Case": "Dat"}),
+        ]
+        sentence = ["навстречу", "ветру"]
+        result = h.apply(tokens, sentence, 0, set(), rng=Random(0))
+        assert result is not None
+        assert sentence == ["на", "встречу", "ветру"]
+
+    def test_vnachale_always_blocked(self):
+        """'Вначале было слово' → 'В начале было слово' is the canonical
+        biblical spelling; no context reliably rules the PP reading out."""
+        h = AdverbSpellingHandler()
+        h.set_enabled_subtypes({"adverb_solid_to_separate"})
+        tokens = [
+            _tok("Вначале"),
+            _tok("было", pos="VERB", idx=1),
+            _tok("слово", pos="NOUN", idx=2, features={"Case": "Nom"}),
+        ]
+        sentence = ["Вначале", "было", "слово"]
+        assert h.can_apply(tokens, 0) is False
+        assert h.apply(tokens, sentence, 0, set(), rng=Random(0)) is None
+        assert sentence == ["Вначале", "было", "слово"]
 
 
 class TestToParticleGuard:

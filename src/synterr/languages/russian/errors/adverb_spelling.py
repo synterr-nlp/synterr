@@ -255,6 +255,68 @@ _TRIGRAM_SEPARATE_TO_HYPHEN: dict[tuple[str, str, str], str] = {
 # 'contract') that must not be split.
 _SPLITTABLE_POS: frozenset[str] = frozenset({"ADV", "ADP", "PART"})
 
+# ── Direction-symmetric ambiguity guards for solid→separate (audit B12) ─────
+# The merge direction is guarded by _NO_MERGE / _MERGE_BLOCKED_LEMMAS / a
+# dep-tree NP check; the split direction had no equivalent, so it emitted
+# sanctioned Russian as "errors". Two symmetric guard classes:
+
+# §53 прим. / §56 п.7 прим.2: direction/place/time words whose SEPARATE
+# spelling is sanctioned when a genitive complement follows ("движение в
+# глубь Чечни", "в начале года", "во время грозы", "на конец месяца").
+# Splitting the solid adverb there yields normative text, not an error —
+# skip. The bare adverb ("посмотрел вверх" → "в верх") remains a clear
+# error and keeps firing. Mirror of _NO_MERGE, which disables the reverse
+# direction for the same family.
+_SPLIT_GEN_BLOCKED: frozenset[str] = frozenset(
+    {
+        "вверх",
+        "вверху",
+        "вглубь",
+        "вдаль",
+        "вдали",
+        "вниз",
+        "внизу",
+        "вконец",
+        "вместе",
+        "вначале",
+        "вовремя",
+        "впереди",
+        "наверх",
+        "наверху",
+        "наконец",
+        "наутро",
+        "поверх",
+        "позади",
+        "посередине",
+        "сбоку",
+        "сверху",
+        "снизу",
+        "сначала",
+    }
+)
+
+# Nominal POS whose Case feature identifies a governed complement. An
+# agreeing ADJ/DET/NUM carries the same case as its head noun, so checking
+# the immediately following token suffices ("в глубь синего моря").
+_NOMINAL_POS: frozenset[str] = frozenset({"NOUN", "PROPN", "PRON", "ADJ", "DET", "NUM"})
+
+# Homograph adverbs whose separate spelling is a live prepositional-phrase
+# reading even WITHOUT a governed genitive — the split output is fluent
+# Russian with a different sense, not a spelling error (mirror of
+# _MERGE_BLOCKED_LEMMAS on the merge side):
+# - навстречу → "идёт на встречу" ('goes to a meeting') is fully normative;
+#   only a following DATIVE nominal rules the PP reading out ("навстречу
+#   ветру" → "на встречу ветру" IS an error, §53 п.5) — split requires Dat.
+# - вначале → "В начале было слово" is the canonical spelling of the
+#   biblical opening; no reliable context signal makes the PP reading
+#   impossible, so the split is never emitted.
+_SPLIT_HOMOGRAPH_REQUIRED_CASE: dict[str, str | None] = {
+    # word → Case a following nominal must carry to license the split,
+    # or None if no context licenses it (always skip)
+    "навстречу": "Dat",
+    "вначале": None,
+}
+
 # Verbs governing подряд as a noun ('contract'): stanza tags that reading
 # ADV too, so the POS gate alone cannot catch it — context guard needed.
 _PODRYAD_GOVERNORS: frozenset[str] = frozenset(
@@ -328,18 +390,46 @@ class AdverbSpellingHandler:
         self._enabled_subtypes = subtypes
 
     @staticmethod
-    def _solid_split_ok(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-        """Guard the solid→separate direction against noun homographs."""
+    def _next_nominal_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
+        """Case of the immediately following nominal token, if any."""
+        if idx + 1 >= len(tokens):
+            return None
+        nxt = tokens[idx + 1]
+        if nxt.pos not in _NOMINAL_POS:
+            return None
+        return nxt.features.get("Case")
+
+    @classmethod
+    def _solid_split_ok(cls, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        """Guard the solid→separate direction against noun homographs and
+        contexts where the separate spelling is itself normative (audit B12:
+        symmetric to the _NO_MERGE / _MERGE_BLOCKED_LEMMAS merge guards)."""
         token = tokens[idx]
         if token.pos not in _SPLITTABLE_POS:
             return False
-        if token.text.lower() == "подряд":
+        text_lower = token.text.lower()
+        if text_lower == "подряд":
             # Noun reading 'contract' (подряд на ремонт; выиграть подряд):
             # splitting it yields the non-word "по дряд" (§56 п.6 lists
             # подряд as adverb only).
             if idx + 1 < len(tokens) and tokens[idx + 1].text.lower() == "на":
                 return False
             if idx > 0 and tokens[idx - 1].lemma.lower() in _PODRYAD_GOVERNORS:
+                return False
+        # §53 прим.: a governed genitive sanctions the separate spelling
+        # ("движение в глубь Чечни") — splitting is not an error there.
+        if (
+            text_lower in _SPLIT_GEN_BLOCKED
+            and cls._next_nominal_case(tokens, idx) == "Gen"
+        ):
+            return False
+        # Homographs whose separate form is a normal PP reading: split only
+        # when the required licensing context is present.
+        if text_lower in _SPLIT_HOMOGRAPH_REQUIRED_CASE:
+            required = _SPLIT_HOMOGRAPH_REQUIRED_CASE[text_lower]
+            if required is None:
+                return False
+            if cls._next_nominal_case(tokens, idx) != required:
                 return False
         return True
 

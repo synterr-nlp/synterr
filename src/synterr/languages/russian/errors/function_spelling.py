@@ -6,6 +6,22 @@ Covers Rozental §59–72 (sp_function L1 tag):
 - Particle spelling: -таки hyphen errors
 
 This handler changes_length=True because split/merge operations add/remove tokens.
+
+Known validity ceiling (audit B11, 2026-07): a small number of the split/merge
+pairs are grammatical in BOTH spellings depending on semantics, not just a
+single "correct" form corrupted to a "wrong" one. Concretely:
+- отчего / от чего — "Отчего ты грустишь?" (adverb, "why") vs "От чего
+  зависит результат?" (prep + pronoun, "from what") are both correct; the
+  handler cannot always tell which sense is intended from POS alone.
+- небольшой / не большой — "небольшой дом" (adjective, "small") vs "не
+  большой, а маленький" (contrastive negation of "большой") are both
+  grammatical; antithesis/contrast context can make the separate spelling
+  the *correct* one.
+These pairs are kept (the 2,724-item native annotation pass — see
+memory/artem_annotations_2026-07.md — rated this handler 100% real_error on
+sampled output; the ambiguous contexts above are rare in running text), but a
+future maintainer adding stronger context guards should know these two
+semantic-ambiguity classes are the known false-positive source.
 """
 
 from __future__ import annotations
@@ -21,6 +37,52 @@ if TYPE_CHECKING:
     from random import Random
 
     from synterr.core.protocol import AnalyzedToken
+
+
+def _is_full_upper(text: str) -> bool:
+    """True if text is all-caps and has more than one cased character.
+
+    len>1 excludes single letters/initials where "isupper" is trivially true
+    but there's no real "all-caps word" shape to preserve.
+    """
+    return len(text) > 1 and text.isupper()
+
+
+def _transfer_case_split(original: str, parts: Sequence[str]) -> list[str]:
+    """Distribute original's capitalization shape across split-off parts.
+
+    - Full-caps source ("ЧТОБЫ", len>1): every part is fully uppercased
+      ("что", "бы") -> ("ЧТО", "БЫ"). Prevents the all-caps-destruction bug
+      where only the first letter of the first part got capitalized
+      ("ЧТОБЫ" -> "Что бы").
+    - Title-case source ("Чтобы"): only the first letter of the first part
+      is capitalized, as before.
+    - Otherwise: parts are returned unchanged.
+    """
+    if _is_full_upper(original):
+        return [p.upper() for p in parts]
+    result = list(parts)
+    if result and original[:1].isupper():
+        result[0] = result[0][:1].upper() + result[0][1:]
+    return result
+
+
+def _transfer_case_merge(originals: Sequence[str], merged: str) -> str:
+    """Apply the capitalization shape of the tokens being merged onto the
+    merged single word.
+
+    - If every constituent original token is itself full-caps (len>1), the
+      merged word is fully uppercased ("ЧТО" + "БЫ" -> "ЧТОБЫ").
+    - Else if the first original token starts with an uppercase letter, only
+      the first letter of the merged word is capitalized (as before).
+    - Otherwise the merged word is returned unchanged (already lowercase).
+    """
+    if originals and all(_is_full_upper(o) for o in originals):
+        return merged.upper()
+    if originals and originals[0][:1].isupper():
+        return merged[:1].upper() + merged[1:]
+    return merged
+
 
 # =============================================================================
 # CONJUNCTION/PARTICLE SPLIT/MERGE PAIRS
@@ -338,7 +400,9 @@ class FunctionSpellingHandler:
             new_first = "ни"
 
         # In-place first-syllable swap, length-preserving, preserve capitalization.
-        if original[0].isupper():
+        if _is_full_upper(original):
+            new_first = new_first.upper()
+        elif original[0].isupper():
             new_first = new_first[0].upper() + new_first[1:]
         corrupted = new_first + original[2:]
 
@@ -366,9 +430,8 @@ class FunctionSpellingHandler:
         part1, part2 = parts
         original = sentence[idx]
 
-        # Preserve capitalization of first letter
-        if original[0].isupper():
-            part1 = part1[0].upper() + part1[1:]
+        # Preserve capitalization shape (full-caps source -> full-caps parts)
+        part1, part2 = _transfer_case_split(original, [part1, part2])
 
         sentence[idx] = part1
         sentence.insert(idx + 1, part2)
@@ -400,9 +463,8 @@ class FunctionSpellingHandler:
         original_1 = sentence[idx]
         original_2 = sentence[idx + 1]
 
-        # Preserve capitalization
-        if original_1[0].isupper():
-            solid = solid[0].upper() + solid[1:]
+        # Preserve capitalization shape (both parts full-caps -> full-caps merge)
+        solid = _transfer_case_merge([original_1, original_2], solid)
 
         sentence[idx] = solid
         del sentence[idx + 1]
@@ -446,9 +508,7 @@ class FunctionSpellingHandler:
             if not analyzer.word_is_known(merged_lower):
                 return None
 
-        merged = merged_lower
-        if particle[0].isupper():
-            merged = merged[0].upper() + merged[1:]
+        merged = _transfer_case_merge([particle, next_word], merged_lower)
 
         original_particle = sentence[idx]
         original_word = sentence[idx + 1]
@@ -506,8 +566,12 @@ class FunctionSpellingHandler:
 
         rest = text[2:]  # preserve original case of the rest
 
-        # Preserve case of prefix
-        if text[0].isupper():
+        # Preserve capitalization shape
+        if _is_full_upper(text):
+            # Full-caps source ("НЕСЧАСТЬЕ"): prefix goes fully uppercase too;
+            # `rest` already retains its uppercase casing from the slice above.
+            particle = prefix.upper()
+        elif text[0].isupper():
             particle = prefix[0].upper() + prefix[1:]
             rest = rest[0].lower() + rest[1:] if rest else rest
         else:
@@ -539,9 +603,10 @@ class FunctionSpellingHandler:
             original = text
             # Remove hyphen: "всё-таки" → "всё таки"
             hyphen_pos = text.lower().find("-таки")
-            base = text[:hyphen_pos]
+            base = text[:hyphen_pos]  # already retains original casing
+            taki_part = "таки".upper() if _is_full_upper(text) else "таки"
             sentence[idx] = base
-            sentence.insert(idx + 1, "таки")
+            sentence.insert(idx + 1, taki_part)
 
             return ErrorResult(
                 error_type="function_spelling_taki_hyphen",
@@ -549,7 +614,7 @@ class FunctionSpellingHandler:
                 start_idx=idx,
                 end_idx=idx + 1,
                 original=original,
-                corrupted=f"{base} таки",
+                corrupted=f"{base} {taki_part}",
                 fix_tag=f"$MERGE_{original}",
             )
 
