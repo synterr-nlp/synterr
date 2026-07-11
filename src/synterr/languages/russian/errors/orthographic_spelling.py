@@ -707,12 +707,12 @@ def _swap_enk_onk(word: str, text_lower: str) -> str | None:
     Primary confusion is е↔о; и→е is secondary.
     """
     # Primary swap: е↔о
-    _SWAP = {"е": "о", "о": "е", "и": "е"}
+    _swap_map = {"е": "о", "о": "е", "и": "е"}
     for suffix in ("еньк", "оньк", "иньк"):
         idx = text_lower.find(suffix)
         if idx >= 0:
             orig = text_lower[idx]
-            new_vowel = _SWAP.get(orig)
+            new_vowel = _swap_map.get(orig)
             if new_vowel is None:
                 return None
             if word[idx].isupper():

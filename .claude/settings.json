@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Orient before acting: nks_orient realm=synterr (focus: realm root; slug unverified — validate on first NKS-connected session), latest synterr-internal/journal entry, git log -10 both repos, and git rev-parse --abbrev-ref HEAD (shared-checkout rule).\"}}'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // \"\"' | grep -q 'git push' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Post-push ritual: append a synterr-internal/journal entry (what+why, no SHAs); update NKS when connected (close resolved vimarshas); after a green push re-read your diff for bugs/fragile guards/missing tests and fix in the same branch or state nothing surfaced.\"}}' || true"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(uv run synterr:*)",
+      "Bash(uv run mkdocs build:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git stash list)",
+      "Bash(gh run list:*)"
+    ]
+  }
+}

@@ -63,8 +63,9 @@ data/conjunction_sents_*.txt
 data/qwen_sft_*.jsonl
 data/qwen_sft_*.dist.json
 
-# Session tooling (Claude/agents)
-.claude/
+# Session tooling (Claude/agents) — but project hooks/permissions are committed
+.claude/*
+!.claude/settings.json
 .agents/
 .github/skills/
 
