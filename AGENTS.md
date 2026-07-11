@@ -3,7 +3,7 @@ Rule-based synthetic error generator for Russian GEC: corrupts clean text into �
 
 ## What this project is
 - **Nature**: production. Public pip-installable releases (v1.x = BEA 2026 release), cited, and the planned RozentalBench generator — wrong output becomes wrong training data and wrong benchmark items downstream.
-- **NKS realm**: `synterr` — every session starts with `nks_orient` here. (Realm unverified: NKS server was disconnected at bootstrap; validate slug + MCP tool prefixes on first connected session.)
+- **NKS realm**: `synterr` (r70, verified 2026-07-12) — every session starts with `nks_orient` here. Realm is near-empty: structure bootstrap pending; the open fix-queue lives as vimarsha #1.
 - **Focus holon**: focus: realm root.
 - **Stack**: Python 3.11+ / uv; stanza (parses) + pymorphy3 (inflection); ruff + scoped mypy; mkdocs-material site.
 - **Production statement**: ships as a PyPI-style package and a public docs site; consumed by GEC researchers for training data and (planned) model benchmarking. Cost of breakage: silently invalid corruptions poison training corpora and benchmark validity — precision beats recall everywhere.
