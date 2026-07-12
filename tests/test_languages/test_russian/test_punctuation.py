@@ -10,6 +10,7 @@ from synterr.languages.russian.errors.punctuation import (
     _classify_comma,
     _classify_dash,
     _find_comma_partner,
+    _is_split_conjunction_comma,
 )
 
 # ── Helper to build tokens quickly ──────────────────────────────────────────
@@ -2762,3 +2763,421 @@ class TestAuditFixesJuly2026:
             _tok("наконец", "ADV", lemma="наконец", idx=2),
         ]
         assert _classify_comma(tokens, 1) != "comma_parenthetical"
+
+
+# ── Schema review July 2026: precision-guard fixes (P1-P4) ─────────────────
+# The July audit's guards over-suppressed genuine errors. One fake-token
+# unit test + one real-backend regression per fix; dep shapes below are
+# taken verbatim from live stanza parses (see fixtures further down).
+
+
+class TestSplitConjunctionCommaAdpGuard:
+    """P1: _is_split_conjunction_comma must only block ADP-led compound
+    conjunctions (после того, как…), not bare correlative constructions
+    («тем, что» / «том, что») where the comma is obligatory."""
+
+    def test_bare_correlative_tem_chto_not_blocked(self):
+        # "Он гордился тем, что выиграл." — «тем» is a bare oblique
+        # argument of «гордился» (no preposition anywhere near it): the
+        # comma is OBLIGATORY, deleting it is a genuine error.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "гордился",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(
+                "тем",
+                "PRON",
+                idx=2,
+                lemma="то",
+                dep_rel="obl",
+                head_idx=1,
+                features={"Case": "Ins", "PronType": "Dem"},
+            ),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+            _tok("что", "PRON", idx=4, dep_rel="obj", head_idx=5),
+            _tok(
+                "выиграл",
+                "VERB",
+                idx=5,
+                dep_rel="acl",
+                head_idx=2,
+                features={"VerbForm": "Fin"},
+            ),
+        ]
+        assert _is_split_conjunction_comma(tokens, 3) is False
+        assert _classify_comma(tokens, 3) == "comma_subordinate"
+        handler = CommaDeleteHandler()
+        assert handler.can_apply(tokens, 3) is True
+
+    def test_adp_led_posle_togo_still_blocked(self):
+        # "После того, как дождь кончился, мы вышли." — ADP «после»
+        # immediately precedes the demonstrative «того» → genuine
+        # splittable compound conjunction, still blocked.
+        tokens = [
+            _tok("После", "ADP", idx=0, dep_rel="case", head_idx=1),
+            _tok(
+                "того",
+                "PRON",
+                idx=1,
+                lemma="то",
+                dep_rel="obl",
+                head_idx=8,
+                features={"Case": "Gen", "PronType": "Dem"},
+            ),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=5),
+            _tok("как", "SCONJ", idx=3, dep_rel="mark", head_idx=5),
+            _tok("дождь", "NOUN", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "кончился",
+                "VERB",
+                idx=5,
+                dep_rel="acl",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", "PUNCT", idx=6, dep_rel="punct", head_idx=8),
+            _tok("мы", "PRON", idx=7, dep_rel="nsubj", head_idx=8),
+            _tok("вышли", "VERB", idx=8, dep_rel="root", head_idx=None),
+        ]
+        assert _is_split_conjunction_comma(tokens, 2) is True
+        handler = CommaDeleteHandler()
+        assert handler.can_apply(tokens, 2) is False
+
+
+class TestAsyndeticSpeechVerbNoSubject:
+    """P2: _is_asyndetic_parataxis must treat a speech-verb parataxis head
+    with NO nsubj/nsubj:pass child at all (subjectless/impersonal
+    attribution) as attribution too, not just verb-precedes-subject."""
+
+    def test_impersonal_attribution_no_subject_is_parenthetical(self):
+        # "Погода испортится, сообщается в прогнозе." — «сообщается» is a
+        # reflexive-passive impersonal (stanza lemmatizes it to the base
+        # "сообщать", a SPEECH_VERB_LEMMAS entry) with no subject at all.
+        tokens = [
+            _tok("Погода", "NOUN", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "испортится",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "сообщается",
+                "VERB",
+                lemma="сообщать",
+                idx=3,
+                dep_rel="parataxis",
+                head_idx=1,
+                features={"VerbForm": "Fin", "Voice": "Pass"},
+            ),
+            _tok("в", "ADP", idx=4, dep_rel="case", head_idx=5),
+            _tok("прогнозе", "NOUN", idx=5, dep_rel="obl", head_idx=3),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_parenthetical"
+
+    def test_speech_verb_sv_order_stays_asyndetic_eligible(self):
+        # "Все ушли, мать говорила без умолку." — SV order (has an nsubj
+        # preceding the speech verb) must remain asyndetic-eligible; this
+        # mirrors the existing SPEECH_VERB_LEMMAS short-span regression
+        # but with a trailing adjunct after the verb.
+        tokens = [
+            _tok("Все", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "ушли",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=4),
+            _tok("мать", "NOUN", idx=3, dep_rel="nsubj", head_idx=4),
+            _tok(
+                "говорила",
+                "VERB",
+                lemma="говорить",
+                idx=4,
+                dep_rel="parataxis",
+                head_idx=1,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("без", "ADP", idx=5, dep_rel="case", head_idx=6),
+            _tok("умолку", "NOUN", idx=6, dep_rel="obl", head_idx=4),
+        ]
+        assert _classify_comma(tokens, 2) == "comma_asyndetic"
+
+
+class TestConnectiveDashBareRangeEndpoint:
+    """P3: the NOUN-NOUN branch of _is_connective_dash must require BOTH
+    endpoints to be bare range endpoints, not a genitive modifier embedded
+    inside a larger subject NP (§79 subj-pred)."""
+
+    def test_period_range_still_connective(self):
+        # "план... на период январь — март" — «январь» is nmod of «период»
+        # but SAME case (both Acc): apposition-style range attachment,
+        # still a bare endpoint.
+        tokens = [
+            _tok(
+                "период",
+                "NOUN",
+                idx=0,
+                dep_rel="obl",
+                head_idx=None,
+                features={"Case": "Acc"},
+            ),
+            _tok(
+                "январь",
+                "NOUN",
+                idx=1,
+                dep_rel="nmod",
+                head_idx=0,
+                features={"Case": "Acc"},
+            ),
+            _tok("—", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "март",
+                "NOUN",
+                idx=3,
+                dep_rel="nmod",
+                head_idx=1,
+                features={"Case": "Acc"},
+            ),
+        ]
+        assert _classify_dash(tokens, 2) is None
+
+    def test_time_of_year_subj_pred_not_swallowed_as_range(self):
+        # "Любимое время года — весна." — «года» is nmod of «время» with a
+        # CASE MISMATCH (Gen vs Nom): genuine genitive modification inside
+        # the subject NP ("time OF year"), not a bare range endpoint. Must
+        # classify dash_subj_pred, not skip as a §82 route.
+        tokens = [
+            _tok(
+                "Любимое",
+                "ADJ",
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
+                features={"Case": "Nom", "Gender": "Neut"},
+            ),
+            _tok(
+                "время",
+                "NOUN",
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=4,
+                features={"Case": "Nom", "Gender": "Neut"},
+            ),
+            _tok(
+                "года",
+                "NOUN",
+                idx=2,
+                lemma="год",
+                dep_rel="nmod",
+                head_idx=1,
+                features={"Case": "Gen"},
+            ),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=1),
+            _tok(
+                "весна",
+                "NOUN",
+                idx=4,
+                dep_rel="root",
+                head_idx=None,
+                features={"Case": "Nom"},
+            ),
+        ]
+        assert _classify_dash(tokens, 3) == "dash_subj_pred"
+
+    def test_month_of_year_subj_pred_not_swallowed_as_range(self):
+        # "Первый месяц года — январь." — same shape, different lexicon
+        # pair ("месяц" isn't in the temporal lexicon at all, but «года» /
+        # «январь» both are — the bug the fix closes).
+        tokens = [
+            _tok(
+                "Первый",
+                "ADJ",
+                idx=0,
+                dep_rel="amod",
+                head_idx=1,
+                features={"Case": "Nom", "Gender": "Masc"},
+            ),
+            _tok(
+                "месяц",
+                "NOUN",
+                idx=1,
+                dep_rel="nsubj",
+                head_idx=4,
+                features={"Case": "Nom", "Gender": "Masc"},
+            ),
+            _tok(
+                "года",
+                "NOUN",
+                idx=2,
+                lemma="год",
+                dep_rel="nmod",
+                head_idx=1,
+                features={"Case": "Gen"},
+            ),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=1),
+            _tok(
+                "январь",
+                "NOUN",
+                idx=4,
+                dep_rel="root",
+                head_idx=None,
+                features={"Case": "Nom"},
+            ),
+        ]
+        assert _classify_dash(tokens, 3) == "dash_subj_pred"
+
+
+class TestDashEllipsisBeforeAdpGuard:
+    """P4: the §80 ellipsis branch must be evaluated BEFORE the ADP-adjunct
+    guard, so a preposition-led ellipsis remainder still fires, while the
+    ADP guard keeps protecting the genuine non-ellipsis adjunct case."""
+
+    def test_adp_led_ellipsis_remainder_fires(self):
+        # "..., а на 90 строчке — в самом низу." — earlier clause has a
+        # predicate («была»), the dash's own clause (from the comma) and
+        # the remainder are both verbless, remainder is ADP-led («в самом
+        # низу») — must be dash_ellipsis, not swallowed by the ADP guard.
+        tokens = [
+            _tok("Ошибка", "NOUN", idx=0, dep_rel="nsubj", head_idx=3),
+            _tok(
+                "была",
+                "AUX",
+                idx=1,
+                dep_rel="cop",
+                head_idx=3,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("в", "ADP", idx=2, dep_rel="case", head_idx=3),
+            _tok("тексте", "NOUN", idx=3, dep_rel="root", head_idx=None),
+            _tok(",", "PUNCT", idx=4, dep_rel="punct", head_idx=12),
+            _tok("а", "CCONJ", idx=5, dep_rel="cc", head_idx=12),
+            _tok("на", "ADP", idx=6, dep_rel="case", head_idx=8),
+            _tok("90", "NUM", idx=7, dep_rel="nummod", head_idx=8),
+            _tok("строчке", "NOUN", idx=8, dep_rel="orphan", head_idx=12),
+            _tok("—", "PUNCT", idx=9, dep_rel="punct", head_idx=8),
+            _tok("в", "ADP", idx=10, dep_rel="case", head_idx=12),
+            _tok("самом", "ADJ", idx=11, dep_rel="amod", head_idx=12),
+            _tok("низу", "NOUN", idx=12, dep_rel="conj", head_idx=3),
+        ]
+        assert _classify_dash(tokens, 9) == "dash_ellipsis"
+
+    def test_adp_adjunct_dash_still_skipped(self):
+        # "Он передал письмо — без лишних слов." — clause_lo == 0 (no
+        # earlier comma), so the ellipsis branch never fires and the ADP
+        # guard still protects this genuine authorial-adjunct dash.
+        tokens = [
+            _tok("Он", "PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok(
+                "передал",
+                "VERB",
+                idx=1,
+                dep_rel="root",
+                head_idx=None,
+                features={"VerbForm": "Fin"},
+            ),
+            _tok("письмо", "NOUN", idx=2, dep_rel="obj", head_idx=1),
+            _tok("—", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
+            _tok("без", "ADP", idx=4, dep_rel="case", head_idx=6),
+            _tok("лишних", "ADJ", idx=5, dep_rel="amod", head_idx=6),
+            _tok("слов", "NOUN", idx=6, dep_rel="obl", head_idx=1),
+        ]
+        assert _classify_dash(tokens, 3) is None
+
+
+@pytest.mark.slow
+class TestRealStanzaSchemaReviewFixesJuly2026:
+    """Live-parse regressions for the July 2026 schema-review P1-P4
+    precision-guard fixes. Marked slow: loads the real stanza backend
+    (deselect with -m "not slow").
+    """
+
+    @pytest.fixture(scope="class")
+    def pipeline(self):
+        from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+        from synterr.core.registry import get_language
+
+        language = get_language("ru")
+        config = GenerationConfig(seed=42, use_depparse=True)
+        return ErrorPipeline(language, config)
+
+    def test_p1_bare_correlative_comma_delete_fires(self, pipeline):
+        result = pipeline.apply_error(
+            "Он гордился тем, что выиграл.", "comma_delete", position=3
+        )
+        assert result is not None
+        assert result.errors[0].error_type == "comma_subordinate"
+
+    def test_p1_split_conjunction_comma_still_skipped(self, pipeline):
+        result = pipeline.apply_error(
+            "После того, как дождь кончился, мы вышли.",
+            "comma_delete",
+            position=2,
+        )
+        assert result is None
+
+    def test_p2_impersonal_attribution_is_parenthetical(self, pipeline):
+        result = pipeline.apply_error(
+            "Погода испортится, сообщается в прогнозе.",
+            "comma_delete",
+            position=2,
+        )
+        assert result is not None
+        assert result.errors[0].error_type == "comma_parenthetical"
+
+    def test_p2_speech_verb_no_subject_not_asyndetic(self, pipeline):
+        result = pipeline.apply_error(
+            "Погода испортится, сообщается в прогнозе.",
+            "comma_delete:comma_asyndetic",
+            position=2,
+        )
+        assert result is None
+
+    def test_p3_temporal_range_still_connective(self, pipeline):
+        result = pipeline.apply_error(
+            "План составлен на период январь — март 2026 года.",
+            "dash_delete",
+            position=5,
+        )
+        assert result is None
+
+    def test_p3_time_of_year_subj_pred_dash_fires(self, pipeline):
+        result = pipeline.apply_error(
+            "Любимое время года — весна.", "dash_delete", position=3
+        )
+        assert result is not None
+        assert result.errors[0].error_type == "dash_subj_pred"
+
+    def test_p3_month_of_year_subj_pred_dash_fires(self, pipeline):
+        result = pipeline.apply_error(
+            "Первый месяц года — январь.", "dash_delete", position=3
+        )
+        assert result is not None
+        assert result.errors[0].error_type == "dash_subj_pred"
+
+    def test_p4_adp_led_ellipsis_remainder_fires(self, pipeline):
+        result = pipeline.apply_error(
+            "Ошибка была в тексте, а на 90 строчке — в самом низу.",
+            "dash_delete",
+            position=9,
+        )
+        assert result is not None
+        assert result.errors[0].error_type == "dash_ellipsis"
+
+    def test_p4_adp_adjunct_dash_still_skipped(self, pipeline):
+        result = pipeline.apply_error(
+            "Он передал письмо — без лишних слов.", "dash_delete", position=3
+        )
+        assert result is None

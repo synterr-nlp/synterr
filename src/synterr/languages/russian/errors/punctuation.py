@@ -252,6 +252,12 @@ def _is_asyndetic_parataxis(
     # it is a genuine §116 БСП clause regardless of span length. Replaces
     # the old span-based ≤5-token cutoff (audit A8), which misfired on
     # short-subject БСП clauses like «мать говорила».
+    #
+    # Widened (July 2026 review P2): a speech verb with NO nsubj/nsubj:pass
+    # child at all is a subjectless/impersonal attribution («..., сообщается
+    # в прогнозе»; «..., говорилось в сводке» — reflexive-passive forms
+    # stanza lemmatizes to the base speech-verb lemma) — also attribution,
+    # not a §116 clause, regardless of word order.
     if comma_head.lemma in SPEECH_VERB_LEMMAS:
         subj = next(
             (
@@ -261,7 +267,7 @@ def _is_asyndetic_parataxis(
             ),
             None,
         )
-        if subj is not None and comma_head.idx < subj.idx:
+        if subj is None or comma_head.idx < subj.idx:
             return False
     first_head = _get_head(tokens, comma_head)
     if first_head is None or not _is_clausal(tokens, first_head):
@@ -369,22 +375,33 @@ def _is_repetition_construction(
 
 def _is_split_conjunction_comma(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """The comma at `idx` splits a compound subordinating conjunction
-    («после того, как…» / «до тех пор, пока…») — a §108 junction. Deleting
-    just this comma alone yields the equally-normative unsplit variant
-    («после того как…»), so it must never be generated as a standalone
-    comma_delete error, nor treated as a paired-isolation boundary
-    (audit A16).
+    («после того, как…» / «до того, как…» / «для того, чтобы…») — a §108
+    junction. Deleting just this comma alone yields the equally-normative
+    unsplit variant («после того как…»), so it must never be generated as a
+    standalone comma_delete error, nor treated as a paired-isolation
+    boundary (audit A16).
+
+    Narrowed (July 2026 review P1): the surface лемма-only check also
+    caught CORRELATIVE constructions where a demonstrative is a bare
+    argument of the main-clause verb («гордился тем, что выиграл», «дело в
+    том, что…») — there the comma is OBLIGATORY and deleting it is a
+    genuine, frequent error, not a splittable junction. A genuine compound
+    conjunction is ADP-led: the demonstrative sits within an ADP's
+    prepositional phrase (после/до/для/из-за/ввиду/несмотря на + того/то),
+    so require an ADP within 2 tokens to the left of the demonstrative.
     """
     n = len(tokens)
     right = tokens[idx + 1] if idx + 1 < n else None
     left = tokens[idx - 1] if idx > 0 else None
-    return (
-        right is not None
-        and left is not None
-        and (right.lemma or right.text).lower() in ("как", "пока", "чтобы", "что")
-        and (left.lemma or left.text).lower()
-        in ("тот", "то", "тем", "того", "этот", "это", "весь")
-    )
+    if (
+        right is None
+        or left is None
+        or (right.lemma or right.text).lower() not in ("как", "пока", "чтобы", "что")
+        or (left.lemma or left.text).lower()
+        not in ("тот", "то", "тем", "того", "этот", "это", "весь")
+    ):
+        return False
+    return any(tokens[j].pos == "ADP" for j in range(max(0, left.idx - 2), left.idx))
 
 
 def _find_comma_partner(
@@ -888,6 +905,33 @@ _TEMPORAL_ENDPOINT_LEMMAS = frozenset(
 )
 
 
+def _is_bare_range_endpoint(
+    tokens: Sequence[AnalyzedToken], tok: AnalyzedToken
+) -> bool:
+    """`tok` is a BARE §82 range endpoint, not a modifier embedded inside a
+    larger NP (July 2026 review P3). Two guards:
+
+    - no amod/det dependents of its own — a modified date/period phrase
+      ("Первого января — большого праздника") is not a plain endpoint.
+    - if `tok` is itself an nmod dependent, its Case must MATCH its head's:
+      an apposition-style attachment of a range to a generic container noun
+      ("на период январь — март", both Acc) is still a bare endpoint, but a
+      genuine genitive modification with a case MISMATCH ("время года",
+      Nom—Gen; "месяц года", Nom—Gen — "[noun] OF year") means `tok` is a
+      modifier inside a larger NP, not the range endpoint itself. That
+      distinguishes the §82 route from the §79 subj-pred dash of "Любимое
+      время года — весна." / "Первый месяц года — январь.", where the
+      dash-adjacent noun is that genitive modifier.
+    """
+    if any(t.head_idx == tok.idx and t.dep_rel in ("amod", "det") for t in tokens):
+        return False
+    if tok.dep_rel == "nmod":
+        head = _get_head(tokens, tok)
+        if head is not None and head.get_feature("Case") != tok.get_feature("Case"):
+            return False
+    return True
+
+
 def _is_connective_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """§82 соединительное тире: routes/matches (PROPN—PROPN), ranges
     (NUM—NUM), and temporal-endpoint spans (NOUN—NOUN months/seasons/
@@ -902,11 +946,15 @@ def _is_connective_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         return False
     if left.pos == right.pos == "NOUN":
         # Temporal-endpoint route (audit A5): "январь — март", "понедельник
-        # — пятница". Both sides must be from the closed lexicon — ordinary
-        # NOUN—NOUN pairs still fall through (no §82 reading for them).
+        # — пятница". Both sides must be from the closed lexicon AND be bare
+        # range endpoints (P3) — otherwise §79 subj-pred dashes whose
+        # subject NP happens to end in a temporal-lexicon genitive
+        # modifier ("Любимое время года — весна.") get swallowed here.
         return (
             left.lemma in _TEMPORAL_ENDPOINT_LEMMAS
             and right.lemma in _TEMPORAL_ENDPOINT_LEMMAS
+            and _is_bare_range_endpoint(tokens, left)
+            and _is_bare_range_endpoint(tokens, right)
         )
     if left.pos != right.pos or left.pos not in ("PROPN", "NUM"):
         return False
@@ -1125,11 +1173,35 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     ):
         return None
 
+    # §80 тире в неполном предложении: the dash's own clause is verbless on
+    # both sides, but an earlier parallel clause has a predicate («…могут
+    # отдыхать 35 суток, а обычные госслужащие — 30 суток»; «..., а на 90
+    # строчке — в самом низу»). A clause opened by a subordinator is СПП
+    # («…, что пострадавший — безработный»), not an ellipsis. Must run
+    # BEFORE the ADP-adjunct guard below (July 2026 review P4): an ellipsis
+    # remainder led by a preposition («в самом низу») was otherwise killed
+    # by that guard before ever reaching this check.
+    clause_lo = _clause_start(tokens, idx)
+    left_clause_pred = _segment_has_predicate(tokens, clause_lo, idx)
+    right_any_pred = _segment_has_predicate(tokens, idx + 1, n)
+    if (
+        clause_lo > 0
+        and not left_clause_pred
+        and not right_any_pred
+        and _segment_has_predicate(tokens, 0, clause_lo - 1)
+    ):
+        first = next((t for t in tokens[clause_lo:idx] if t.pos != "PUNCT"), None)
+        if first is None or not (first.pos == "SCONJ" or first.dep_rel == "mark"):
+            return "dash_ellipsis"
+
     # Authorial adjunct dash before a prepositional phrase with no
     # following predicate («письмо — без лишних слов») — deletion is
     # normative, not an error (audit A11). The numeric-range guards above
     # must run first so genuine ranges ("вверх — до 35,75 — 42,75 рубля")
-    # are still covered before this broader ADP check.
+    # are still covered before this broader ADP check, and the ellipsis
+    # check above must ALSO run first so it can still claim ellipsis sites
+    # with a preposition-led remainder («в самом низу») — this guard keeps
+    # protecting the non-ellipsis case («clause_lo == 0»).
     if right.pos == "ADP" and not _segment_has_predicate(tokens, idx + 1, n):
         return None
 
@@ -1180,8 +1252,10 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     if _is_optional_subj_pred_dash(tokens, idx):
         return None
 
-    clause_lo = _clause_start(tokens, idx)
-    left_clause_pred = _segment_has_predicate(tokens, clause_lo, idx)
+    # right_end/right_main_pred/left_any_pred feed only the branches below
+    # (subj-pred, asyndetic); clause_lo/left_clause_pred/right_any_pred were
+    # already computed above for the §80 ellipsis check (P4) and are reused
+    # here as-is.
     right_end = next(
         (
             t.idx
@@ -1191,23 +1265,7 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
         n,
     )
     right_main_pred = _segment_has_predicate(tokens, idx + 1, right_end)
-    right_any_pred = _segment_has_predicate(tokens, idx + 1, n)
     left_any_pred = _segment_has_predicate(tokens, 0, idx)
-
-    # §80 тире в неполном предложении: the dash's own clause is verbless on
-    # both sides, but an earlier parallel clause has a predicate («…могут
-    # отдыхать 35 суток, а обычные госслужащие — 30 суток»). A clause
-    # opened by a subordinator is СПП («…, что пострадавший — безработный»),
-    # not an ellipsis.
-    if (
-        clause_lo > 0
-        and not left_clause_pred
-        and not right_any_pred
-        and _segment_has_predicate(tokens, 0, clause_lo - 1)
-    ):
-        first = next((t for t in tokens[clause_lo:idx] if t.pos != "PUNCT"), None)
-        if first is None or not (first.pos == "SCONJ" or first.dep_rel == "mark"):
-            return "dash_ellipsis"
 
     # Subject–predicate dash, restricted to the §79 obligatory
     # configurations: nominal — nominal/NUM (an amod/det right neighbor is
