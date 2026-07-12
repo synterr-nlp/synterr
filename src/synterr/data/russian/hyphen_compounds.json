@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "description": "Curated allowlist of §197 hyphenated noun-noun compounds (сложносоставные существительные) where BOTH halves normatively decline together, e.g. 'в вагоне-ресторане', 'с инженером-строителем'. Fallback for AgrMnCompoundTermErrorHandler's fused-dictionary gate: pymorphy3's strict OpenCorpora dictionary lacks most real hyphenated compounds even when both halves independently decline (audit finding, 2026-07-12) -- word_is_known(head+'-'+token) is False for инженер-строитель, диван-кровать, генерал-майор, словарь-справочник, музей-усадьба and near everything except a handful of dictionary-fused entries like вагон-ресторан/школа-интернат. This lexicon recovers the common cases the fused lookup misses.",
+    "format": "pairs: [head_lemma, second_half_lemma], both lowercase, ё folded to е (matches stanza's own lemmatizer output, not pymorphy's normal_form which always uses ё -- see inflector.py е/ё gotcha)",
+    "rozental_paragraph": "197",
+    "scope": "ONLY both-halves-decline compounds belong here. Deliberately EXCLUDED: first-half-frozen compounds where only the second part inflects by convention (царь-пушка -> у царь-пушки; плащ-палатка -> в плащ-палатке; military rank compounds генерал-майор/генерал-лейтенант/контр-адмирал -> у генерал-майора, генерал stays Nom; премьер-министр -> к премьер-министру, премьер stays Nom) -- corrupting these would 'fix' an already-frozen first half into a false error. Also excluded: compounds whose first half is grammatically indeclinable regardless of case (кафе-мороженое -- кафе never changes surface form), and plural-only-noun compounds (часы-будильник, юбка-брюки) which the handler's Number logic was not designed against.",
+    "verification": "each pair hand-checked for oblique-case agreement on both halves (e.g. Loc 'в кресле-качалке', Ins 'с инженером-строителем', Dat 'к счету-фактуре') and cross-checked that both lemmas are pymorphy3-known, non-Fixd words (loader sanity test enforces this at load time)",
+    "source": "manual curation against Rozental grammar tradition (§197 сложносоставные наименования) and standard Russian compound-noun reference lists",
+    "version": "1.0"
+  },
+  "pairs": [
+    ["инженер", "строитель"],
+    ["диван", "кровать"],
+    ["словарь", "справочник"],
+    ["музей", "усадьба"],
+    ["кресло", "качалка"],
+    ["платье", "костюм"],
+    ["завод", "изготовитель"],
+    ["город", "герой"],
+    ["летчик", "космонавт"],
+    ["женщина", "врач"],
+    ["план", "график"],
+    ["счет", "фактура"],
+    ["ракета", "носитель"],
+    ["самолет", "амфибия"],
+    ["вагон", "ресторан"],
+    ["школа", "интернат"],
+    ["дом", "музей"],
+    ["вагон", "лаборатория"],
+    ["письмо", "открытка"],
+    ["кресло", "кровать"],
+    ["банк", "эмитент"],
+    ["команда", "победитель"],
+    ["город", "побратим"],
+    ["вагон", "цистерна"],
+    ["школа", "студия"],
+    ["изба", "читальня"],
+    ["музей", "квартира"],
+    ["летчик", "испытатель"],
+    ["выставка", "продажа"],
+    ["продавец", "консультант"]
+  ]
+}

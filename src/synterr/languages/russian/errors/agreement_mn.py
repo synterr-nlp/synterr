@@ -33,6 +33,9 @@ class's docstring for its specific accepted-risk notes).
 
 from __future__ import annotations
 
+import json
+from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
@@ -82,6 +85,47 @@ def _has_any_dependent(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
 # this file (a broader set than morphological.py's numeral-declension helper,
 # which excludes Acc for reasons specific to that handler).
 _OBLIQUE_CASES = {"Gen", "Dat", "Acc", "Ins", "Loc"}
+
+# Bundled lexicon directory, alongside the other language resources
+# (paronyms, collocations, ...). Kept local to this file (not imported from
+# morphological.py) by the one-agent-one-file-lane convention noted above.
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "russian"
+
+
+def _normalize_lemma(lemma: str) -> str:
+    """Lowercase and fold ё->е for lexicon lookups.
+
+    pymorphy's ``normal_form`` always spells ё, but stanza's own lemmatizer
+    usually spells е (see inflector.py's е/ё gotcha) — folding both sides to
+    е keeps the lexicon lookup below from silently missing entries over a
+    spelling difference that carries no lexical information here.
+    """
+    return lemma.lower().replace("ё", "е")
+
+
+@lru_cache(maxsize=1)
+def _hyphen_compound_lexicon() -> frozenset[tuple[str, str]]:
+    """Curated allowlist of §197 both-halves-decline hyphenated compounds.
+
+    Fallback for ``AgrMnCompoundTermErrorHandler``'s fused-dictionary gate:
+    pymorphy3's strict dictionary lacks most real hyphenated compound nouns
+    even when both halves independently decline (инженер-строитель,
+    диван-кровать, словарь-справочник, ... all fail
+    ``word_is_known(fused)`` — audit finding, 2026-07-12). Data file is
+    ``synterr/data/russian/hyphen_compounds.json``; entries are
+    (head_lemma, second_half_lemma) pairs, normalized via
+    ``_normalize_lemma``. Missing file yields an empty lexicon rather than
+    raising, matching this module's skip-over-crash precision stance.
+    """
+    path = _DATA_DIR / "hyphen_compounds.json"
+    if not path.exists():
+        return frozenset()
+    with path.open(encoding="utf-8") as f:
+        data = json.load(f)
+    return frozenset(
+        (_normalize_lemma(head), _normalize_lemma(second))
+        for head, second in data.get("pairs", [])
+    )
 
 
 # =============================================================================
@@ -268,13 +312,20 @@ class AgrMnCompoundTermErrorHandler:
     Guards: both halves must be dictionary-known words (``word_is_known``,
     strict — rejects indeclinable brand names spelled with a hyphen); both
     halves POS-tagged NOUN (not PROPN, so brand/product names tagged as
-    proper nouns are excluded); head must be in an oblique case; the second
-    half's own surface form must currently differ from its nominative form
-    (pymorphy round-trip — same rationale as the apposition handler above:
-    the UD ``Case`` feature on the second half is occasionally the wrong
-    member of a syncretic case set for 3rd-declension feminine nouns, e.g.
-    "кровати" tagged ``Gen`` when it is actually the identically-spelled
-    ``Loc``, so comparing UD Case features directly would under-fire).
+    proper nouns are excluded); head must be in an oblique case; the fused
+    surface must either be a dictionary-known hyphenated lexeme itself
+    (вагон-ресторан, школа-интернат) or the head/second-half lemma pair must
+    be in a curated allowlist of common §197 both-halves-decline compounds
+    (``synterr/data/russian/hyphen_compounds.json`` — инженер-строитель,
+    диван-кровать, кресло-качалка, ...), since pymorphy's strict dictionary
+    lacks most real hyphenated compounds even when both halves independently
+    decline (audit finding, 2026-07-12); the second half's own surface form
+    must currently differ from its nominative form (pymorphy round-trip —
+    same rationale as the apposition handler above: the UD ``Case`` feature
+    on the second half is occasionally the wrong member of a syncretic case
+    set for 3rd-declension feminine nouns, e.g. "кровати" tagged ``Gen``
+    when it is actually the identically-spelled ``Loc``, so comparing UD
+    Case features directly would under-fire).
     """
 
     name = "agr_mn_compound_term"
@@ -306,12 +357,21 @@ class AgrMnCompoundTermErrorHandler:
             return False
         # The three-token NOUN "-" NOUN shape also matches an explanatory
         # dash typed as ASCII hyphen («работе - поиску пострадавших»), which
-        # is not a §197 compound. Require the fused surface to be a
-        # dictionary-known hyphenated lexeme (вагоне-ресторане ✓); real
-        # compounds missing from the dictionary are skipped — precision
-        # over recall (audit, 2026-07-07).
-        if not analyzer.word_is_known(f"{head.text}-{token.text}"):
-            return False
+        # is not a §197 compound. Require either the fused surface to be a
+        # dictionary-known hyphenated lexeme (вагоне-ресторане ✓ — audit,
+        # 2026-07-07), or the lemma pair to be in the curated §197
+        # both-halves-decline allowlist (pymorphy's strict dictionary lacks
+        # most real compounds — инженер-строитель, диван-кровать,
+        # словарь-справочник, ... — audit finding, 2026-07-12); compounds
+        # missing from both are skipped — precision over recall.
+        fused_known = analyzer.word_is_known(f"{head.text}-{token.text}")
+        if not fused_known:
+            lemma_pair = (
+                _normalize_lemma(head.lemma or head.text),
+                _normalize_lemma(token.lemma or token.text),
+            )
+            if lemma_pair not in _hyphen_compound_lexicon():
+                return False
 
         parse = _get_pymorphy_parse(token)
         if parse is None:

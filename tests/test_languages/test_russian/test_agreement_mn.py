@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import random
+from pathlib import Path
 
 import pymorphy3
 import pytest
@@ -13,6 +15,7 @@ from synterr.languages.russian.errors.agreement_mn import (
     AgrMnCompoundTermErrorHandler,
     AgrMnNumeralAdjErrorHandler,
 )
+from synterr.languages.russian.resources import get_morpheme_analyzer
 
 morph = pymorphy3.MorphAnalyzer()
 
@@ -374,14 +377,53 @@ class TestAgrMnCompoundTerm:
         """Both halves can be individually dictionary-known words while the
         FUSED hyphenated surface is not (an explanatory dash typed as an
         ASCII hyphen, e.g. «работе - поиску», rather than a real §197
-        compound noun) -- the new fused ``word_is_known`` guard (audit,
-        2026-07-07) rejects this shape."""
+        compound noun) -- the fused ``word_is_known`` guard (audit,
+        2026-07-07) rejects this shape, and the lemma pair ("работа",
+        "поиск") is also absent from the curated lexicon fallback (audit,
+        2026-07-12), so neither gate path opens."""
         handler = AgrMnCompoundTermErrorHandler()
         tokens = self._tokens(
             first_text="работе",
             first_lemma="работа",
             second_text="поиску",
             second_lemma="поиск",
+        )
+        assert handler.can_apply(tokens, 2) is False
+
+    def test_lexicon_fallback_fires_for_curated_pair_not_in_fused_dict(self):
+        """инженер-строитель is NOT ``word_is_known`` as a fused hyphenated
+        surface (pymorphy's strict dictionary lacks most real §197
+        compounds -- audit, 2026-07-12), but the (инженер, строитель) lemma
+        pair is in the curated ``hyphen_compounds.json`` allowlist, so the
+        fallback path opens the gate."""
+        handler = AgrMnCompoundTermErrorHandler()
+        assert get_morpheme_analyzer().word_is_known("инженером-строителем") is False
+
+        tokens = self._tokens(
+            first_text="инженером",
+            first_lemma="инженер",
+            second_text="строителем",
+            second_lemma="строитель",
+            case="Ins",
+        )
+        assert handler.can_apply(tokens, 2) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, 2, set(), rng=random.Random(0))
+        assert result is not None
+        assert result.error_type == "ag_mn_compound_term"
+        assert sentence[2] == "строитель"
+
+    def test_lexicon_fallback_does_not_bypass_uncurated_pair(self):
+        """A lemma pair absent from BOTH the fused dictionary and the
+        curated lexicon still skips -- the fallback recovers specific
+        curated compounds, it does not loosen the gate generally."""
+        handler = AgrMnCompoundTermErrorHandler()
+        tokens = self._tokens(
+            first_text="комоде",
+            first_lemma="комод",
+            second_text="шкафе",
+            second_lemma="шкаф",
         )
         assert handler.can_apply(tokens, 2) is False
 
@@ -432,15 +474,50 @@ class TestAgrMnCompoundTerm:
         assert result.error_type == "ag_mn_compound_term"
 
     @pytest.mark.slow
-    def test_real_backend_kresle_kachalke_does_not_fire(self):
+    def test_real_backend_kresle_kachalke_fires_via_lexicon(self):
         """«кресле-качалке» is NOT ``word_is_known`` as a fused hyphenated
-        lexeme (audit, 2026-07-07): the new guard requires the fused
-        surface to be a dictionary-known compound (rejects explanatory
-        dashes typed as hyphens), so this real compound -- missing from the
-        pymorphy dictionary -- is skipped rather than corrupted."""
+        lexeme (audit, 2026-07-07), but (кресло, качалка) is in the curated
+        §197 lexicon fallback (audit, 2026-07-12), so this real compound --
+        missing from the pymorphy dictionary but a genuine both-halves-
+        decline compound -- now fires."""
         handler = AgrMnCompoundTermErrorHandler()
-        tokens = _stanza_backend().analyze("Дети играли в кресле-качалке.")
+        tokens = _stanza_backend().analyze("Мы сидели в кресле-качалке у камина.")
         idx = next(i for i, t in enumerate(tokens) if t.text == "качалке")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "качалка"
+        assert result.error_type == "ag_mn_compound_term"
+
+    @pytest.mark.slow
+    def test_real_backend_inzhenerom_stroitelem_fires_via_lexicon(self):
+        """«инженером-строителем» is likewise not a fused-dictionary-known
+        surface; the (инженер, строитель) lemma pair in the curated lexicon
+        opens the gate (audit, 2026-07-12)."""
+        handler = AgrMnCompoundTermErrorHandler()
+        tokens = _stanza_backend().analyze("Он говорил с инженером-строителем.")
+        idx = next(i for i, t in enumerate(tokens) if t.text == "строителем")
+        assert handler.can_apply(tokens, idx) is True
+
+        sentence = [t.text for t in tokens]
+        result = handler.apply(tokens, sentence, idx, set(), rng=random.Random(0))
+        assert result is not None
+        assert sentence[idx] == "строитель"
+        assert result.error_type == "ag_mn_compound_term"
+
+    @pytest.mark.slow
+    def test_real_backend_rabote_poisku_still_skips(self):
+        """A spaced dash typed as an ASCII hyphen («работе - поиску
+        пострадавших») still must not fire: the lexicon fallback only
+        recovers curated §197 compounds, not arbitrary NOUN-hyphen-NOUN
+        shapes (audit, 2026-07-12)."""
+        handler = AgrMnCompoundTermErrorHandler()
+        tokens = _stanza_backend().analyze(
+            "Отряды приступили к работе - поиску пострадавших."
+        )
+        idx = next(i for i, t in enumerate(tokens) if t.text == "поиску")
         assert handler.can_apply(tokens, idx) is False
 
 
@@ -645,3 +722,82 @@ class TestAgrMnNumeralAdj:
         tokens = _stanza_backend().analyze("Он гордится двумя новыми домами.")
         idx = next(i for i, t in enumerate(tokens) if t.text == "новыми")
         assert handler.can_apply(tokens, idx) is False
+
+
+# =============================================================================
+# hyphen_compounds.json loader sanity (audit fix, 2026-07-12)
+# =============================================================================
+
+_HYPHEN_COMPOUNDS_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "src"
+    / "synterr"
+    / "data"
+    / "russian"
+    / "hyphen_compounds.json"
+)
+
+
+class TestHyphenCompoundLexicon:
+    """Loader sanity for the curated §197 both-halves-decline allowlist.
+
+    Every entry must be a genuine 2-element (head_lemma, second_half_lemma)
+    pair, and both lemmas must be strict-dictionary-known, non-``Fixd``
+    pymorphy words -- an unknown or indeclinable lemma in this file would
+    mean the entry can never actually satisfy
+    ``AgrMnCompoundTermErrorHandler.can_apply``'s other guards, silently
+    dead-weighting the allowlist.
+    """
+
+    def test_file_exists_and_loads(self):
+        assert _HYPHEN_COMPOUNDS_PATH.exists()
+        with _HYPHEN_COMPOUNDS_PATH.open(encoding="utf-8") as f:
+            data = json.load(f)
+        assert "pairs" in data
+        assert len(data["pairs"]) >= 25
+
+    def test_every_pair_is_two_lemmas(self):
+        with _HYPHEN_COMPOUNDS_PATH.open(encoding="utf-8") as f:
+            pairs = json.load(f)["pairs"]
+        for pair in pairs:
+            assert isinstance(pair, list)
+            assert len(pair) == 2
+            head, second = pair
+            assert isinstance(head, str) and head
+            assert isinstance(second, str) and second
+
+    def test_every_lemma_is_pymorphy_known_and_declinable(self):
+        with _HYPHEN_COMPOUNDS_PATH.open(encoding="utf-8") as f:
+            pairs = json.load(f)["pairs"]
+        for head, second in pairs:
+            for lemma in (head, second):
+                assert morph.word_is_known(lemma), (
+                    f"lemma {lemma!r} is not pymorphy-known"
+                )
+                tag = str(morph.parse(lemma)[0].tag)
+                assert "NOUN" in tag, f"lemma {lemma!r} is not tagged NOUN"
+                assert "Fixd" not in tag, f"lemma {lemma!r} is indeclinable"
+
+    def test_no_duplicate_pairs(self):
+        with _HYPHEN_COMPOUNDS_PATH.open(encoding="utf-8") as f:
+            pairs = json.load(f)["pairs"]
+        as_tuples = [tuple(p) for p in pairs]
+        assert len(as_tuples) == len(set(as_tuples))
+
+    def test_excludes_known_frozen_first_half_compounds(self):
+        """First-half-frozen compounds (царь-пушка, плащ-палатка, and
+        military-rank compounds like генерал-майор where only the second
+        component declines) must not be in this both-halves-decline
+        lexicon."""
+        with _HYPHEN_COMPOUNDS_PATH.open(encoding="utf-8") as f:
+            pairs = json.load(f)["pairs"]
+        as_tuples = {tuple(p) for p in pairs}
+        frozen_first_examples = {
+            ("царь", "пушка"),
+            ("плащ", "палатка"),
+            ("генерал", "майор"),
+            ("генерал", "лейтенант"),
+            ("контр", "адмирал"),
+            ("премьер", "министр"),
+        }
+        assert as_tuples.isdisjoint(frozen_first_examples)
