@@ -56,6 +56,11 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - Inflection preserves source е/ё spelling and single-capital titlecasing.
 - CLI/preset config binding: None-valued CLI defaults no longer clobber
   explicit YAML values (`--depparse` is tri-state).
+- Post-audit review wave: morpheme offsets surface-aligned at the source
+  (restores nn/participle corruption on ~175 compound adjectives); explicit
+  `-e` on zero-weight handlers no longer crashes; тем-что correlatives,
+  impersonal attributions, «время года — весна» dashes, ADP-led ellipses,
+  and §197 compound terms (curated lexicon) generate again.
 
 ## [1.0.1] — 2026-05-14
 

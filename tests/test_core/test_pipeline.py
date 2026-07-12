@@ -501,3 +501,122 @@ class TestGeneratedSentenceFormats:
 
         result = sentence.to_diff()
         assert result == "[-Мама-]{+Мамо+} мыла [-раму-]{+раме+}"
+
+
+class TestZeroWeightSampling:
+    """Regression tests for the zero-weight distribution crash.
+
+    Quarantined handlers carry weight 0.0 in presets (e.g. rulec's
+    adj_short_en_enen). `-e <handler>` filters the distribution down to
+    {handler: 0.0}; _sample_error_type used to feed that straight into
+    random.choices, which raises ValueError on a zero total weight
+    (review finding, 2026-07-12).
+    """
+
+    @staticmethod
+    def _mock_language(weights: dict[str, float]):
+        """Mock language module with one non-length handler per weight key."""
+        from unittest.mock import MagicMock
+
+        mock_lang = MagicMock()
+
+        mock_analyzer = MagicMock()
+
+        def mock_analyze(text):
+            return [
+                AnalyzedToken(text=t, lemma=t.lower(), pos="NOUN", features={}, idx=i)
+                for i, t in enumerate(text.split())
+            ]
+
+        mock_analyzer.analyze = mock_analyze
+        mock_analyzer.analyze_batch = lambda texts: [mock_analyze(t) for t in texts]
+        mock_lang.get_analyzer.return_value = mock_analyzer
+
+        handlers = []
+        for name in weights:
+            handler = MagicMock()
+            handler.name = name
+            handler.subtypes = [name]
+            handler.category = "OTHER"
+            handler.changes_length = False
+            handler.can_apply.return_value = True
+            handler.apply.return_value = ErrorResult(
+                error_type=name,
+                category="OTHER",
+                start_idx=0,
+                end_idx=1,
+                original="слово",
+                corrupted="слова",
+                fix_tag="$REPLACE_слово",
+            )
+            handlers.append(handler)
+
+        mock_lang.get_error_handlers.return_value = handlers
+        mock_lang.get_error_distribution.return_value = dict(weights)
+        return mock_lang
+
+    def test_explicitly_enabled_zero_weight_handler_fires_uniformly(self):
+        """-e naming a quarantined (weight 0.0) handler must not crash:
+        an explicit request beats the preset's zero — uniform fallback."""
+        lang = self._mock_language({"quarantined": 0.0, "other": 5.0})
+        config = GenerationConfig(
+            seed=42,
+            error_probability=1.0,
+            max_errors_per_sentence=1,
+            enabled_errors={"quarantined"},
+        )
+        pipeline = ErrorPipeline(lang, config)
+
+        # The filtered distribution is {"quarantined": 0.0} — this raised
+        # ValueError("Total of weights must be greater than zero") before.
+        handler = pipeline._sample_error_type()
+        assert handler is not None
+        assert handler.name == "quarantined"
+
+        result = pipeline.generate("одно слово тут")
+        assert len(result.errors) == 1
+        assert result.errors[0].error_type == "quarantined"
+
+    def test_zero_weight_handler_never_sampled_without_explicit_enable(self):
+        """Without enabled_errors, zero-weight entries are dropped from
+        sampling — the quarantined handler must never fire."""
+        lang = self._mock_language({"quarantined": 0.0, "other": 5.0})
+        config = GenerationConfig(
+            seed=42, error_probability=1.0, max_errors_per_sentence=3
+        )
+        pipeline = ErrorPipeline(lang, config)
+
+        for _ in range(50):
+            handler = pipeline._sample_error_type()
+            assert handler is not None
+            assert handler.name == "other"
+
+    def test_all_zero_distribution_without_explicit_enable_yields_no_errors(self):
+        """All-zero distribution and no explicit enable: nothing to sample —
+        generate() must return the sentence untouched, not crash."""
+        lang = self._mock_language({"quarantined": 0.0, "also_zero": 0.0})
+        config = GenerationConfig(
+            seed=42, error_probability=1.0, max_errors_per_sentence=3
+        )
+        pipeline = ErrorPipeline(lang, config)
+
+        assert pipeline._sample_error_type() is None
+
+        result = pipeline.generate("одно слово тут")
+        assert result.errors == []
+        assert result.corrupted_tokens == result.original_tokens
+
+    def test_explicit_enable_of_multiple_zero_weight_handlers_is_uniform(self):
+        """Uniform fallback covers every explicitly enabled handler, not
+        just the first: both zero-weight handlers must be sampleable."""
+        lang = self._mock_language({"quar_a": 0.0, "quar_b": 0.0, "other": 5.0})
+        config = GenerationConfig(
+            seed=42,
+            error_probability=1.0,
+            max_errors_per_sentence=1,
+            enabled_errors={"quar_a", "quar_b"},
+        )
+        pipeline = ErrorPipeline(lang, config)
+
+        seen = {pipeline._sample_error_type().name for _ in range(100)}
+        assert seen == {"quar_a", "quar_b"}

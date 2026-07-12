@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import random as random_module
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -681,44 +680,11 @@ def _validate_root_alternations() -> None:
 _validate_root_alternations()
 
 
-# =============================================================================
-# SURFACE-ALIGNED MORPHEME OFFSETS (audit fix S1)
-#
-# unified_dict.json morpheme strings sometimes carry annotation characters
-# that are NOT part of the surface spelling: '-' marks a prefix/suffix
-# boundary (e.g. the linking "о-" in высок|о-|гор|н|ый), the Latin letter
-# 'j' marks a phantom morphophonemic consonant (e.g. "церемониj"), and a
-# handful of entries use "(...)" for optional segments. Summing raw
-# len(text) over these inflates the running offset and misaligns every
-# morpheme after the first annotated one onto the wrong surface character —
-# e.g. "высокогорный" segments as [('высок','ROOT'), ('о-','SUFF'),
-# ('гор','ROOT'), ...]; the 2-char "о-" shifts the "гор" root one position
-# too far right, landing an edit on 'р' instead of the root vowel 'о'.
-#
-# Stripping non-Cyrillic characters before summing fixes the offset. This
-# is used by both root_alternating and the root_unchecked lexicon loader.
-# =============================================================================
-
-_NON_SURFACE_RE = re.compile(r"[^а-яёА-ЯЁ]")
-
-
-def _surface_aligned_spans(
-    morphemes: list[tuple[str, str]],
-) -> list[tuple[int, str, str]]:
-    """Convert dict morpheme (text, type) pairs into SURFACE-ALIGNED spans.
-
-    Returns a list of (offset, surface_text, type) where offset is the
-    0-based character index into the actual surface word (annotation
-    characters stripped from each morpheme's text before the running
-    offset is advanced).
-    """
-    spans: list[tuple[int, str, str]] = []
-    offset = 0
-    for text, typ in morphemes:
-        surface_text = _NON_SURFACE_RE.sub("", text)
-        spans.append((offset, surface_text, typ))
-        offset += len(surface_text)
-    return spans
+# Surface-aligned morpheme offsets (audit fix S1) now live at the source:
+# MorphemeAnalyzer.surface_morpheme_spans in resources.py strips annotation
+# characters ('-', 'j', parentheses) per morpheme and verifies the result
+# against the surface word before any offset is trusted. root_alternating
+# and the root_unchecked lexicon validator both consume it from there.
 
 
 def _lemma_denied(lookup_lemma: str, denied_lemmas: frozenset[str]) -> bool:
@@ -784,10 +750,9 @@ def _validate_root_unchecked_lexicon(
 
     analyzer = get_morpheme_analyzer()
     for lemma, (pos, _vowel, _wrong) in lexicon.items():
-        morphemes = analyzer.get_morphemes(lemma)
-        if morphemes is None:
+        spans = analyzer.surface_morpheme_spans(lemma)
+        if spans is None:
             continue
-        spans = _surface_aligned_spans(morphemes)
         for offset, text, typ in spans:
             if offset <= pos < offset + len(text):
                 assert typ == "ROOT", (
@@ -1454,11 +1419,12 @@ class SpellingErrorHandler:
         rejected if it happens to be a real word (e.g. мер, genitive plural
         of мера) — the swap must produce a genuine non-word.
 
-        Audit fix S1: morpheme offsets are computed via
-        _surface_aligned_spans (annotation characters like the '-' in
-        SUFF "о-" stripped before summing), and the resulting span's actual
-        text is re-verified against the expected root string before any
-        edit — a mismatch (e.g. a corrupted/garbage dict entry) skips that
+        Audit fix S1: morpheme offsets come from the analyzer's
+        surface_morpheme_spans (annotation characters like the '-' in
+        SUFF "о-" stripped before summing, stripped concatenation verified
+        against the surface word), and the resulting span's actual text is
+        re-verified against the expected root string before any edit — a
+        mismatch (e.g. a corrupted/garbage dict entry) skips that
         candidate instead of editing blind. An assertion also guards that
         the edit position never lands outside the verified root span.
 
@@ -1477,15 +1443,14 @@ class SpellingErrorHandler:
 
         analyzer = get_morpheme_analyzer()
 
-        morphemes = analyzer.get_morphemes(word_lower)
+        spans = analyzer.surface_morpheme_spans(word_lower)
         offsets_match_surface = True
-        if morphemes is None and lemma:
-            morphemes = analyzer.get_morphemes(lemma.lower())
+        if spans is None and lemma:
+            spans = analyzer.surface_morpheme_spans(lemma.lower())
             offsets_match_surface = False
-        if morphemes is None:
+        if spans is None:
             return None
 
-        spans = _surface_aligned_spans(morphemes)
         root_spans = [(offset, text) for offset, text, typ in spans if typ == "ROOT"]
 
         lookup_lemma = (lemma or word).lower()

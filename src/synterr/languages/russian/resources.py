@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import json
 import pickle
+import re
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 from typing import Any
+
+# Morpheme strings in unified_dict.json may carry annotation characters
+# that are NOT part of the surface spelling: '-' marks a linking-morpheme
+# boundary (the "о-" in бел|о-|камен|н|ый), Latin 'j' marks a phantom
+# morphophonemic consonant ("церемониj"), and a few entries use "(...)"
+# for optional segments. They must be stripped before character offsets
+# into the surface word are computed.
+_ANNOTATION_CHARS_RE = re.compile(r"[^а-яёА-ЯЁ]")
 
 
 @lru_cache(maxsize=1)
@@ -187,7 +196,7 @@ class MorphemeAnalyzer:
         analyzer.word_is_known("несчастье")       # True
         analyzer.word_is_known("некошка")          # False
         analyzer.get_stress("церемония")          # 5
-        analyzer.morpheme_at_char("церемония", 0) # ("церемониj", "R")
+        analyzer.morpheme_at_char("церемония", 0) # ("церемони", "ROOT")
     """
 
     # Unified dict type codes → old-style type names
@@ -261,6 +270,43 @@ class MorphemeAnalyzer:
             return entry.get("s", -1)
         return -1
 
+    def surface_morpheme_spans(
+        self,
+        word: str,
+    ) -> list[tuple[int, str, str]] | None:
+        """Return SURFACE-ALIGNED morpheme spans as [(offset, text, type), ...].
+
+        Dict morpheme strings may contain annotation characters ('-', 'j',
+        parentheses) that are not part of the surface spelling — summing
+        raw lengths misaligns every morpheme after the first annotated one
+        (e.g. the 2-char SUFF "о-" in "белокаменный" shifted the "камен"
+        root one position right). Annotation chars are stripped from each
+        morpheme, and every span is verified in place against the surface
+        word: at the first divergence the remaining spans are dropped,
+        since their offsets can no longer be trusted. Divergence happens
+        when an entry stores another inflection's morphemes ("цыпочки"
+        carries the singular's ending "а") or trailing junk morphemes
+        ("цирк" carries a spurious link "и") — the stem spans before the
+        divergence are still correctly aligned and kept; callers treat the
+        uncovered tail as END. Returns None (unknown) when no span at all
+        matches the surface.
+        """
+        w = word.lower()
+        morphemes = self.get_morphemes(w)
+        if morphemes is None:
+            return None
+        spans: list[tuple[int, str, str]] = []
+        offset = 0
+        for text, typ in morphemes:
+            surface_text = _ANNOTATION_CHARS_RE.sub("", text)
+            if not surface_text:
+                continue
+            if w[offset : offset + len(surface_text)] != surface_text:
+                break
+            spans.append((offset, surface_text, typ))
+            offset += len(surface_text)
+        return spans or None
+
     def morpheme_at_char(
         self,
         word: str,
@@ -270,26 +316,24 @@ class MorphemeAnalyzer:
         """Return (morpheme_text, type) containing the character at char_pos.
 
         Tries exact word first, then lemma (morpheme structure of root/prefix
-        is stable across inflections — only the ending changes).
+        is stable across inflections — only the ending changes). Offsets are
+        surface-aligned (see surface_morpheme_spans); the returned text is
+        the surface spelling of the morpheme, annotation chars stripped.
 
-        Returns None if word not in dictionary.
+        Returns None if word not in dictionary (or its dict entry cannot be
+        aligned to the surface string).
         """
-        morphemes = self.get_morphemes(word)
-        if morphemes is None and lemma:
-            morphemes = self.get_morphemes(lemma)
-        if morphemes is None:
+        spans = self.surface_morpheme_spans(word)
+        if spans is None and lemma:
+            spans = self.surface_morpheme_spans(lemma)
+        if spans is None:
             return None
-        offset = 0
-        for text, typ in morphemes:
-            end = offset + len(text)
-            if offset <= char_pos < end:
+        for offset, text, typ in spans:
+            if offset <= char_pos < offset + len(text):
                 return (text, typ)
-            offset = end
-        # char_pos beyond morpheme boundaries (inflected ending differs)
-        # — treat as ending
-        if morphemes:
-            return (word[char_pos:], "END")
-        return None
+        # char_pos beyond span coverage (inflected ending differs from the
+        # lemma's, or a truncated dict entry) — treat as ending
+        return (word[char_pos:], "END")
 
     def char_in_morpheme_type(
         self,

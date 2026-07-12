@@ -371,14 +371,32 @@ class ErrorPipeline:
         return self._distribution
 
     def _sample_error_type(self) -> ErrorHandler | None:
-        """Sample an error type according to distribution."""
+        """Sample an error type according to distribution.
+
+        Zero-weight entries (quarantined handlers) are dropped from
+        sampling: ``random.choices`` raises ValueError when the total
+        weight is 0. If dropping them empties the pool but the user
+        *explicitly* enabled handlers (``enabled_errors``), fall back to
+        uniform weights over the enabled set — an explicit ``-e`` request
+        beats the preset's zeros. Without an explicit request, a
+        zero-weight handler simply never fires.
+        """
         handler_map = {h.name: h for h in self.handlers}
-        available = [name for name in self.distribution if name in handler_map]
+        available = [
+            name
+            for name in self.distribution
+            if name in handler_map and self.distribution[name] > 0
+        ]
+        weights = [self.distribution[name] for name in available]
 
         if not available:
-            return None
+            if self.config.enabled_errors is None:
+                return None
+            available = [name for name in self.distribution if name in handler_map]
+            if not available:
+                return None
+            weights = [1.0] * len(available)
 
-        weights = [self.distribution[name] for name in available]
         chosen = self._rng.choices(available, weights=weights, k=1)[0]
         return handler_map[chosen]
 

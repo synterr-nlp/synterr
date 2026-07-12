@@ -833,3 +833,118 @@ class TestEnabledSubtypes:
         h = OrthographicSpellingHandler()
         with pytest.raises(ValueError, match="Unknown subtypes"):
             h.set_enabled_subtypes({"not_a_subtype"})
+
+
+# Compound adjectives whose dict segmentation carries an annotation
+# character (the linking SUFF "о-", e.g. бел|о-|камен|н|ый) before the нн.
+# Raw len() summing in resources.morpheme_at_char shifted every morpheme
+# after the annotated one a character right, so the second н of нн read as
+# ROOT and _is_suffix_boundary rejected a genuine §52 suffix-boundary
+# target (~175 such adjectives; review finding 2026-07-12).
+COMPOUND_NN_ADJECTIVES = [
+    "белокаменный",
+    "иностранный",
+    "второстепенный",
+    "благосклонный",
+    "белокочанный",
+]
+
+
+class TestSurfaceAlignedMorphemeOffsets:
+    """Regression tests for the surface-aligned morpheme offsets in
+    resources.MorphemeAnalyzer (root fix behind the nn_suffix regression).
+    """
+
+    @pytest.mark.parametrize("word", COMPOUND_NN_ADJECTIVES)
+    def test_nn_position_maps_to_root_suffix_boundary(self, word):
+        """First н of нн is root-final, second н is the SUFF morpheme —
+        exactly the boundary shape _is_suffix_boundary checks (last char
+        of the matched span)."""
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        nn_pos = word.find("нн")
+        assert nn_pos > 0
+        assert analyzer.char_in_morpheme_type(word, nn_pos, "ROOT") is True
+        assert analyzer.char_in_morpheme_type(word, nn_pos + 1, "SUFF") is True
+
+    @pytest.mark.parametrize("word", COMPOUND_NN_ADJECTIVES)
+    def test_nn_suffix_fires_on_compound_adjectives(self, word):
+        h = _force_subtype("nn_suffix")
+        sentence = [word]
+        result = h.apply([_tok(word, pos="ADJ")], sentence, 0, set(), rng=Random(42))
+        assert result is not None
+        assert sentence[0] == word.replace("нн", "н")
+
+    def test_root_internal_nn_still_reads_as_root(self):
+        """тоннельный: both н of нн live inside the loanword root — the
+        prior true-negative must survive the offset change."""
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        nn_pos = "тоннельный".find("нн")
+        assert analyzer.char_in_morpheme_type("тоннельный", nn_pos, "ROOT") is True
+        assert analyzer.char_in_morpheme_type("тоннельный", nn_pos + 1, "ROOT") is True
+
+    def test_root_internal_in_still_reads_as_root(self):
+        """алюминиевый: "ин" is root-internal (root "алюмин"), not the
+        adjectival -ин- suffix — must still read ROOT at both chars."""
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        in_pos = "алюминиевый".find("ин")
+        assert analyzer.char_in_morpheme_type("алюминиевый", in_pos, "ROOT") is True
+        assert analyzer.char_in_morpheme_type("алюминиевый", in_pos + 1, "ROOT") is True
+
+    def test_misaligned_dict_entry_returns_unknown(self):
+        """авторизованный stores the infinitive's morphemes (…ова|ть) —
+        beyond the shared stem the spans can't be trusted. The stem spans
+        still verify; the diverging tail is dropped (END fallthrough)."""
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        spans = analyzer.surface_morpheme_spans("авторизованный")
+        assert spans is not None
+        covered = spans[-1][0] + len(spans[-1][1])
+        assert "".join(t for _, t, _ in spans) == "авторизованный"[:covered]
+
+    def test_truncated_dict_entry_keeps_stem_spans(self):
+        """цыпочки stores the singular's morphemes (ending "а"): stem spans
+        up to the divergence are kept, the surface ending falls through to
+        END — the entry must not go fully unknown."""
+        from synterr.languages.russian.resources import get_morpheme_analyzer
+
+        analyzer = get_morpheme_analyzer()
+        assert analyzer.morpheme_at_char("цыпочки", 0) == ("цып", "ROOT")
+        assert analyzer.morpheme_at_char("цыпочки", 6) == ("и", "END")
+
+
+@pytest.mark.slow
+class TestNnSuffixCompoundAdjectivesRealPipeline:
+    """The regressed compound adjectives must fire end-to-end through
+    ErrorPipeline on real sentences, not just on fake-token fixtures."""
+
+    @pytest.fixture(scope="class")
+    def pipeline(self):
+        from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+        from synterr.core.registry import get_language
+
+        return ErrorPipeline(get_language("ru"), GenerationConfig(seed=42))
+
+    @pytest.mark.parametrize(
+        ("sentence", "word"),
+        [
+            ("Мы вошли в белокаменный собор.", "белокаменный"),
+            ("Иностранный студент выучил язык.", "иностранный"),
+            ("Это был второстепенный вопрос.", "второстепенный"),
+            ("Благосклонный отзыв обрадовал автора.", "благосклонный"),
+            ("Белокочанный салат стоял на столе.", "белокочанный"),
+        ],
+    )
+    def test_nn_suffix_fires_through_pipeline(self, pipeline, sentence, word):
+        result = pipeline.apply_error(sentence, "orthographic_spelling:nn_suffix")
+        assert result is not None
+        assert result.errors[0].error_type == "orthographic_spelling_nn_suffix"
+        # Sentence-initial adjectives keep their capitalization in the output.
+        expected = word.replace("нн", "н")
+        assert any(t.lower() == expected for t in result.corrupted_tokens)

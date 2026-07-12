@@ -61,9 +61,9 @@ Pipe pytest through `tail` only with `set -o pipefail` — a pipe swallows the e
   - Inflection: always `inflect_word(parse, grammemes, original)` — transfers capitalization and е/ё; single capitals titlecase (not ALL-CAPS); full-caps sources must uppercase every produced segment of splits/merges.
   - pymorphy *prediction* parses garbage: gate remainders/candidates with `word_is_known`; the stored parse is UD-disambiguated at the backend — don't re-pick `parse[0]`.
   - stanza UD features lie: Case on OOV proper nouns, participles as VERB+Tense, no Gender on plural adjectives — verify with pymorphy round-trips; pin non-target features in inflect targets.
-  - Config binding: subtype weights are enable gates; unlisted subtypes inherit handler `DEFAULT_WEIGHTS` — explicitly zero non-benchmark subtypes in `lorugec.yaml`. Handlers absent from a preset's `weights:` never fire; `enabled_errors` + all-zero weights crashes `random.choices` (open finding).
+  - Config binding: subtype weights are enable gates; unlisted subtypes inherit handler `DEFAULT_WEIGHTS` — explicitly zero non-benchmark subtypes in `lorugec.yaml`. Handlers absent from a preset's `weights:` never fire; explicit `-e` on a zero-weight handler falls back to uniform (fixed 2026-07-12).
   - Lexicon entries need normative provenance: "marked variant" ≠ error (gramota-check each pair); loader assertions guard positions.
-  - `resources.py` `morpheme_at_char` counts annotation chars (`-`, `j`) — OPEN upstream bug; spelling.py works around it locally, orthographic_spelling's suffix-boundary check currently regresses ~175 compound adjectives (see review findings 2026-07-12).
+  - Morpheme offsets are surface-aligned in `resources.py` (`surface_morpheme_spans`, span-verified, fixed 2026-07-12); dict entries may carry trailing junk from other inflections — spans truncate at first divergence, so an uncovered tail means unknown, not ROOT.
   - Corpora (`lenta_sents.txt`, pools) and `tools/review/` are gitignored — regenerable; don't track.
   - Stress dict required for vowel_reduction; morpheme data from `unified_dict.json`.
 - **Quality gate** (measured 2026-07-12): ruff `E,F,I,N,UP,B,SIM,RUF` (E501/RUF001-Cyrillic ignores are deliberate); mypy scoped to core+schemas — `--strict` there costs 11 errors, full-src costs 114; tightening is a decided follow-up branch, not ambient drift.
