@@ -23,8 +23,7 @@ Commands:
   corrupt               Apply a specific error to a sentence.
   coverage              Show schema coverage by available handlers.
   generate              Generate synthetic errors from corpus.
-  generate-bea-paper    Force-apply errors per LoRuGEC rule for SFT...
-  generate-targeted     Force-apply errors per LoRuGEC rule for SFT...
+  generate-targeted     Fill per-rule quotas by force-applying mapped...
   list-backends         List available NLP backends.
   list-errors           List error types for a language.
   list-languages        List available languages.
@@ -211,41 +210,24 @@ Options:
   --help                          Show this message and exit.
 ```
 
-## `synterr generate-bea-paper`
-
-```
-Usage: synterr synterr generate-bea-paper [OPTIONS]
-
-  Force-apply errors per LoRuGEC rule for SFT training.
-
-  Generates {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL.
-  Targets 48 LoRuGEC evaluation rules with bidirectional split/merge.
-  Saves a .dist.json sidecar with per-rule counts.
-
-Options:
-  -l, --lang TEXT                 Language code
-  -i, --input PATH                Input sentences  [required]
-  -o, --output PATH               Output JSONL  [required]
-  -n, --total INTEGER             Target total examples
-  --seed INTEGER                  Random seed
-  --depparse / --no-depparse      Enable dep parsing
-  --max-input INTEGER             Max input sentences to read
-  --batch-size INTEGER            Stanza analysis batch size
-  --balance-directions / --no-balance-directions
-                                  Cap split/merge pairs to min(split, merge)
-  --help                          Show this message and exit.
-```
-
 ## `synterr generate-targeted`
 
 ```
 Usage: synterr synterr generate-targeted [OPTIONS]
 
-  Force-apply errors per LoRuGEC rule for SFT training.
+  Fill per-rule quotas by force-applying mapped handlers (SFT data).
 
-  Generates {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL.
-  Targets 48 LoRuGEC evaluation rules with bidirectional split/merge.
-  Saves a .dist.json sidecar with per-rule counts.
+  Unlike `generate` (which samples a preset error distribution per
+  sentence), this fills a quota per rule from a target set: a mapping
+  of rule names to handler+subtype with relative weights. Generates
+  {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL and a
+  .dist.json sidecar with per-rule got/want counts.
+
+  The default target set ships with synterr (48 Rozental-derived
+  rules, empirically weighted). Supply your own with --targets:
+    {"rules": {"my rule": {"handler": "spelling",
+                           "subtype": "vowel_reduction",
+                           "weight": 10}}}
 
 Options:
   -l, --lang TEXT                 Language code
@@ -257,7 +239,11 @@ Options:
   --max-input INTEGER             Max input sentences to read
   --batch-size INTEGER            Stanza analysis batch size
   --balance-directions / --no-balance-directions
-                                  Cap split/merge pairs to min(split, merge)
+                                  Cap paired [split]/[merge] and
+                                  [delete]/[insert] rules to the smaller side
+  --targets FILE                  JSON target set (rule →
+                                  handler/subtype/weight); default: built-in
+                                  set
   --help                          Show this message and exit.
 ```
 

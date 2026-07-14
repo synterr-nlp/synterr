@@ -6,6 +6,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Neutral targeted-generation surface**: `generate-targeted` now takes
+  any target set via `--targets targets.json` (rule → handler/subtype/
+  weight); the 48-rule benchmark mapping remains the built-in default
+  but is no longer hardwired. Help text and docs speak benchmark-neutral
+  language; the `generate-bea-paper` compat alias still works but is
+  hidden from `--help` and the CLI reference.
+
 ### Added
 
 - **Discovery loop hardened**: `mine-pools` patterns for the new

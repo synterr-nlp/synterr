@@ -264,7 +264,7 @@ Reflexive себя/себе/собой -> personal pronoun confusion (§168, RLC
 
 ### `pronoun_svoy` (1 subtype)
 
-свой -> personal possessive confusion (Rozental §167, RLC Ref).
+свой -> personal possessive confusion (Rozental §168.2, RLC Ref).
 
 - `pronoun_svoy:pronoun_svoy`
 
