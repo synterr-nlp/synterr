@@ -95,7 +95,9 @@ AGR + pu_clause (E) → content-diff tags (F) → fast TOC sweep of quiet famili
 
 - **2026-07-14 · TOC sweep findings S1–S5 — RULED (Anna: all accepted).**
   S1: §49 "???" = toc.csv scrape gap (book has «Употребление буквы ь в
-  глагольных формах»); schema untouched. S2: `mo_verb_personal` (L2, §171)
+  глагольных формах»); schema untouched. Addendum (viewer build): §33
+  (пре-/при-) has an empty rule_text in master.csv — second known scrape
+  lacuna; both marked honestly in the viewer panel. S2: `mo_verb_personal` (L2, §171)
   reparented mo_verb_form→`mo_verb_person_num` (D holds: form = §173–175;
   G amended: person_num has 1 child). S3: 正名 — `mo_numeral_oba` renamed
   `mo_numeral_compound` (content/§166 = compound-word numerals; оба lives in
@@ -131,4 +133,11 @@ AGR + pu_clause (E) → content-diff tags (F) → fast TOC sweep of quiet famili
 - [x] Fast TOC sweep done (134 rows incl. L1s; findings S1–S5 ruled)
 - [ ] Public story: "schema v1.1" landing-page note (98→103, each addition
       receipted) — pending next site refresh
-- [ ] Schema Viewer (public yaml-only + private with book text)
+- [x] Schema Viewer shipped (a391e82): `scripts/build_schema_viewer.py` →
+      public `docs/schema_viewer.html` (yaml only) + private build with full
+      book text (outside the repo, never committed). yaml `version` → "1.1".
+- [x] Identity hygiene (2026-07-14): review-doc attribution uses the official
+      name; personal username/name removed from public docs+scripts (1f85009).
+
+**STATUS: WALK + ENDGAME COMPLETE 2026-07-14.** Remaining: landing-page v1.1
+note at next site refresh; commits are local — push is the owner's call.
