@@ -53,7 +53,7 @@ plus one protocol definition. `sample_confused_grammeme` and `match_capitalizati
 
 ### 3.1 Local assets already on disk (`~/Projects/vibes/dico`, verified 2026-07-06)
 
-Aleph's `dico` CLI project already vendors a chunk of the phase-1 resource layer:
+Anna's `dico` CLI project already vendors a chunk of the phase-1 resource layer:
 
 | Asset | Contents | Reuse for synterr |
 |---|---|---|

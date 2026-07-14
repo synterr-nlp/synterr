@@ -2,7 +2,7 @@
 """Batch stress annotation using russtress.
 
 Run with the gector stress_venv (Python 3.10):
-    /Users/aleph/Projects/research/gector/stress_venv/bin/python3 scripts/batch_stress.py \
+    ../gector/stress_venv/bin/python3 scripts/batch_stress.py \
         --input /tmp/need_stress.txt --output /tmp/stress_results.json
 
 Input: one word per line
