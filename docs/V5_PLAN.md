@@ -78,3 +78,40 @@ generation (stanza, CPU-bound); frodo: Aug finetunes.
    to already-fat subtypes; ~1000/direction-key).
 2. **Format**: v5 stays pure SFT; GEC Gym episodes come from their own
    generator per the pilot spec — no format mixing in one release.
+
+## Appendix: direction-mismatch matrix (measured 2026-07-14)
+
+Only 14 of 59 v4 rule-keys touch commas, and **every one is one-directional
+in training** (8 insert-only, 6 delete-only) — the 3.6:1 is the sum of
+fourteen one-way streets. Test-split opposite-share vs published qwen35_4b
+scores (zero-shot → synterr-only → synterr→lorugec):
+
+| rule | opp-share (test) | zs → syn → cont |
+|---|---:|---|
+| пары (однородные) | 100% | 8.3 → **0.0** → 83.3 |
+| однородные придаточные | 100% | 10.0 → **0.0** → 50.0 |
+| СПП с общей частью | 75% | 8.3 → 8.3 → 8.3 |
+| **«как»: 3 — NEW, not in the paper** | **53%** | **66.7 → 53.3 → 86.7** |
+| «как»: 1 | 33% | 25.0 → 18.8 → 43.8 |
+| стык двух союзов | 33% | 8.3 → 58.3 → 66.7 |
+| цельные сочетания | 17% | 22.2 → 44.4 → 77.8 |
+| деепричастия после союзов | 17% | 30.8 → 7.7 → 46.2 |
+| повторяющиеся союзы | 12% | 22.2 → 11.1 → 22.2 |
+| вводные слова | 11% | 57.9 → 52.6 → 47.4 |
+| опред., оторванные | 0% | 20.0 → 20.0 → 20.0 |
+| опред., при личном мест. | 0% | 20.0 → 0.0 → 10.0 |
+| «как»: 2 | 0% | 30.0 → 50.0 → 80.0 |
+| фразеологизмы (29 train ex!) | 0% | 0.0 → 69.2 → 53.8 |
+
+**Findings.** (1) «как»:3 is a fourth, *partially* suppressed rule —
+−13.4 under synterr-only, full recovery under continuation, predicted by its
+53% mismatch. (2) Mismatch-share is a risk factor, not a law: стык союзов
+gains despite 33% (aligned majority dominates); деепричастия drop without
+mismatch (separate disease — investigate in W1). (3) Alignment beats volume:
+фразеологизмы reach 69.2 from 29 examples because the direction matches.
+**W1 therefore covers all 14 rules, priority = opp-share × N**, not just the
+three named culprits. Caveat: N per rule = 10–23, exact-match is noisy.
+
+This matrix is the empirical motivation for GEC Gym's per-rule curriculum:
+direction is a controllable generation knob with measurable per-rule causal
+effect.
