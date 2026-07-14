@@ -11,7 +11,7 @@
 #   pu_ → PUNCT    sy_ → SYNT     lx_ → LEX
 
 name: rozental
-version: "1.0"
+version: "1.1"  # 2026-07-14: tag-by-tag walk vs the book; see docs/SCHEMA_REVIEW_2026-07.md
 description: "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 103 L2)"
 
 # =============================================================================
@@ -136,16 +136,14 @@ primary_tags:
     rozental_chapters: "XL"
 
   mo_verb_form:
-    description: "Verb personal forms, reflexivity, participle/gerund"
+    description: "Verb reflexivity, participle/gerund forms"
     detection_category: MORPH
-    rozental_paras: "§171, §173–175"
+    rozental_paras: "§173–175"
     rozental_chapters: "XL"
 
   mo_verb_tense:
-    description: "Verb tense errors"
+    description: "Verb tense errors (learner phenomenon; no Rozental §)"
     detection_category: MORPH
-    rozental_paras: "§172"
-    rozental_chapters: "XL"
 
   mo_verb_person_num:
     description: "Verb person/number inflection (standalone, not agreement)"
@@ -439,8 +437,8 @@ fine_grained_tags:
     l2_note: "Rozental: -yami variant; L2: wrong case entirely"
   mo_noun_case_other:
     parent: mo_noun_case
-    description: "Accusative animate/inanimate + nom/gen plural forms"
-    paras: "§151, §153–154"
+    description: "Accusative animate/inanimate forms"
+    paras: "§151"
     l2_applicability: partial
     l2_note: "some L2 overlap with animate/inanimate"
 
@@ -529,7 +527,7 @@ fine_grained_tags:
     paras: "§165"
     l2_applicability: partial
     l2_note: "some L2 overlap"
-  mo_numeral_oba:
+  mo_numeral_compound:
     parent: mo_numeral
     description: "Numerals in compound words (двух-, пол-, 2500-летие)"
     paras: "§166"
@@ -539,22 +537,22 @@ fine_grained_tags:
   # --- mo_pronoun children ---
   mo_pronoun_svoy:
     parent: mo_pronoun
-    description: "Personal pronouns (его/её/их, начальное н)"
-    paras: "§167"
-    l2_applicability: partial
-    l2_note: "some L2 overlap"
-  mo_pronoun_sebya:
-    parent: mo_pronoun
-    description: "Reflexive/possessive pronouns (себя, свой)"
-    paras: "§168"
+    description: "Reflexive-possessive свой vs personal possessive (свой/его)"
+    paras: "§168.2"
     l2_applicability: partial
     l2_note: "L2 learners confuse svoy/ego"
+  mo_pronoun_sebya:
+    parent: mo_pronoun
+    description: "Reflexive pronoun себя (reference ambiguity)"
+    paras: "§168.1"
+    l2_applicability: partial
+    l2_note: "some L2 overlap"
   mo_pronoun_forms:
     parent: mo_pronoun
     description: "н-augment after prepositions (у него/у его; благодаря ему/нему)"
-    paras: "§169–170"
+    paras: "§167"
     l2_applicability: partial
-    l2_note: "learners drop н too, by a different mechanism; determiner half of §169–170 uncovered"
+    l2_note: "learners drop н too, by a different mechanism; §169–170 (determiner/indefinite pronouns) are documented schema gaps — no handler (v1.1 walk 2026-07-14)"
 
   # --- mo_verb_aspect children ---
   mo_verb_asp_pair:
@@ -590,7 +588,7 @@ fine_grained_tags:
     l2_applicability: none
     l2_note: "Rozental: suffix choice; L2 learners avoid gerunds"
   mo_verb_personal:
-    parent: mo_verb_form
+    parent: mo_verb_person_num
     description: "Verb personal form variations"
     paras: "§171"
     l2_applicability: partial
@@ -631,16 +629,16 @@ fine_grained_tags:
     l2_applicability: full
   ag_mn_apposition:
     parent: ag_modifier_noun
-    description: "Apposition agreement"
-    paras: "§195–196"
+    description: "Apposition agreement (incl. geographic names: в городе Москве)"
+    paras: "§195–197"
     l2_applicability: partial
     l2_note: "Rozental: edge cases; L2 errors simpler"
   ag_mn_compound_term:
     parent: ag_modifier_noun
-    description: "Compound term agreement"
-    paras: "§197"
+    description: "Compound-term declension (вагон-ресторан: both halves decline)"
+    paras: "§148"
     l2_applicability: partial
-    l2_note: "limited L2 overlap"
+    l2_note: "limited L2 overlap; cross-refs §185.5, §192 (agreement with compound terms)"
 
   # --- gv_government children ---
   gv_prep_vs_nprep:
@@ -787,15 +785,15 @@ fine_grained_tags:
     l2_applicability: full
   pu_clause_comparative:
     parent: pu_clause
-    description: "Idiomatic phrases and comparative constructions"
-    paras: "§114–115"
+    description: "Comparative constructions (сравнительные обороты)"
+    paras: "§115"
     l2_applicability: full
   pu_clause_indivisible:
     parent: pu_clause
     description: "Indivisible expressions (цельные по смыслу сочетания)"
-    paras: "§87, §90, §114"
+    paras: "§114"
     l2_applicability: full
-    l2_note: "synterr-assigned (not in rozental annotation); punct rule, both populations"
+    l2_note: "synterr-assigned (not in rozental annotation); punct rule, both populations; cross-refs §87, §90 (indivisible expressions as no-comma exceptions)"
   pu_clause_asyndetic:
     parent: pu_clause
     description: "Asyndetic complex sentences (бессоюзное)"

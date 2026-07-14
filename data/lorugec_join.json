@@ -14,8 +14,8 @@
       "GOV"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "partial",
+      "partial"
     ],
     "l2_description": [
       "Prepositional vs non-prepositional government",
@@ -48,7 +48,7 @@
       "MORPH"
     ],
     "l2_applicability": [
-      ""
+      "partial"
     ],
     "l2_description": [
       "Cardinal numeral declension"
@@ -80,7 +80,7 @@
       "AGR"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
@@ -103,7 +103,8 @@
     "category": "Grammar",
     "rozental_paras": "§191",
     "l2_tags": [
-      "ag_mn_special"
+      "ag_mn_special",
+      "ag_mn_agreement"
     ],
     "l1_families": [
       "ag_modifier_noun"
@@ -112,10 +113,12 @@
       "AGR"
     ],
     "l2_applicability": [
-      ""
+      "full",
+      "full"
     ],
     "l2_description": [
-      "Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
+      "Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)",
+      "Basic modifier-noun agreement (case/number/gender) — learner heartland, RLC-matrix driven"
     ],
     "synterr_handlers": [
       "adj_case"
@@ -135,23 +138,19 @@
     "category": "Punctuation",
     "rozental_paras": "§87",
     "l2_tags": [
-      "pu_comma_homogeneous",
-      "pu_clause_indivisible"
+      "pu_comma_homogeneous"
     ],
     "l1_families": [
-      "pu_comma",
-      "pu_clause"
+      "pu_comma"
     ],
     "l0_categories": [
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Commas with homogeneous members",
-      "Indivisible expressions (цельные по смыслу сочетания)"
+      "Commas with homogeneous members"
     ],
     "synterr_handlers": [
       "comma_insert"
@@ -180,18 +179,23 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Subordinate clause (сложноподчинённое)"
     ],
     "synterr_handlers": [
-      "comma_delete"
+      "comma_delete",
+      "comma_insert"
     ],
     "synterr_subtypes": [
+      "comma_clause_junction",
       "comma_subordinate"
     ],
-    "directions": [],
+    "directions": [
+      "delete",
+      "insert"
+    ],
     "generates": true,
     "v4_examples": 847,
     "lorugec_definition": "Между однородными придаточными предложениями, соединенными неповторяющимся соединительным или разделительным союзом, запятая не ставится.",
@@ -212,18 +216,23 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Subordinate clause (сложноподчинённое)"
     ],
     "synterr_handlers": [
-      "comma_delete"
+      "comma_delete",
+      "comma_insert"
     ],
     "synterr_subtypes": [
+      "comma_clause_junction",
       "comma_subordinate"
     ],
-    "directions": [],
+    "directions": [
+      "delete",
+      "insert"
+    ],
     "generates": true,
     "v4_examples": 847,
     "lorugec_definition": "Перед союзами \"и\", \"да\" (в значении 'и'), \"или\", \"либо\" запятая не ставится, если части сложносочиненного предложения объединены каким-либо общим элементом. 1) Общим может быть второстепенный член предложения: Вскоре после восхода набежала туча и брызнул короткий дождь (П.); У Ивана Ивановича большие выразительные глаза табачного цвета и рот несколько похож на букву ижицу (Г.); 2) Общей может быть придаточная часть сложноподчиненного предложения: Уже совсем рассвело и народ стал подниматься, когда я вернулся в свою комнату (Л. Т.); Когда Аню провожали домой, то уже светало и кухарки шли на рынок (Ч.); Но: Когда Каштанка проснулась, было уже светло, и с улицы доносился шум, какой бывает только днём (Ч.) — придаточная часть относится только к первому простому предложению, а связь его со вторым слабее, на что указывает различный вид глаголов-сказуемых этих предложений (ср.: Когда Каштанка проснулась… с улицы доносился шум…; Когда Каштанка проснулась… с улицы донёсся шум — во втором случае придаточную часть следовало бы отнести и ко второй части сложносочиненного предложения); Как только сапёры перетащили машину на другую сторону и поставили на шоссе, Зубенко дал газ, и грузовик преспокойно поехал дальше (Медв.) — последнее предложение указывает на общее следствие. 3) Общей может быть поясняемая двумя частями сложносочиненного предложения третья часть, предшествующая им и связанная с ними бессоюзной связью: Берегов не видать: их скрыла ночь и оттолкнули куда-то широкие волны разлива (М. Г.); Он чувствовал себя нехорошо: тело было слабо и в глазах ощущалась тупая боль (Купр.); Но: Через час явилась возможность ехать: метель утихла, небо прояснилось, и мы отправились (П.) — последняя часть не входит в разъяснение.\n4) Общим может быть вводное слово, словосочетание или предложение: По словам охотников, зверь в этих лесах вывелся и птица исчезла — источник сообщения один и тот же для всего высказывания; Как это часто бывает, вспоминается плохое и забывается хорошее; Короче говоря, экзамены кончились и начались каникулы; К счастью, пожар был замечен вовремя и налицо оказались нужные средства для его тушения — отношение говорящего к высказыванию, выражаемое посредством вводного слова, распространяется на обе его части. Но: Действительно, в наших краях знают толк в пении, и недаром село Сергиевское… славится во всей России своим особенно приятным и согласным напевом (Т.) — вводное слово отнесено только к первой части сложносочиненного предложения; …Вероятно, около самой чёрной тучи летали перекати-поле, и как, должно быть, им было страшно! (Ч.) — каждая часть сложносочиненного предложения имеет свое вводное слово. 5) В некоторых случаях общим элементом может быть частица (ограничительная, усилительная, выделительная): В воздухе тишина; только поскрипывает на берегу кузнечик да где-то робко мурлыкает орличка (Ч.).",
@@ -244,7 +253,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Subordinate clause (сложноподчинённое)"
@@ -267,7 +276,6 @@
     "category": "Punctuation",
     "rozental_paras": "§114",
     "l2_tags": [
-      "pu_clause_comparative",
       "pu_clause_indivisible"
     ],
     "l1_families": [
@@ -277,11 +285,9 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Idiomatic phrases and comparative constructions",
       "Indivisible expressions (цельные по смыслу сочетания)"
     ],
     "synterr_handlers": [
@@ -302,7 +308,6 @@
     "category": "Punctuation",
     "rozental_paras": "§114",
     "l2_tags": [
-      "pu_clause_comparative",
       "pu_clause_indivisible"
     ],
     "l1_families": [
@@ -312,11 +317,9 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Idiomatic phrases and comparative constructions",
       "Indivisible expressions (цельные по смыслу сочетания)"
     ],
     "synterr_handlers": [
@@ -337,7 +340,6 @@
     "category": "Punctuation",
     "rozental_paras": "§114",
     "l2_tags": [
-      "pu_clause_comparative",
       "pu_clause_indivisible"
     ],
     "l1_families": [
@@ -347,11 +349,9 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Idiomatic phrases and comparative constructions",
       "Indivisible expressions (цельные по смыслу сочетания)"
     ],
     "synterr_handlers": [
@@ -372,23 +372,19 @@
     "category": "Punctuation",
     "rozental_paras": "§87",
     "l2_tags": [
-      "pu_comma_homogeneous",
-      "pu_clause_indivisible"
+      "pu_comma_homogeneous"
     ],
     "l1_families": [
-      "pu_comma",
-      "pu_clause"
+      "pu_comma"
     ],
     "l0_categories": [
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Commas with homogeneous members",
-      "Indivisible expressions (цельные по смыслу сочетания)"
+      "Commas with homogeneous members"
     ],
     "synterr_handlers": [
       "comma_delete"
@@ -417,7 +413,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Commas for isolated members (обособление)"
@@ -449,7 +445,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Commas for isolated members (обособление)"
@@ -481,7 +477,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Commas for isolated members (обособление)"
@@ -504,7 +500,6 @@
     "category": "Punctuation",
     "rozental_paras": "§114",
     "l2_tags": [
-      "pu_clause_comparative",
       "pu_clause_indivisible"
     ],
     "l1_families": [
@@ -514,11 +509,9 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Idiomatic phrases and comparative constructions",
       "Indivisible expressions (цельные по смыслу сочетания)"
     ],
     "synterr_handlers": [
@@ -548,7 +541,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Commas with parenthetical words/phrases"
@@ -571,23 +564,19 @@
     "category": "Punctuation",
     "rozental_paras": "§87",
     "l2_tags": [
-      "pu_comma_homogeneous",
-      "pu_clause_indivisible"
+      "pu_comma_homogeneous"
     ],
     "l1_families": [
-      "pu_comma",
-      "pu_clause"
+      "pu_comma"
     ],
     "l0_categories": [
       "PUNCT"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full"
     ],
     "l2_description": [
-      "Commas with homogeneous members",
-      "Indivisible expressions (цельные по смыслу сочетания)"
+      "Commas with homogeneous members"
     ],
     "synterr_handlers": [
       "comma_delete"
@@ -616,7 +605,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Asyndetic complex sentences (бессоюзное)"
@@ -648,7 +637,7 @@
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Dash between subject and predicate"
@@ -669,21 +658,25 @@
   {
     "lorugec_rule": "Тире при приложении",
     "category": "Punctuation",
-    "rozental_paras": "§80",
+    "rozental_paras": "§93",
     "l2_tags": [
+      "pu_comma_isolation",
       "pu_dash_apposition"
     ],
     "l1_families": [
+      "pu_comma",
       "pu_dash"
     ],
     "l0_categories": [
       "PUNCT"
     ],
     "l2_applicability": [
-      ""
+      "full",
+      "full"
     ],
     "l2_description": [
-      "Dash in incomplete sentences"
+      "Commas for isolated members (обособление)",
+      "Dash with isolated appositions"
     ],
     "synterr_handlers": [
       "dash_delete"
@@ -712,7 +705,7 @@
       "LEX"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Paronym confusion"
@@ -744,7 +737,7 @@
       "LEX"
     ],
     "l2_applicability": [
-      ""
+      "partial"
     ],
     "l2_description": [
       "Pleonasm and tautology"
@@ -776,7 +769,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
@@ -808,7 +801,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
@@ -842,8 +835,8 @@
       "SPELL"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full",
+      "full"
     ],
     "l2_description": [
       "Vowels after sibilants/ц, э-е, й in roots",
@@ -878,8 +871,8 @@
       "SPELL"
     ],
     "l2_applicability": [
-      "",
-      ""
+      "full",
+      "full"
     ],
     "l2_description": [
       "Vowels after sibilants/ц, э-е, й in roots",
@@ -912,7 +905,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Hyphenated compound words"
@@ -944,7 +937,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Conjunction spelling (чтобы, также, зато)"
@@ -980,7 +973,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "не/ни with all parts of speech"
@@ -1016,7 +1009,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "не/ни with all parts of speech"
@@ -1052,7 +1045,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Conjunction spelling (чтобы, также, зато)"
@@ -1088,7 +1081,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Conjunction spelling (чтобы, также, зато)"
@@ -1124,7 +1117,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Conjunction spelling (чтобы, также, зато)"
@@ -1160,7 +1153,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Conjunction spelling (чтобы, также, зато)"
@@ -1196,7 +1189,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Participle suffixes and н/нн"
@@ -1228,7 +1221,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
@@ -1260,7 +1253,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "ъ and ь signs"
@@ -1292,7 +1285,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Compound adjective spelling (слитное/дефисное, 13 sub-rules)"
@@ -1324,7 +1317,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Noun endings and suffixes"
@@ -1356,7 +1349,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Noun endings and suffixes"
@@ -1388,7 +1381,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Noun endings and suffixes"
@@ -1420,7 +1413,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
@@ -1452,7 +1445,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "не/ни with all parts of speech"
@@ -1488,7 +1481,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "не/ни with all parts of speech"
@@ -1524,7 +1517,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Particle spelling (-таки, бы, ли, же)"
@@ -1559,7 +1552,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Numeral spelling (количественные, порядковые, дробные, пол-)"
@@ -1591,7 +1584,7 @@
       "SPELL"
     ],
     "l2_applicability": [
-      ""
+      "full"
     ],
     "l2_description": [
       "Adverb spelling (solid/hyphen/separate)"

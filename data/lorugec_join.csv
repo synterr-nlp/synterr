@@ -1,49 +1,49 @@
 lorugec_rule,category,rozental_paras,l2_tags,l1_families,l0_categories,l2_applicability,synterr_handlers,synterr_subtypes,directions,generates,v4_examples,l2_description
-Нарушение норм управления,Grammar,"§198, §199",gv_prep_vs_nprep; gv_prep_choice,gv_government,GOV,; ,adj_case,adj_case,,True,847,"Prepositional vs non-prepositional government; Preposition choice (в/на, с/из)"
-Склонение количественных числительных,Grammar,§164,mo_numeral_cardinal,mo_numeral,MORPH,,numeral_declension,numeral_declension,,True,8,Cardinal numeral declension
-"Склонение числительных ""полтора"", ""полторы"", ""полтораста""",Grammar,§193,ag_mn_special,ag_modifier_noun,AGR,,numeral_declension,numeral_poltora,,True,847,"Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
-Согласование причастий с определяемым словом,Grammar,§191,ag_mn_special,ag_modifier_noun,AGR,,adj_case,adj_case,,True,847,"Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
-Запятая внутри выражений фразеологического характера,Punctuation,§87,pu_comma_homogeneous; pu_clause_indivisible,pu_comma; pu_clause,PUNCT,; ,comma_insert,comma_in_set_phrase,,True,29,Commas with homogeneous members; Indivisible expressions (цельные по смыслу сочетания)
-Запятая между однородными придаточными,Punctuation,§109,pu_clause_subordinate,pu_clause,PUNCT,,comma_delete,comma_subordinate,,True,847,Subordinate clause (сложноподчинённое)
-Запятая между частями СПП с общей частью,Punctuation,§107,pu_clause_subordinate,pu_clause,PUNCT,,comma_delete,comma_subordinate,,True,847,Subordinate clause (сложноподчинённое)
-Запятая на стыке двух союзов,Punctuation,§110,pu_clause_subordinate,pu_clause,PUNCT,,comma_insert,comma_between_conjunctions,,True,222,Subordinate clause (сложноподчинённое)
-"Запятая перед союзом ""как"": 1",Punctuation,§114,pu_clause_comparative; pu_clause_indivisible,pu_clause,PUNCT,; ,comma_insert,comma_before_kak,,True,426,Idiomatic phrases and comparative constructions; Indivisible expressions (цельные по смыслу сочетания)
-"Запятая перед союзом ""как"": 2",Punctuation,§114,pu_clause_comparative; pu_clause_indivisible,pu_clause,PUNCT,; ,comma_insert,comma_before_kak,,True,425,Idiomatic phrases and comparative constructions; Indivisible expressions (цельные по смыслу сочетания)
-"Запятая перед союзом ""как"": 3",Punctuation,§114,pu_clause_comparative; pu_clause_indivisible,pu_clause,PUNCT,; ,comma_insert,comma_before_kak,,True,425,Idiomatic phrases and comparative constructions; Indivisible expressions (цельные по смыслу сочетания)
-Знаки препинания в предложениях с однородными членами: пары,Punctuation,§87,pu_comma_homogeneous; pu_clause_indivisible,pu_comma; pu_clause,PUNCT,; ,comma_delete,comma_homogeneous,,True,847,Commas with homogeneous members; Indivisible expressions (цельные по смыслу сочетания)
-Обособление деепричастий после союзов,Punctuation,§94,pu_comma_isolation,pu_comma,PUNCT,,comma_pair_delete,pair_gerund,,True,286,Commas for isolated members (обособление)
-"Обособление согласованных определений, относящихся к личному местоимению",Punctuation,§92,pu_comma_isolation,pu_comma,PUNCT,,comma_pair_delete,pair_participle,,True,847,Commas for isolated members (обособление)
-"Обособление согласованных определений, оторванных от определяемого слова",Punctuation,§92,pu_comma_isolation,pu_comma,PUNCT,,comma_pair_delete,pair_participle,,True,847,Commas for isolated members (обособление)
-Пунктуация в цельных по смыслу (неразложимых) сочетаниях,Punctuation,§114,pu_clause_comparative; pu_clause_indivisible,pu_clause,PUNCT,; ,comma_insert,comma_in_indivisible,,True,847,Idiomatic phrases and comparative constructions; Indivisible expressions (цельные по смыслу сочетания)
-Пунктуация при вводных словах и конструкциях,Punctuation,§99,pu_comma_parenthetical,pu_comma,PUNCT,,comma_pair_delete,pair_parenthetical,,True,677,Commas with parenthetical words/phrases
-Пунктуация при повторяющихся союзах,Punctuation,§87,pu_comma_homogeneous; pu_clause_indivisible,pu_comma; pu_clause,PUNCT,; ,comma_delete,comma_homogeneous,,True,847,Commas with homogeneous members; Indivisible expressions (цельные по смыслу сочетания)
-Тире в бессоюзных предложениях,Punctuation,§118,pu_clause_asyndetic,pu_clause,PUNCT,,dash_delete,dash_asyndetic,,True,847,Asyndetic complex sentences (бессоюзное)
-Тире между подлежащим и сказуемым,Punctuation,§79,pu_dash_subj_pred,pu_dash,PUNCT,,dash_delete,dash_subj_pred,,True,847,Dash between subject and predicate
-Тире при приложении,Punctuation,§80,pu_dash_apposition,pu_dash,PUNCT,,dash_delete,dash_other,,True,847,Dash in incomplete sentences
-Лексическая сочетаемость слов,Semantics,§139,lx_paronym,lx_word_choice,LEX,,collocation,collocation,,True,847,Paronym confusion
-Плеоназмы,Semantics,§141,lx_pleonasm,lx_word_choice,LEX,,pleonasm,pleonasm,,True,847,Pleonasm and tautology
-"""н"" и ""нн"" в суффиксах прилагательных",Spelling,§40,sp_adj_suffixes,sp_pos,SPELL,,orthographic_spelling,nn_suffix,,True,847,"Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
-"Гласные ""ы"" и ""и"" после приставок",Spelling,§34,sp_affix_prefix,sp_affix,SPELL,,orthographic_spelling,y_i_after_prefix,,True,847,"Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
-"Гласные после ""ц""",Spelling,"§5, §36",sp_root_vowel_after; sp_pos_sibilant,sp_root; sp_pos,SPELL,; ,orthographic_spelling,vowel_after_ts,,True,847,"Vowels after sibilants/ц, э-е, й in roots; Vowels after sibilants and ц in suffixes/endings"
-Гласные после шипящих,Spelling,"§4, §35",sp_root_vowel_after; sp_pos_sibilant,sp_root; sp_pos,SPELL,; ,orthographic_spelling,vowel_after_sibilant,,True,847,"Vowels after sibilants/ц, э-е, й in roots; Vowels after sibilants and ц in suffixes/endings"
-Дефис в составе письменных эквивалентов сложных слов,Spelling,§43,sp_compound_hyphen,sp_compounds,SPELL,,compound_spelling,num_dash,,True,847,Hyphenated compound words
-"Правописание ""зато""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,,function_spelling,conjunction_merge; conjunction_split,merge; split,True,344,"Conjunction spelling (чтобы, также, зато)"
-"Правописание ""не"" с глаголами",Spelling,§69,sp_ne_ni,sp_function,SPELL,,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
-"Правописание ""не"" с прилагательными",Spelling,§66,sp_ne_ni,sp_function,SPELL,,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
-"Правописание ""оттого""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,,function_spelling,conjunction_merge; conjunction_split,merge; split,True,398,"Conjunction spelling (чтобы, также, зато)"
-"Правописание ""причем"" и ""притом""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,,function_spelling,conjunction_merge; conjunction_split,merge; split,True,380,"Conjunction spelling (чтобы, также, зато)"
-"Правописание ""также""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,,function_spelling,conjunction_merge; conjunction_split,merge; split,True,1694,"Conjunction spelling (чтобы, также, зато)"
-"Правописание ""чтобы""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,,function_spelling,conjunction_merge; conjunction_split,merge; split,True,1000,"Conjunction spelling (чтобы, также, зато)"
-Правописание гласных в суффиксах причастий,Spelling,§51,sp_participle_endings,sp_pos,SPELL,,orthographic_spelling,participle_suffix,,True,847,Participle suffixes and н/нн
-Правописание приставок пре- и при-,Spelling,§33,sp_affix_prefix,sp_affix,SPELL,,orthographic_spelling,pre_pri,,True,847,"Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
-"Правописание разделительных ""ъ"" и ""ь""",Spelling,"§29, §30",sp_affix_hard_soft_sign,sp_affix,SPELL,,spelling,soft_sign,,True,847,ъ and ь signs
-Правописание сложных прилагательных,Spelling,§44,sp_compound_adj,sp_compounds,SPELL,,compound_spelling,compound_adj,,True,847,"Compound adjective spelling (слитное/дефисное, 13 sub-rules)"
-"Правописание суффиксов -еньк, -оньк в существительных.",Spelling,§38,sp_noun_endings,sp_pos,SPELL,,orthographic_spelling,suffix_enk_onk,,True,847,Noun endings and suffixes
-"Правописание суффиксов -иц, -ец в существительных среднего рода",Spelling,§38,sp_noun_endings,sp_pos,SPELL,,orthographic_spelling,suffix_its_ets,,True,300,Noun endings and suffixes
-"Правописание суффиксов −ек, −ик",Spelling,§38,sp_noun_endings,sp_pos,SPELL,,orthographic_spelling,suffix_ek_ik,,True,847,Noun endings and suffixes
-"Правописание суффиксов −инск, −енск в прилагательных",Spelling,§40,sp_adj_suffixes,sp_pos,SPELL,,orthographic_spelling,suffix_insk_ensk,,True,70,"Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
-"Правописание частицы ""не"" с причастиями",Spelling,§70,sp_ne_ni,sp_function,SPELL,,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
-"Правописание частицы ""не"" с существительными",Spelling,§65,sp_ne_ni,sp_function,SPELL,,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
-Правописание частицы -таки,Spelling,"§63, §64",sp_particle_spelling,sp_function,SPELL,,function_spelling,taki_hyphen,merge; split,True,1694,"Particle spelling (-таки, бы, ли, же)"
-Правописание числительного пол-,Spelling,§46,sp_numeral_spelling,sp_pos,SPELL,,compound_spelling,pol_spelling,,True,339,"Numeral spelling (количественные, порядковые, дробные, пол-)"
-"Слитное, раздельное и дефисное написание наречий",Spelling,"§56, §57, §58",sp_adverb_spelling,sp_pos,SPELL,,adverb_spelling,adverb_separate_to_solid; adverb_solid_to_separate,merge; split,True,1694,Adverb spelling (solid/hyphen/separate)
+Нарушение норм управления,Grammar,"§198, §199",gv_prep_vs_nprep; gv_prep_choice,gv_government,GOV,partial; partial,adj_case,adj_case,,True,847,"Prepositional vs non-prepositional government; Preposition choice (в/на, с/из)"
+Склонение количественных числительных,Grammar,§164,mo_numeral_cardinal,mo_numeral,MORPH,partial,numeral_declension,numeral_declension,,True,8,Cardinal numeral declension
+"Склонение числительных ""полтора"", ""полторы"", ""полтораста""",Grammar,§193,ag_mn_special,ag_modifier_noun,AGR,full,numeral_declension,numeral_poltora,,True,847,"Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)"
+Согласование причастий с определяемым словом,Grammar,§191,ag_mn_special; ag_mn_agreement,ag_modifier_noun,AGR,full; full,adj_case,adj_case,,True,847,"Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers); Basic modifier-noun agreement (case/number/gender) — learner heartland, RLC-matrix driven"
+Запятая внутри выражений фразеологического характера,Punctuation,§87,pu_comma_homogeneous,pu_comma,PUNCT,full,comma_insert,comma_in_set_phrase,,True,29,Commas with homogeneous members
+Запятая между однородными придаточными,Punctuation,§109,pu_clause_subordinate,pu_clause,PUNCT,full,comma_delete; comma_insert,comma_clause_junction; comma_subordinate,delete; insert,True,847,Subordinate clause (сложноподчинённое)
+Запятая между частями СПП с общей частью,Punctuation,§107,pu_clause_subordinate,pu_clause,PUNCT,full,comma_delete; comma_insert,comma_clause_junction; comma_subordinate,delete; insert,True,847,Subordinate clause (сложноподчинённое)
+Запятая на стыке двух союзов,Punctuation,§110,pu_clause_subordinate,pu_clause,PUNCT,full,comma_insert,comma_between_conjunctions,,True,222,Subordinate clause (сложноподчинённое)
+"Запятая перед союзом ""как"": 1",Punctuation,§114,pu_clause_indivisible,pu_clause,PUNCT,full,comma_insert,comma_before_kak,,True,426,Indivisible expressions (цельные по смыслу сочетания)
+"Запятая перед союзом ""как"": 2",Punctuation,§114,pu_clause_indivisible,pu_clause,PUNCT,full,comma_insert,comma_before_kak,,True,425,Indivisible expressions (цельные по смыслу сочетания)
+"Запятая перед союзом ""как"": 3",Punctuation,§114,pu_clause_indivisible,pu_clause,PUNCT,full,comma_insert,comma_before_kak,,True,425,Indivisible expressions (цельные по смыслу сочетания)
+Знаки препинания в предложениях с однородными членами: пары,Punctuation,§87,pu_comma_homogeneous,pu_comma,PUNCT,full,comma_delete,comma_homogeneous,,True,847,Commas with homogeneous members
+Обособление деепричастий после союзов,Punctuation,§94,pu_comma_isolation,pu_comma,PUNCT,full,comma_pair_delete,pair_gerund,,True,286,Commas for isolated members (обособление)
+"Обособление согласованных определений, относящихся к личному местоимению",Punctuation,§92,pu_comma_isolation,pu_comma,PUNCT,full,comma_pair_delete,pair_participle,,True,847,Commas for isolated members (обособление)
+"Обособление согласованных определений, оторванных от определяемого слова",Punctuation,§92,pu_comma_isolation,pu_comma,PUNCT,full,comma_pair_delete,pair_participle,,True,847,Commas for isolated members (обособление)
+Пунктуация в цельных по смыслу (неразложимых) сочетаниях,Punctuation,§114,pu_clause_indivisible,pu_clause,PUNCT,full,comma_insert,comma_in_indivisible,,True,847,Indivisible expressions (цельные по смыслу сочетания)
+Пунктуация при вводных словах и конструкциях,Punctuation,§99,pu_comma_parenthetical,pu_comma,PUNCT,full,comma_pair_delete,pair_parenthetical,,True,677,Commas with parenthetical words/phrases
+Пунктуация при повторяющихся союзах,Punctuation,§87,pu_comma_homogeneous,pu_comma,PUNCT,full,comma_delete,comma_homogeneous,,True,847,Commas with homogeneous members
+Тире в бессоюзных предложениях,Punctuation,§118,pu_clause_asyndetic,pu_clause,PUNCT,full,dash_delete,dash_asyndetic,,True,847,Asyndetic complex sentences (бессоюзное)
+Тире между подлежащим и сказуемым,Punctuation,§79,pu_dash_subj_pred,pu_dash,PUNCT,full,dash_delete,dash_subj_pred,,True,847,Dash between subject and predicate
+Тире при приложении,Punctuation,§93,pu_comma_isolation; pu_dash_apposition,pu_comma; pu_dash,PUNCT,full; full,dash_delete,dash_other,,True,847,Commas for isolated members (обособление); Dash with isolated appositions
+Лексическая сочетаемость слов,Semantics,§139,lx_paronym,lx_word_choice,LEX,full,collocation,collocation,,True,847,Paronym confusion
+Плеоназмы,Semantics,§141,lx_pleonasm,lx_word_choice,LEX,partial,pleonasm,pleonasm,,True,847,Pleonasm and tautology
+"""н"" и ""нн"" в суффиксах прилагательных",Spelling,§40,sp_adj_suffixes,sp_pos,SPELL,full,orthographic_spelling,nn_suffix,,True,847,"Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
+"Гласные ""ы"" и ""и"" после приставок",Spelling,§34,sp_affix_prefix,sp_affix,SPELL,full,orthographic_spelling,y_i_after_prefix,,True,847,"Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
+"Гласные после ""ц""",Spelling,"§5, §36",sp_root_vowel_after; sp_pos_sibilant,sp_root; sp_pos,SPELL,full; full,orthographic_spelling,vowel_after_ts,,True,847,"Vowels after sibilants/ц, э-е, й in roots; Vowels after sibilants and ц in suffixes/endings"
+Гласные после шипящих,Spelling,"§4, §35",sp_root_vowel_after; sp_pos_sibilant,sp_root; sp_pos,SPELL,full; full,orthographic_spelling,vowel_after_sibilant,,True,847,"Vowels after sibilants/ц, э-е, й in roots; Vowels after sibilants and ц in suffixes/endings"
+Дефис в составе письменных эквивалентов сложных слов,Spelling,§43,sp_compound_hyphen,sp_compounds,SPELL,full,compound_spelling,num_dash,,True,847,Hyphenated compound words
+"Правописание ""зато""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,full,function_spelling,conjunction_merge; conjunction_split,merge; split,True,344,"Conjunction spelling (чтобы, также, зато)"
+"Правописание ""не"" с глаголами",Spelling,§69,sp_ne_ni,sp_function,SPELL,full,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
+"Правописание ""не"" с прилагательными",Spelling,§66,sp_ne_ni,sp_function,SPELL,full,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
+"Правописание ""оттого""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,full,function_spelling,conjunction_merge; conjunction_split,merge; split,True,398,"Conjunction spelling (чтобы, также, зато)"
+"Правописание ""причем"" и ""притом""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,full,function_spelling,conjunction_merge; conjunction_split,merge; split,True,380,"Conjunction spelling (чтобы, также, зато)"
+"Правописание ""также""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,full,function_spelling,conjunction_merge; conjunction_split,merge; split,True,1694,"Conjunction spelling (чтобы, также, зато)"
+"Правописание ""чтобы""",Spelling,§61,sp_conjunction_spelling,sp_function,SPELL,full,function_spelling,conjunction_merge; conjunction_split,merge; split,True,1000,"Conjunction spelling (чтобы, также, зато)"
+Правописание гласных в суффиксах причастий,Spelling,§51,sp_participle_endings,sp_pos,SPELL,full,orthographic_spelling,participle_suffix,,True,847,Participle suffixes and н/нн
+Правописание приставок пре- и при-,Spelling,§33,sp_affix_prefix,sp_affix,SPELL,full,orthographic_spelling,pre_pri,,True,847,"Prefixes (пре-/при-, з-/с-, ы/и after prefixes)"
+"Правописание разделительных ""ъ"" и ""ь""",Spelling,"§29, §30",sp_affix_hard_soft_sign,sp_affix,SPELL,full,spelling,soft_sign,,True,847,ъ and ь signs
+Правописание сложных прилагательных,Spelling,§44,sp_compound_adj,sp_compounds,SPELL,full,compound_spelling,compound_adj,,True,847,"Compound adjective spelling (слитное/дефисное, 13 sub-rules)"
+"Правописание суффиксов -еньк, -оньк в существительных.",Spelling,§38,sp_noun_endings,sp_pos,SPELL,full,orthographic_spelling,suffix_enk_onk,,True,847,Noun endings and suffixes
+"Правописание суффиксов -иц, -ец в существительных среднего рода",Spelling,§38,sp_noun_endings,sp_pos,SPELL,full,orthographic_spelling,suffix_its_ets,,True,300,Noun endings and suffixes
+"Правописание суффиксов −ек, −ик",Spelling,§38,sp_noun_endings,sp_pos,SPELL,full,orthographic_spelling,suffix_ek_ik,,True,847,Noun endings and suffixes
+"Правописание суффиксов −инск, −енск в прилагательных",Spelling,§40,sp_adj_suffixes,sp_pos,SPELL,full,orthographic_spelling,suffix_insk_ensk,,True,70,"Adjective suffixes (-инск-/-енск-, -н-/-нн-)"
+"Правописание частицы ""не"" с причастиями",Spelling,§70,sp_ne_ni,sp_function,SPELL,full,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
+"Правописание частицы ""не"" с существительными",Spelling,§65,sp_ne_ni,sp_function,SPELL,full,function_spelling,ne_attachment; ne_detachment,attach; detach,True,1694,не/ни with all parts of speech
+Правописание частицы -таки,Spelling,"§63, §64",sp_particle_spelling,sp_function,SPELL,full,function_spelling,taki_hyphen,merge; split,True,1694,"Particle spelling (-таки, бы, ли, же)"
+Правописание числительного пол-,Spelling,§46,sp_numeral_spelling,sp_pos,SPELL,full,compound_spelling,pol_spelling,,True,339,"Numeral spelling (количественные, порядковые, дробные, пол-)"
+"Слитное, раздельное и дефисное написание наречий",Spelling,"§56, §57, §58",sp_adverb_spelling,sp_pos,SPELL,full,adverb_spelling,adverb_separate_to_solid; adverb_solid_to_separate,merge; split,True,1694,Adverb spelling (solid/hyphen/separate)

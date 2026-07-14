@@ -38,7 +38,7 @@ V4_JSONL = SYN / "data" / "qwen_sft_v4.jsonl"
 OUT_CSV = SYN / "data" / "lorugec_join.csv"
 OUT_JSON = SYN / "data" / "lorugec_join.json"
 
-CANONICAL_L2_COUNT = 98  # paper-authoritative; synterr's yaml is pre-cleanup (see diagnostics)
+CANONICAL_L2_COUNT = 103  # schema v1.1 (walk 2026-07-14): 98 published + 5 receipted additions
 
 DIR_RE = re.compile(r"\s*\[(split|merge|attach|detach|insert|delete)\]\s*$")
 base_name = lambda s: DIR_RE.sub("", s).strip()                       # noqa: E731
@@ -203,9 +203,9 @@ def main():
 
     n_l2 = diag["schema_l2_count"]
     if n_l2 != CANONICAL_L2_COUNT:
-        print(f"\n  ⚠ STALE SCHEMA: synterr's rozental.yaml has {n_l2} L2 tags; "
-              f"paper-authoritative is {CANONICAL_L2_COUNT}. The L2 column reflects "
-              f"synterr's (pre-cleanup) schema — rerun after the 98-tag cleanup pass.")
+        print(f"\n  ⚠ SCHEMA COUNT DRIFT: synterr's rozental.yaml has {n_l2} L2 tags; "
+              f"schema v1.1 canon is {CANONICAL_L2_COUNT}. Any change must be a "
+              f"documented schema-version bump (see docs/SCHEMA_REVIEW_2026-07.md).")
     if diag["no_generation"]:
         print(f"  ⚠ no generator: {diag['no_generation']}")
     if diag["para_miss"]:

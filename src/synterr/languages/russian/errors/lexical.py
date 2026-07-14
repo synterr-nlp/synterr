@@ -583,7 +583,7 @@ def _svoy_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | 
 
 
 class PronounSvoyErrorHandler:
-    """свой -> personal possessive confusion (Rozental §167, RLC Ref).
+    """свой -> personal possessive confusion (Rozental §168.2, RLC Ref).
 
     The textbook L2 error: a reflexive possessive whose referent is the
     clause subject gets replaced by a personal possessive agreeing with that
