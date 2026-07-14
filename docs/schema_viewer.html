@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rozental Error Schema v1.1</title>
+<style>
+:root { --bg:#fff; --fg:#1a1a1a; --muted:#666; --line:#ddd; --accent:#8b1e3f;
+        --chip:#f0e6ea; --card:#fafafa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#16161a; --fg:#e8e8e8; --muted:#999; --line:#333;
+          --accent:#e58aa5; --chip:#3a2a30; --card:#1f1f24; } }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.5 -apple-system,'Segoe UI',sans-serif;
+       background:var(--bg); color:var(--fg); padding:1.5rem; }
+h1 { font-size:1.3rem; margin:0 0 .2rem; }
+.sub { color:var(--muted); font-size:.85rem; margin-bottom:1rem; }
+.tabs button { font:inherit; padding:.4rem 1rem; border:1px solid var(--line);
+  background:var(--card); color:var(--fg); cursor:pointer; }
+.tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+#filter { font:inherit; padding:.4rem .6rem; border:1px solid var(--line);
+  background:var(--bg); color:var(--fg); width:min(28rem,100%); margin:.8rem 0; }
+.wrap { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:.85rem; }
+th,td { text-align:left; padding:.35rem .55rem; border-bottom:1px solid var(--line);
+  vertical-align:top; }
+th { position:sticky; top:0; background:var(--bg); cursor:default; }
+code { font-family:ui-monospace,'SF Mono',monospace; font-size:.9em; }
+.para-chip { display:inline-block; background:var(--chip); border-radius:.6em;
+  padding:0 .45em; margin:0 .15em .15em 0; white-space:nowrap; }
+.hasbook .para-chip { cursor:pointer; text-decoration:underline dotted; }
+details { margin:.15rem 0 .15rem .9rem; }
+summary { cursor:pointer; }
+summary code { color:var(--accent); }
+.muted { color:var(--muted); }
+.l2row { margin-left:1.6rem; padding:.1rem 0; }
+#paraPanel { position:fixed; right:0; top:0; bottom:0; width:min(34rem,92vw);
+  background:var(--card); border-left:1px solid var(--line); padding:1rem;
+  overflow-y:auto; display:none; box-shadow:-4px 0 18px rgba(0,0,0,.25); }
+#paraPanel.show { display:block; }
+#paraPanel h2 { font-size:1rem; margin-top:0; padding-right:2rem; }
+#paraPanel .close { position:absolute; top:.6rem; right:.8rem; cursor:pointer;
+  font-size:1.2rem; background:none; border:none; color:var(--fg); }
+#paraPanel .subrule { border-left:3px solid var(--accent); padding-left:.7rem;
+  margin:.7rem 0; white-space:pre-wrap; font-size:.85rem; }
+.private-banner { background:var(--accent); color:#fff; padding:.3rem .8rem;
+  border-radius:.4rem; display:inline-block; font-size:.8rem; margin-bottom:.8rem; }
+</style>
+</head>
+<body>
+<h1>Rozental Error Schema v1.1</h1>
+<div class="sub" id="subtitle"></div>
+<div id="banner"></div>
+<div class="tabs">
+  <button id="btnTable" class="on">Table</button>
+  <button id="btnTree">Tree</button>
+</div>
+<input id="filter" type="search" placeholder="filter: tag / § / description…">
+<div id="viewTable" class="wrap"></div>
+<div id="viewTree" style="display:none"></div>
+<aside id="paraPanel"><button class="close" onclick="hidePanel()">×</button><div id="paraBody"></div></aside>
+<script type="application/json" id="data">{"name": "rozental", "version": "1.1", "description": "Rozental-grounded hierarchical error schema (8 L0 / 29 L1 / 103 L2)", "built": "2026-07-14", "l0": {"CORRECT": "No error", "SPELL": "Orthographic (Rozental Part I, §1–74)", "MORPH": "Morphological form (Part III, §144–175)", "AGR": "Agreement (Part III, §183–197)", "GOV": "Government (Part III, §198–205)", "PUNCT": "Punctuation (Part II, §75–138)", "SYNT": "Syntax and sentence structure (Part III, §176–182, §206–213)", "LEX": "Lexical choice + structural (Part III, §139–143)"}, "l1": [{"tag": "sp_root", "l0": "SPELL", "descr": "Root vowel/consonant spelling", "paras": "§1–10", "chapters": "I–II"}, {"tag": "sp_capitalization", "l0": "SPELL", "descr": "Capitalization rules", "paras": "§11–28", "chapters": "III"}, {"tag": "sp_affix", "l0": "SPELL", "descr": "Prefixes and ъ/ь signs", "paras": "§29–34", "chapters": "IV–V"}, {"tag": "sp_pos", "l0": "SPELL", "descr": "POS-specific spelling rules (endings, suffixes, solid/hyphen/separate)", "paras": "§35–40, §45–58", "chapters": "VI–VIII, X–XIV"}, {"tag": "sp_compounds", "l0": "SPELL", "descr": "Compound words (solid/hyphen/separate)", "paras": "§41–44", "chapters": "IX"}, {"tag": "sp_function", "l0": "SPELL", "descr": "не/ни, conjunction/particle spelling", "paras": "§59–72", "chapters": "XV–XVII"}, {"tag": "sp_foreign", "l0": "SPELL", "descr": "Foreign words, interjections", "paras": "§73–74", "chapters": "XVIII–XIX"}, {"tag": "mo_noun_case", "l0": "MORPH", "descr": "Noun case form variation (gen -а/-у, prep -е/-у)", "paras": "§150–155", "chapters": "XXXVI"}, {"tag": "mo_noun_number", "l0": "MORPH", "descr": "Noun plural formation (nom -ы/-а, gen pl) + suffix variants", "paras": "§153–158", "chapters": "XXXVI"}, {"tag": "mo_noun_gender", "l0": "MORPH", "descr": "Noun gender fluctuation, common-gender", "paras": "§144–149", "chapters": "XXXVI"}, {"tag": "mo_adj_form", "l0": "MORPH", "descr": "Adj short/full, comparative, possessive", "paras": "§159–163", "chapters": "XXXVII"}, {"tag": "mo_numeral", "l0": "MORPH", "descr": "Numeral declension + collective", "paras": "§164–166", "chapters": "XXXVIII"}, {"tag": "mo_pronoun", "l0": "MORPH", "descr": "Pronoun usage (свой/его, себя)", "paras": "§167–170", "chapters": "XXXIX"}, {"tag": "mo_verb_aspect", "l0": "MORPH", "descr": "Verb aspect pair choice", "paras": "§172", "chapters": "XL"}, {"tag": "mo_verb_form", "l0": "MORPH", "descr": "Verb reflexivity, participle/gerund forms", "paras": "§173–175", "chapters": "XL"}, {"tag": "mo_verb_tense", "l0": "MORPH", "descr": "Verb tense errors (learner phenomenon; no Rozental §)", "paras": "", "chapters": ""}, {"tag": "mo_verb_person_num", "l0": "MORPH", "descr": "Verb person/number inflection (standalone, not agreement)", "paras": "§171", "chapters": "XL"}, {"tag": "ag_subject_verb", "l0": "AGR", "descr": "Subject-verb agreement (collective nouns, counting, coordinated)", "paras": "§183–190", "chapters": "XLIII"}, {"tag": "ag_modifier_noun", "l0": "AGR", "descr": "Modifier-noun agreement (adj/participle/apposition)", "paras": "§191–197", "chapters": "XLIV"}, {"tag": "gv_government", "l0": "GOV", "descr": "Case government, preposition choice, negation genitive", "paras": "§198–205", "chapters": "XLV"}, {"tag": "sy_word_order", "l0": "SYNT", "descr": "Word order errors", "paras": "§178–182", "chapters": "XLII"}, {"tag": "sy_construction", "l0": "SYNT", "descr": "Sentence structure, parallel constructions", "paras": "§176–177, §206–213", "chapters": "XLI, XLVI–XLVIII"}, {"tag": "pu_comma", "l0": "PUNCT", "descr": "Comma rules (homogeneous, isolated, parenthetical)", "paras": "§83–103", "chapters": "XXII–XXVI"}, {"tag": "pu_dash", "l0": "PUNCT", "descr": "Dash rules", "paras": "§79–82", "chapters": "XXI"}, {"tag": "pu_clause", "l0": "PUNCT", "descr": "Compound/complex sentence punctuation", "paras": "§104–118", "chapters": "XXVII–XXX"}, {"tag": "pu_speech_quotes", "l0": "PUNCT", "descr": "Direct speech, citations, quotes", "paras": "§119–132", "chapters": "XXXI–XXXIII"}, {"tag": "pu_other", "l0": "PUNCT", "descr": "Sentence-final + combinations", "paras": "§75–78, §133–138", "chapters": "XX, XXXIV"}, {"tag": "lx_word_choice", "l0": "LEX", "descr": "Paronyms, pleonasms, clichés", "paras": "§139–143", "chapters": "XXXV"}, {"tag": "lx_structural", "l0": "LEX", "descr": "Missing/extra words, constructional errors", "paras": "", "chapters": ""}], "l2": [{"tag": "sp_root_checked", "parent": "sp_root", "descr": "Checked unstressed vowels (проверяемые)", "paras": "§1", "appl": "full", "note": ""}, {"tag": "sp_root_unchecked", "parent": "sp_root", "descr": "Unchecked unstressed vowels (непроверяемые)", "paras": "§2", "appl": "full", "note": ""}, {"tag": "sp_root_alternating", "parent": "sp_root", "descr": "Alternating root vowels (чередующиеся)", "paras": "§3", "appl": "full", "note": ""}, {"tag": "sp_root_voiced_voiceless", "parent": "sp_root", "descr": "Voiced/voiceless consonants", "paras": "§8", "appl": "full", "note": ""}, {"tag": "sp_root_double", "parent": "sp_root", "descr": "Double consonants in roots", "paras": "§9", "appl": "full", "note": ""}, {"tag": "sp_root_silent", "parent": "sp_root", "descr": "Unpronounced consonants", "paras": "§10", "appl": "full", "note": ""}, {"tag": "sp_root_vowel_after", "parent": "sp_root", "descr": "Vowels after sibilants/ц, э-е, й in roots", "paras": "§4–7", "appl": "full", "note": ""}, {"tag": "sp_cap_proper", "parent": "sp_capitalization", "descr": "General capitalization, personal/fictional names, derived adjectives", "paras": "§11–16", "appl": "full", "note": ""}, {"tag": "sp_cap_geographic", "parent": "sp_capitalization", "descr": "Geographic and astronomical names", "paras": "§17–18", "appl": "full", "note": ""}, {"tag": "sp_cap_organizations", "parent": "sp_capitalization", "descr": "Historical events, holidays, organizations, institutions", "paras": "§19–22", "appl": "full", "note": ""}, {"tag": "sp_cap_titles", "parent": "sp_capitalization", "descr": "Titles, awards, brands, abbreviations", "paras": "§23–28", "appl": "full", "note": ""}, {"tag": "sp_affix_hard_soft_sign", "parent": "sp_affix", "descr": "ъ and ь signs", "paras": "§29–30", "appl": "full", "note": ""}, {"tag": "sp_affix_prefix", "parent": "sp_affix", "descr": "Prefixes (пре-/при-, з-/с-, ы/и after prefixes)", "paras": "§31–34", "appl": "full", "note": ""}, {"tag": "sp_pos_sibilant", "parent": "sp_pos", "descr": "Vowels after sibilants and ц in suffixes/endings", "paras": "§35–36", "appl": "full", "note": ""}, {"tag": "sp_noun_endings", "parent": "sp_pos", "descr": "Noun endings and suffixes", "paras": "§37–38", "appl": "full", "note": ""}, {"tag": "sp_adj_endings", "parent": "sp_pos", "descr": "Adjective endings (-ый/-ий, загородный/иногородний)", "paras": "§39", "appl": "full", "note": ""}, {"tag": "sp_adj_suffixes", "parent": "sp_pos", "descr": "Adjective suffixes (-инск-/-енск-, -н-/-нн-)", "paras": "§40", "appl": "full", "note": "synterr-assigned (not in rozental annotation); spelling rule, both populations"}, {"tag": "sp_numeral_spelling", "parent": "sp_pos", "descr": "Numeral spelling (количественные, порядковые, дробные, пол-)", "paras": "§45–46", "appl": "full", "note": ""}, {"tag": "sp_pronoun_spelling", "parent": "sp_pos", "descr": "Negative pronoun spelling (не-/ни- with pronouns)", "paras": "§47", "appl": "full", "note": ""}, {"tag": "sp_verb_endings", "parent": "sp_pos", "descr": "Verb personal endings and suffixes", "paras": "§48–50", "appl": "full", "note": ""}, {"tag": "sp_participle_endings", "parent": "sp_pos", "descr": "Participle suffixes and н/нн", "paras": "§51–52", "appl": "full", "note": ""}, {"tag": "sp_adverb_spelling", "parent": "sp_pos", "descr": "Adverb spelling (solid/hyphen/separate)", "paras": "§53–58", "appl": "full", "note": ""}, {"tag": "sp_compound_solid", "parent": "sp_compounds", "descr": "Solid writing of compounds", "paras": "§41", "appl": "full", "note": ""}, {"tag": "sp_compound_hyphen", "parent": "sp_compounds", "descr": "Hyphenated compound words", "paras": "§42–43", "appl": "full", "note": ""}, {"tag": "sp_compound_adj", "parent": "sp_compounds", "descr": "Compound adjective spelling (слитное/дефисное, 13 sub-rules)", "paras": "§44", "appl": "full", "note": ""}, {"tag": "sp_ne_ni", "parent": "sp_function", "descr": "не/ни with all parts of speech", "paras": "§65–72", "appl": "full", "note": ""}, {"tag": "sp_preposition_spelling", "parent": "sp_function", "descr": "Preposition spelling (вследствие, в течение)", "paras": "§59–60", "appl": "full", "note": ""}, {"tag": "sp_conjunction_spelling", "parent": "sp_function", "descr": "Conjunction spelling (чтобы, также, зато)", "paras": "§61–62", "appl": "full", "note": ""}, {"tag": "sp_particle_spelling", "parent": "sp_function", "descr": "Particle spelling (-таки, бы, ли, же)", "paras": "§63–64", "appl": "full", "note": ""}, {"tag": "sp_interjection", "parent": "sp_foreign", "descr": "Interjection hyphenation", "paras": "§73", "appl": "full", "note": ""}, {"tag": "sp_foreign_words", "parent": "sp_foreign", "descr": "Foreign word transcription/transliteration", "paras": "§74", "appl": "full", "note": ""}, {"tag": "mo_noun_case_gen_a_u", "parent": "mo_noun_case", "descr": "Genitive -а/-у alternation", "paras": "§150", "appl": "partial", "note": "Rozental: -a/-u variant; L2: wrong case entirely"}, {"tag": "mo_noun_case_prep_e_u", "parent": "mo_noun_case", "descr": "Prepositional -е/-у alternation", "paras": "§152", "appl": "partial", "note": "Rozental: -e/-u variant; L2: wrong case entirely"}, {"tag": "mo_noun_case_instr", "parent": "mo_noun_case", "descr": "Instrumental plural -ями/-(ь)ми variation", "paras": "§155", "appl": "partial", "note": "Rozental: -yami variant; L2: wrong case entirely"}, {"tag": "mo_noun_case_other", "parent": "mo_noun_case", "descr": "Accusative animate/inanimate forms", "paras": "§151", "appl": "partial", "note": "some L2 overlap with animate/inanimate"}, {"tag": "mo_noun_num_nom_pl", "parent": "mo_noun_number", "descr": "Nominative plural -ы/-а alternation", "paras": "§153", "appl": "partial", "note": "Rozental: -y/-a variant; some L2 overlap"}, {"tag": "mo_noun_num_gen_pl", "parent": "mo_noun_number", "descr": "Genitive plural forms", "paras": "§154", "appl": "partial", "note": "Rozental: gen pl variants; some L2 overlap"}, {"tag": "mo_noun_num_tantum", "parent": "mo_noun_number", "descr": "Singularia/pluralia tantum", "paras": "§156–157", "appl": "partial", "note": "Rozental covers tantum; L2 errors broader"}, {"tag": "mo_noun_suffix", "parent": "mo_noun_number", "descr": "Noun suffix variants (diminutive, abstract: воробышек/воробушек, бессмысленность/бессмыслица)", "paras": "§158", "appl": "none", "note": "native suffix variants"}, {"tag": "mo_noun_gender_fluctuation", "parent": "mo_noun_gender", "descr": "Gender fluctuation (e.g., рельс/рельса)", "paras": "§144–145", "appl": "none", "note": "native gender fluctuation"}, {"tag": "mo_noun_gender_profession", "parent": "mo_noun_gender", "descr": "Profession nouns (врач → врачиха?)", "paras": "§146–147", "appl": "none", "note": "profession feminitives; sociolinguistic"}, {"tag": "mo_noun_gender_common", "parent": "mo_noun_gender", "descr": "Declension peculiarities and name/surname declension", "paras": "§148–149", "appl": "none", "note": "name/surname declension edge cases"}, {"tag": "mo_adj_short_full", "parent": "mo_adj_form", "descr": "Short vs full adjective forms", "paras": "§159", "appl": "partial", "note": "some L2 overlap in predicate adjectives"}, {"tag": "mo_adj_comparative", "parent": "mo_adj_form", "descr": "Comparative/superlative forms", "paras": "§161", "appl": "partial", "note": "L2 learners struggle with formation"}, {"tag": "mo_adj_possessive", "parent": "mo_adj_form", "descr": "Possessive adjectives (отцов/отца)", "paras": "§162", "appl": "none", "note": "native stylistic choice"}, {"tag": "mo_adj_other", "parent": "mo_adj_form", "descr": "Short form variants + adj/noun synonymy", "paras": "§160, §163", "appl": "none", "note": "native short form variants"}, {"tag": "mo_numeral_cardinal", "parent": "mo_numeral", "descr": "Cardinal numeral declension", "paras": "§164", "appl": "partial", "note": "L2 errors broader than Rozental variants"}, {"tag": "mo_numeral_collective", "parent": "mo_numeral", "descr": "Collective numerals (двое, трое)", "paras": "§165", "appl": "partial", "note": "some L2 overlap"}, {"tag": "mo_numeral_compound", "parent": "mo_numeral", "descr": "Numerals in compound words (двух-, пол-, 2500-летие)", "paras": "§166", "appl": "partial", "note": "compound numeral forms; some L2 overlap"}, {"tag": "mo_pronoun_svoy", "parent": "mo_pronoun", "descr": "Reflexive-possessive свой vs personal possessive (свой/его)", "paras": "§168.2", "appl": "partial", "note": "L2 learners confuse svoy/ego"}, {"tag": "mo_pronoun_sebya", "parent": "mo_pronoun", "descr": "Reflexive pronoun себя (reference ambiguity)", "paras": "§168.1", "appl": "partial", "note": "some L2 overlap"}, {"tag": "mo_pronoun_forms", "parent": "mo_pronoun", "descr": "н-augment after prepositions (у него/у его; благодаря ему/нему)", "paras": "§167", "appl": "partial", "note": "learners drop н too, by a different mechanism; §169–170 (determiner/indefinite pronouns) are documented schema gaps — no handler (v1.1 walk 2026-07-14)"}, {"tag": "mo_verb_asp_pair", "parent": "mo_verb_aspect", "descr": "Aspect pair choice (perfective/imperfective)", "paras": "§172.1", "appl": "none", "note": "Rozental: variant forms; L2: wrong aspect entirely"}, {"tag": "mo_verb_asp_iterative", "parent": "mo_verb_aspect", "descr": "Iterative-suffix hypercorrections (затрогивать, освоивать)", "paras": "§172.2", "appl": "partial", "note": "updated 2026-07-08: lexicon pruned to failure-to-alternate hypercorrections, which learners do produce; the old о/а-variant conception (none) no longer describes the handler"}, {"tag": "mo_verb_reflexive", "parent": "mo_verb_form", "descr": "Reflexive forms (-ся/-сь)", "paras": "§173", "appl": "none", "note": "Rozental: style variants; L2: wrong reflexivity"}, {"tag": "mo_verb_participle", "parent": "mo_verb_form", "descr": "Participle formation errors", "paras": "§174", "appl": "none", "note": "Rozental: suffix variants; L2: wrong form entirely"}, {"tag": "mo_verb_gerund", "parent": "mo_verb_form", "descr": "Gerund formation errors", "paras": "§175", "appl": "none", "note": "Rozental: suffix choice; L2 learners avoid gerunds"}, {"tag": "mo_verb_personal", "parent": "mo_verb_person_num", "descr": "Verb personal form variations", "paras": "§171", "appl": "partial", "note": "some L2 overlap with wrong conjugation"}, {"tag": "ag_sv_collective", "parent": "ag_subject_verb", "descr": "Agreement with collective nouns (большинство)", "paras": "§183", "appl": "full", "note": ""}, {"tag": "ag_sv_counting", "parent": "ag_subject_verb", "descr": "Agreement with counting phrases (пять студентов)", "paras": "§184", "appl": "full", "note": ""}, {"tag": "ag_sv_approximate", "parent": "ag_subject_verb", "descr": "Agreement with subjects having appositions", "paras": "§185", "appl": "full", "note": ""}, {"tag": "ag_sv_compound", "parent": "ag_subject_verb", "descr": "Agreement with special subjects (comitative, pronouns, indeclinables, copula)", "paras": "§186–189", "appl": "full", "note": ""}, {"tag": "ag_sv_coordinated", "parent": "ag_subject_verb", "descr": "Agreement with coordinated subjects (A и B)", "paras": "§190", "appl": "full", "note": ""}, {"tag": "ag_mn_special", "parent": "ag_modifier_noun", "descr": "Modifier agreement in special syntactic contexts (common-gender nouns, noun+apposition, after два/три/четыре, two modifiers)", "paras": "§191–194", "appl": "full", "note": ""}, {"tag": "ag_mn_apposition", "parent": "ag_modifier_noun", "descr": "Apposition agreement (incl. geographic names: в городе Москве)", "paras": "§195–197", "appl": "partial", "note": "Rozental: edge cases; L2 errors simpler"}, {"tag": "ag_mn_compound_term", "parent": "ag_modifier_noun", "descr": "Compound-term declension (вагон-ресторан: both halves decline)", "paras": "§148", "appl": "partial", "note": "limited L2 overlap; cross-refs §185.5, §192 (agreement with compound terms)"}, {"tag": "gv_prep_vs_nprep", "parent": "gv_government", "descr": "Prepositional vs non-prepositional government", "paras": "§198", "appl": "partial", "note": "L2: often wrong preposition/case entirely"}, {"tag": "gv_prep_choice", "parent": "gv_government", "descr": "Preposition choice (в/на, с/из)", "paras": "§199", "appl": "partial", "note": "L2: systematic L1 transfer errors"}, {"tag": "gv_case_choice", "parent": "gv_government", "descr": "Case selection by governing word", "paras": "§200", "appl": "partial", "note": "L2: fundamental case errors"}, {"tag": "gv_neg_genitive", "parent": "gv_government", "descr": "Genitive vs accusative under negation", "paras": "§201", "appl": "full", "note": ""}, {"tag": "gv_double_gov", "parent": "gv_government", "descr": "Double government / case stacking", "paras": "§202–205", "appl": "partial", "note": "stylistic issue"}, {"tag": "sy_wo_subject", "parent": "sy_word_order", "descr": "Subject and predicate position", "paras": "§178", "appl": "partial", "note": "L2: L1-transfer word order"}, {"tag": "sy_wo_modifier", "parent": "sy_word_order", "descr": "Modifier/attribute position", "paras": "§179", "appl": "partial", "note": "L2: L1-transfer word order"}, {"tag": "sy_wo_other", "parent": "sy_word_order", "descr": "Complement, adverbial, and other word order", "paras": "§180–182", "appl": "partial", "note": "L2: L1-transfer word order"}, {"tag": "sy_parallel", "parent": "sy_construction", "descr": "Parallel constructions", "paras": "§211–213", "appl": "partial", "note": "L2: broader structural errors"}, {"tag": "sy_homogeneous", "parent": "sy_construction", "descr": "Homogeneous members", "paras": "§206–210", "appl": "partial", "note": "L2: broader errors"}, {"tag": "sy_sentence_type", "parent": "sy_construction", "descr": "Sentence type choice (nominative, infinitive)", "paras": "§176–177", "appl": "partial", "note": "L2: some overlap with English transfer"}, {"tag": "pu_comma_homogeneous", "parent": "pu_comma", "descr": "Commas with homogeneous members", "paras": "§83–89", "appl": "full", "note": ""}, {"tag": "pu_comma_repeated", "parent": "pu_comma", "descr": "Commas with repeated words", "paras": "§90–91", "appl": "full", "note": ""}, {"tag": "pu_comma_isolation", "parent": "pu_comma", "descr": "Commas for isolated members (обособление)", "paras": "§92–95", "appl": "full", "note": ""}, {"tag": "pu_comma_clarifying", "parent": "pu_comma", "descr": "Commas for clarifying/appositive members", "paras": "§96–98", "appl": "full", "note": ""}, {"tag": "pu_comma_parenthetical", "parent": "pu_comma", "descr": "Commas with parenthetical words/phrases", "paras": "§99–103", "appl": "full", "note": ""}, {"tag": "pu_dash_subj_pred", "parent": "pu_dash", "descr": "Dash between subject and predicate", "paras": "§79", "appl": "full", "note": ""}, {"tag": "pu_dash_apposition", "parent": "pu_dash", "descr": "Dash with isolated appositions", "paras": "§93", "appl": "full", "note": ""}, {"tag": "ag_mn_agreement", "parent": "ag_modifier_noun", "descr": "Basic modifier-noun agreement (case/number/gender) — learner heartland, RLC-matrix driven", "paras": "§191 (frame); phenomenon exceeds Rozental's native scope", "appl": "full", "note": "natives rarely err here; generation distributions are fitted to RLC learner confusions"}, {"tag": "ag_sv_agreement", "parent": "ag_subject_verb", "descr": "Basic subject-verb person/number agreement — learner heartland", "paras": "§183 (frame); phenomenon exceeds Rozental's native scope", "appl": "full", "note": "natives rarely err here; RLC-matrix driven"}, {"tag": "pu_dash_ellipsis", "parent": "pu_dash", "descr": "Dash in an elliptical (incomplete) clause", "paras": "§80", "appl": "full", "note": ""}, {"tag": "pu_dash_other", "parent": "pu_dash", "descr": "Other dash usage", "paras": "§81–82", "appl": "full", "note": ""}, {"tag": "pu_clause_compound", "parent": "pu_clause", "descr": "Compound sentence (сложносочинённое)", "paras": "§104–106", "appl": "full", "note": ""}, {"tag": "pu_clause_subordinate", "parent": "pu_clause", "descr": "Subordinate clause (сложноподчинённое)", "paras": "§107–113", "appl": "full", "note": ""}, {"tag": "pu_clause_comparative", "parent": "pu_clause", "descr": "Comparative constructions (сравнительные обороты)", "paras": "§115", "appl": "full", "note": ""}, {"tag": "pu_clause_indivisible", "parent": "pu_clause", "descr": "Indivisible expressions (цельные по смыслу сочетания)", "paras": "§114", "appl": "full", "note": "synterr-assigned (not in rozental annotation); punct rule, both populations; cross-refs §87, §90 (indivisible expressions as no-comma exceptions)"}, {"tag": "pu_clause_asyndetic", "parent": "pu_clause", "descr": "Asyndetic complex sentences (бессоюзное)", "paras": "§116–118", "appl": "full", "note": ""}, {"tag": "pu_direct_speech", "parent": "pu_speech_quotes", "descr": "Direct speech punctuation", "paras": "§119–123", "appl": "full", "note": ""}, {"tag": "pu_citation", "parent": "pu_speech_quotes", "descr": "Citations and epigraphs", "paras": "§124–127", "appl": "full", "note": ""}, {"tag": "pu_quotation_marks", "parent": "pu_speech_quotes", "descr": "Quotation mark usage", "paras": "§128–132", "appl": "full", "note": ""}, {"tag": "pu_sentence_final", "parent": "pu_other", "descr": "Sentence-final punctuation (./!/?/...)", "paras": "§75–78", "appl": "full", "note": ""}, {"tag": "pu_combinations", "parent": "pu_other", "descr": "Combinations of punctuation marks", "paras": "§133–138", "appl": "full", "note": ""}, {"tag": "lx_paronym", "parent": "lx_word_choice", "descr": "Paronym confusion", "paras": "§139", "appl": "full", "note": ""}, {"tag": "lx_pleonasm", "parent": "lx_word_choice", "descr": "Pleonasm and tautology", "paras": "§141", "appl": "partial", "note": "L2: less common than native"}, {"tag": "lx_cliche", "parent": "lx_word_choice", "descr": "Bureaucratese, clichés, euphony, phraseology", "paras": "§140, §142–143", "appl": "none", "note": "bureaucratese, euphony; native style"}, {"tag": "lx_word_missing", "parent": "lx_structural", "descr": "Missing word (needs insertion)", "paras": "", "appl": "none", "note": "structural L2 error; no Rozental para"}, {"tag": "lx_word_extra", "parent": "lx_structural", "descr": "Extra word (needs deletion)", "paras": "", "appl": "none", "note": "structural L2 error; no Rozental para"}]}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const hasBook = !!D.book;
+document.body.classList.toggle('hasbook', hasBook);
+document.getElementById('subtitle').textContent =
+  `${D.description} · v${D.version} · built ${D.built}` +
+  ` · ${Object.keys(D.l0).length} L0 / ${D.l1.length} L1 / ${D.l2.length} L2`;
+if (hasBook) document.getElementById('banner').innerHTML =
+  '<span class="private-banner">PRIVATE BUILD — contains copyrighted book text; do not publish</span>';
+
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const paraNums = s => { const out=new Set();
+  for (const m of String(s||'').matchAll(/(\d+)(?:\.(\d+))?(?:\s*[–-]\s*(\d+))?/g)) {
+    const a=+m[1], b=m[3]?+m[3]:a; for(let n=a;n<=Math.min(b,a+40);n++) out.add(n); }
+  return [...out]; };
+const chips = s => paraNums(s).length
+  ? paraNums(s).map(n=>`<span class="para-chip" data-para="${n}">§${n}</span>`).join('')
+    + (String(s).match(/\.(\d)/)||String(s).includes('frame') ? ` <span class="muted">(${esc(s)})</span>` : '')
+  : `<span class="muted">§-less</span>`;
+
+function showPanel(n) {
+  if (!hasBook) return;
+  const e = D.book[String(n)];
+  const body = document.getElementById('paraBody');
+  body.innerHTML = e
+    ? `<h2>§${n}. ${esc(e.title)}</h2>` + e.subs.map(t=>`<div class="subrule">${esc(t)}</div>`).join('')
+    : `<h2>§${n}</h2><p class="muted">не найден в скрейпе (известная лакуна оглавления)</p>`;
+  document.getElementById('paraPanel').classList.add('show');
+}
+function hidePanel(){ document.getElementById('paraPanel').classList.remove('show'); }
+document.addEventListener('click', ev => {
+  const c = ev.target.closest('.para-chip'); if (c) showPanel(c.dataset.para); });
+
+// ---- table view ----
+const l1ByTag = Object.fromEntries(D.l1.map(r=>[r.tag,r]));
+const rows = D.l2.map(r => ({...r, l0: (l1ByTag[r.parent]||{}).l0 || ''}));
+function renderTable(q) {
+  q = (q||'').toLowerCase();
+  const match = r => !q || [r.tag,r.parent,r.l0,r.paras,r.descr,r.note].join(' ').toLowerCase().includes(q);
+  document.getElementById('viewTable').innerHTML = `<table><thead><tr>
+    <th>L2 tag</th><th>L1</th><th>L0</th><th>§§</th><th>Description</th><th>L2 appl.</th><th>Note</th>
+    </tr></thead><tbody>` + rows.filter(match).map(r=>`<tr>
+    <td><code>${esc(r.tag)}</code></td><td><code>${esc(r.parent)}</code></td>
+    <td>${esc(r.l0)}</td><td>${chips(r.paras)}</td><td>${esc(r.descr)}</td>
+    <td>${esc(r.appl)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('') + '</tbody></table>';
+}
+
+// ---- tree view ----
+function renderTree(q) {
+  q = (q||'').toLowerCase();
+  const hit = s => !q || s.toLowerCase().includes(q);
+  let html = '';
+  for (const [l0, l0descr] of Object.entries(D.l0)) {
+    const l1s = D.l1.filter(r => r.l0 === l0);
+    if (!l1s.length && !hit(l0)) continue;
+    let l1html = '';
+    for (const p of l1s) {
+      const kids = D.l2.filter(r => r.parent === p.tag);
+      const kidHtml = kids
+        .filter(r => hit([r.tag,r.paras,r.descr].join(' ')) || hit(p.tag))
+        .map(r => `<div class="l2row"><code>${esc(r.tag)}</code> ${chips(r.paras)} ${esc(r.descr)}
+          ${r.note?`<span class="muted">— ${esc(r.note)}</span>`:''}</div>`).join('');
+      if (!kidHtml && !hit(p.tag+' '+p.descr)) continue;
+      l1html += `<details open><summary><code>${esc(p.tag)}</code> ${chips(p.paras)}
+        ${esc(p.descr)} <span class="muted">(${kids.length} L2)</span></summary>${kidHtml}</details>`;
+    }
+    if (!l1html) continue;
+    html += `<details open><summary><strong>${esc(l0)}</strong>
+      <span class="muted">${esc(l0descr)}</span></summary>${l1html}</details>`;
+  }
+  document.getElementById('viewTree').innerHTML = html || '<p class="muted">nothing matches</p>';
+}
+
+// ---- wiring ----
+const $f = document.getElementById('filter');
+let view = 'table';
+function paint(){ view==='table' ? renderTable($f.value) : renderTree($f.value); }
+$f.addEventListener('input', paint);
+for (const [btn, v] of [['btnTable','table'],['btnTree','tree']])
+  document.getElementById(btn).addEventListener('click', () => {
+    view = v;
+    document.getElementById('btnTable').classList.toggle('on', v==='table');
+    document.getElementById('btnTree').classList.toggle('on', v==='tree');
+    document.getElementById('viewTable').style.display = v==='table' ? '' : 'none';
+    document.getElementById('viewTree').style.display = v==='tree' ? '' : 'none';
+    paint();
+  });
+renderTable(''); renderTree('');
+</script>
+</body>
+</html>
