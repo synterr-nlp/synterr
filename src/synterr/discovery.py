@@ -164,6 +164,11 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         _SEPARATE_TO_HYPHEN,
         _TRIGRAM_SEPARATE_TO_HYPHEN,
     )
+    from synterr.languages.russian.errors.agreement_mn import (
+        _GEO_AGREEING_HEAD_LEMMAS,
+        _hyphen_compound_lexicon,
+    )
+    from synterr.languages.russian.errors.agreement_sv import _COLLECTIVE_LEMMAS
     from synterr.languages.russian.errors.comma_insert import (
         _COMPOUND_SCONJ,
         _FROZEN_PHRASES,
@@ -171,6 +176,11 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         _INDIVISIBLE_KAK,
         _INDIVISIBLE_PRONOUN,
     )
+    from synterr.languages.russian.errors.morphological import _verb_iterative_lexicon
+
+    def stem(word: str) -> str:
+        """Chop the final vowel/soft sign so the alternation matches all cases."""
+        return word[:-1] if word[-1] in "аеёиоуыэюяьй" else word
 
     def alt(phrases: list[str]) -> str:
         return "|".join(
@@ -187,6 +197,20 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         for t in group
     ]
     compound_sconj = [" ".join(compound) for compound, _pos in _COMPOUND_SCONJ]
+    collective_stems = "|".join(sorted(stem(lem) for lem in _COLLECTIVE_LEMMAS))
+    geo_stems = "|".join(sorted(stem(lem) for lem in _GEO_AGREEING_HEAD_LEMMAS))
+    iterative_stems = "|".join(
+        sorted(re.escape(lemma[:-2]) for lemma in _verb_iterative_lexicon())
+    )
+    compound_terms = "|".join(
+        sorted(
+            rf"{re.escape(stem(head))}[а-яё]{{0,3}}-{re.escape(stem(second))}"
+            for head, second in _hyphen_compound_lexicon()
+        )
+    )
+    # a genitive-looking word right after the collective = §183 licenses both
+    # agreements there; mining wants the *bare* subject the handler fires on
+    gen_tail = r"(?:из\b|[а-яё]+(?:ов|ев|ёв|ей|ий|ан|ян|ок|ек|иц|ств|ний|ых|их)\b)"
     # second-locative nouns commonly governed by в/на (loc2 forms)
     loc2 = [
         "лесу",
@@ -243,8 +267,18 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         "verb_tense_anchor": r"\b(?:вчера|позавчера|завтра|послезавтра|недавно)\b",
         "noun_case_prep_e_u": rf"\b(?:в|на)\s+(?:{'|'.join(loc2)})\b",
         "numeral_poltora": r"\b(?:полтора|полторы|полутора|полтораста)\b",
+        # night-wave agreement/morph classes (2026-07: scarce on news corpora)
+        "agr_sv_collective": rf"\b(?:{collective_stems})[а-яё]{{0,2}}\b(?!\s+{gen_tail})",
+        "agr_mn_apposition": rf"\b(?:{geo_stems})[а-яё]{{0,2}}\s+[«\"]?[А-ЯЁ]",
+        "agr_mn_compound_term": rf"\b(?:{compound_terms})",
+        "verb_iterative_suffix": rf"\b(?:{iterative_stems})[а-яё]{{1,6}}\b",
     }
-    case_sensitive = {"comma_interjection", "comma_response", "comma_vocative"}
+    case_sensitive = {
+        "comma_interjection",
+        "comma_response",
+        "comma_vocative",
+        "agr_mn_apposition",
+    }
     return {
         name: re.compile(p, 0 if name in case_sensitive else re.IGNORECASE)
         for name, p in pats.items()
@@ -302,6 +336,9 @@ def mine_pools(
         "sources": [str(s) for s in sources],
         "seen": dict(seen_counts),
         "sampled": {k: len(v) for k, v in reservoirs.items()},
+        "classes": _merge_class_provenance(
+            outdir / "pools.meta.json", reservoirs, seen_counts, sources, cap, seed
+        ),
     }
     for name, sents in sorted(reservoirs.items()):
         (outdir / f"{name}.txt").write_text("\n".join(sents) + "\n", encoding="utf-8")
@@ -309,3 +346,47 @@ def mine_pools(
         json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8"
     )
     return meta
+
+
+def _merge_class_provenance(
+    meta_path: Path,
+    reservoirs: dict[str, list[str]],
+    seen_counts: dict[str, int],
+    sources: list[Path],
+    cap: int,
+    seed: int,
+) -> dict[str, dict]:
+    """Per-class provenance that survives targeted re-runs.
+
+    A run over a pattern subset used to overwrite pools.meta.json wholesale,
+    orphaning every other pool file in the directory. Instead, classes not
+    touched by this run keep their previous record (migrated from the old
+    flat shape if needed); touched classes get this run's parameters.
+    """
+    classes: dict[str, dict] = {}
+    if meta_path.exists():
+        try:
+            previous = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            previous = {}
+        classes = dict(previous.get("classes", {}))
+        for name in previous.get("sampled", {}):
+            classes.setdefault(
+                name,
+                {
+                    "seed": previous.get("seed"),
+                    "cap": previous.get("cap"),
+                    "sources": previous.get("sources", []),
+                    "seen": previous.get("seen", {}).get(name),
+                    "sampled": previous["sampled"][name],
+                },
+            )
+    for name, sents in reservoirs.items():
+        classes[name] = {
+            "seed": seed,
+            "cap": cap,
+            "sources": [str(s) for s in sources],
+            "seen": seen_counts[name],
+            "sampled": len(sents),
+        }
+    return dict(sorted(classes.items()))

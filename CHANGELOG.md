@@ -8,6 +8,13 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Discovery loop hardened**: `mine-pools` patterns for the new
+  agreement/morphology classes (`agr_sv_collective`, `agr_mn_apposition`,
+  `agr_mn_compound_term`, `verb_iterative_suffix` — lexicon-derived);
+  `pools.meta.json` now keeps per-class provenance (sources/cap/seed)
+  across targeted re-runs instead of overwriting it; first unit-test
+  suite for `synterr.discovery` (patterns, reservoir, meta migration,
+  survey report shape).
 - **21 new handlers / 22 new subtypes since 1.0.1** — now 46 handlers /
   106 subtypes, 68/101 Rozental L2 tags generation-reachable:
   - Subject–verb agreement family (§183–190): collective, counting,
