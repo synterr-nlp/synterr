@@ -72,8 +72,18 @@ def load_book(book_csv: Path) -> dict:
                 continue
             entry = book.setdefault(para, {"title": r.get("para_title", ""), "subs": []})
             text = (r.get("rule_text") or "").strip()
-            if r.get("subpara") and text:
-                entry["subs"].append(text)
+            if not text:
+                continue
+            if not (r.get("subpara") or "").strip():
+                # Paragraph-level row: for §§ without subparas this holds the
+                # whole text (65/213 §§). Drop a leading "§ N. Title" header
+                # line; skip the row if nothing else remains.
+                lines = text.split("\n")
+                if lines[0].strip().startswith(f"§ {para}"):
+                    text = "\n".join(lines[1:]).strip()
+                if not text:
+                    continue
+            entry["subs"].append(text)
     return book
 
 
@@ -164,8 +174,10 @@ function showPanel(n) {
   const e = D.book[String(n)];
   const body = document.getElementById('paraBody');
   body.innerHTML = e
-    ? `<h2>§${n}. ${esc(e.title)}</h2>` + e.subs.map(t=>`<div class="subrule">${esc(t)}</div>`).join('')
-    : `<h2>§${n}</h2><p class="muted">не найден в скрейпе (известная лакуна оглавления)</p>`;
+    ? `<h2>§${n}. ${esc(e.title)}</h2>` + (e.subs.length
+        ? e.subs.map(t=>`<div class="subrule">${esc(t)}</div>`).join('')
+        : `<p class="muted">текст §${n} отсутствует в master-скрейпе (известная лакуна: §33)</p>`)
+    : `<h2>§${n}</h2><p class="muted">не найден в скрейпе (известная лакуна оглавления: §49)</p>`;
   document.getElementById('paraPanel').classList.add('show');
 }
 function hidePanel(){ document.getElementById('paraPanel').classList.remove('show'); }

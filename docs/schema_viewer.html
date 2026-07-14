@@ -85,8 +85,10 @@ function showPanel(n) {
   const e = D.book[String(n)];
   const body = document.getElementById('paraBody');
   body.innerHTML = e
-    ? `<h2>§${n}. ${esc(e.title)}</h2>` + e.subs.map(t=>`<div class="subrule">${esc(t)}</div>`).join('')
-    : `<h2>§${n}</h2><p class="muted">не найден в скрейпе (известная лакуна оглавления)</p>`;
+    ? `<h2>§${n}. ${esc(e.title)}</h2>` + (e.subs.length
+        ? e.subs.map(t=>`<div class="subrule">${esc(t)}</div>`).join('')
+        : `<p class="muted">текст §${n} отсутствует в master-скрейпе (известная лакуна: §33)</p>`)
+    : `<h2>§${n}</h2><p class="muted">не найден в скрейпе (известная лакуна оглавления: §49)</p>`;
   document.getElementById('paraPanel').classList.add('show');
 }
 function hidePanel(){ document.getElementById('paraPanel').classList.remove('show'); }
