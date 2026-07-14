@@ -8,9 +8,25 @@ Freeze deadline: **2026-07-31**. v4 baseline: 39,209 ex, seed 42, 150K pool.
 
 | v4 disease | receipt | v5 cure |
 |---|---|---|
-| Add-only comma generation → 3 rules at 0% on insert-direction | 10%→0% (the paper's own finding) | bidirectional [insert]/[delete] pairs everywhere |
+| Direction mismatch on 3 comma rules: v4 taught ONLY insert-missing-comma (847×3 examples, 100% learn-insert — verified in qwen_sft_v4.jsonl 2026-07-14), while LORuGEC tests them 51/56 in the delete-wrong-comma direction | 10%→0% (the paper's finding, now data-verified) | bidirectional [insert]/[delete] pairs everywhere |
 | Thin rules | 8 / 29 / 70 examples (числительные / фразеологизмы / -инск/-енск) | targeted host mining |
 | Duplicated source pool | ~47K dups (~31%) | clean seeded pool rebuild |
+
+Direction-mismatch record (Anna's murk, fully resolved 2026-07-14, all
+numbers re-measured on qwen_sft_v4.jsonl):
+
+- **Paper's 3.6:1 REPRODUCED**: comma tokens inserted vs deleted by
+  corrections dataset-wide = 8,702 : 2,374 = **3.67:1** ✓ (example-level
+  = 2.55:1; comma-named rules only = 1.66:1 — same phenomenon, three cuts).
+- **The three suppressed rules**: 847×3 examples, 100% learn-insert;
+  LORuGEC tests them 51/56 learn-delete. The sharp end of the skew.
+- **Timeline**: v4 generated 2026-03-22 → suppression discovered at eval →
+  **fix landed 2026-07-01/02, two nights before the talk** (f5a8355 six
+  insert-direction subtypes + 1544f0b gera_bidir preset) → published models
+  never saw it. v5 is the first dataset that includes the fix.
+- The v4 dist tracked fill-rate (847/847 green), not direction — invisible
+  by dashboard design; hence gate #5. Host-starvation of comma_insert
+  subtypes (0–11% fill) is a separate, coexisting disease.
 
 Free bonuses already in main: July-12 generator fixes (four punctuation sites
 freed, compound-term lexicon, morpheme offsets) + schema v1.1 § correctness.
