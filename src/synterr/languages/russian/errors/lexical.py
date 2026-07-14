@@ -469,8 +469,8 @@ class PrepositionErrorHandler:
 # ---------------------------------------------------------------------------
 # Pronoun confusion: shared dependency-tree "find the clause subject" walk.
 #
-# Both PronounSvoyErrorHandler (свой vs мой/твой/наш/ваш/его/её/их, §167) and
-# PronounSebyaErrorHandler (себя/себе/собой vs personal pronouns, §168) need
+# Both PronounSvoyErrorHandler (свой vs мой/твой/наш/ваш/его/её/их, §168.2) and
+# PronounSebyaErrorHandler (себя/себе/собой vs personal pronouns, §168.1) need
 # to identify the subject that the reflexive/possessive corefers with. That
 # subject is found by climbing head_idx from a starting token until an
 # nsubj/nsubj:pass dependent turns up.
@@ -598,13 +598,13 @@ class PronounSvoyErrorHandler:
     entity tracking this handler has no access to (dep parse gives syntactic
     subjects, not discourse antecedents). Firing on ordinary "он ... его X"
     sentences where the possessor already is the subject (a redundant but
-    common construction, itself sometimes flagged as the *same* §167 error in
+    common construction, itself sometimes flagged as the *same* §168.2 error in
     the other direction) would corrupt already-correct-enough text into a
     meaning change instead of a graded grammaticality error. Precision over
     recall: skip rather than guess at coreference.
 
     Guards: skips when no subject is determinable, when свой's own head noun
-    is one of a small idiom list (§167 does not cover lexicalized свой), and
+    is one of a small idiom list (§168.2 does not cover lexicalized свой), and
     when the target possessive fails to inflect (declinable branch only —
     его/её/их never inflect).
     """
