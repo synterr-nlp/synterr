@@ -273,6 +273,9 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         "agr_mn_compound_term": rf"\b(?:{compound_terms})",
         "verb_iterative_suffix": rf"\b(?:{iterative_stems})[а-яё]{{1,6}}\b",
     }
+    # a lexicon loader that tolerates a missing data file yields an empty
+    # alternation — "(?:)" matches everywhere and would flood the pool
+    pats = {name: p for name, p in pats.items() if "(?:)" not in p}
     case_sensitive = {
         "comma_interjection",
         "comma_response",

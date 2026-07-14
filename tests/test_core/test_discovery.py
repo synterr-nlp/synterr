@@ -285,3 +285,19 @@ def test_survey_reports_rates_starving_and_never_fired(
     # 100/1k is above the default starving threshold of 5
     assert "stub_fire" not in report["starving"]
     assert report["examples"]["stub_fire"]
+
+
+def test_empty_lexicon_alternation_is_dropped_not_match_all(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing lexicon file must drop its pattern, not match everything."""
+    monkeypatch.setattr(
+        "synterr.languages.russian.errors.agreement_mn._hyphen_compound_lexicon",
+        frozenset,
+    )
+    patterns = build_class_patterns()
+    assert "agr_mn_compound_term" not in patterns
+    assert not any(
+        p.search("Обычное предложение без всяких паттернов тут .")
+        for p in patterns.values()
+    )
