@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import sys
 from pathlib import Path
 
@@ -667,7 +668,14 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
 @click.option(
     "--balance-directions/--no-balance-directions",
     default=True,
-    help="Cap split/merge pairs to min(split, merge)",
+    help="Cap paired [split]/[merge] and [delete]/[insert] rules to the smaller side",
+)
+@click.option(
+    "--targets",
+    "targets_file",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="JSON target set (rule → handler/subtype/weight); default: built-in set",
 )
 def cmd_generate_sft(
     lang: str,
@@ -679,15 +687,29 @@ def cmd_generate_sft(
     max_input: int,
     batch_size: int,
     balance_directions: bool,
+    targets_file: str | None,
 ) -> None:
-    """Force-apply errors per LoRuGEC rule for SFT training.
+    """Fill per-rule quotas by force-applying mapped handlers (SFT data).
 
     \b
-    Generates {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL.
-    Targets 48 LoRuGEC evaluation rules with bidirectional split/merge.
-    Saves a .dist.json sidecar with per-rule counts.
+    Unlike `generate` (which samples a preset error distribution per
+    sentence), this fills a quota per rule from a target set: a mapping
+    of rule names to handler+subtype with relative weights. Generates
+    {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL and a
+    .dist.json sidecar with per-rule got/want counts.
+
+    \b
+    The default target set ships with synterr (48 Rozental-derived
+    rules, empirically weighted). Supply your own with --targets:
+      {"rules": {"my rule": {"handler": "spelling",
+                             "subtype": "vowel_reduction",
+                             "weight": 10}}}
     """
-    from synterr.sft import generate_targeted
+    from synterr.sft import generate_targeted, load_target_set
+
+    rules = rule_weights = None
+    if targets_file is not None:
+        rules, rule_weights = load_target_set(targets_file)
 
     generate_targeted(
         input_path=input_file,
@@ -699,12 +721,18 @@ def cmd_generate_sft(
         batch_size=batch_size,
         balance_directions=balance_directions,
         lang=lang,
+        rules=rules,
+        rule_weights=rule_weights,
     )
 
 
 # Backwards-compat alias: `generate-bea-paper` was the original name.
-# Renamed to `generate-targeted` for use across multiple papers.
-main.add_command(cmd_generate_sft, name="generate-bea-paper")
+# Hidden from --help so the public surface stays neutral; old scripts
+# keep working.
+_bea_alias = copy.copy(cmd_generate_sft)
+_bea_alias.name = "generate-bea-paper"
+_bea_alias.hidden = True
+main.add_command(_bea_alias)
 
 
 @main.command("survey")

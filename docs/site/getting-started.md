@@ -60,8 +60,9 @@ uv run synterr generate -l ru --preset rulec --depparse \
     -i clean.txt -o train.jsonl -f jsonl
 ```
 
-For **rule-targeted SFT generation** (force-apply each LoRuGEC rule,
-direction-balanced, paper-style output):
+For **rule-targeted SFT generation** — filling a quota per rule from a
+target set (rule name → handler+subtype with relative weights) instead
+of sampling a distribution per sentence:
 
 ```bash
 uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
@@ -69,8 +70,10 @@ uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
 ```
 
 This produces `{"src": corrupted, "tgt": clean, "rule": rule_name}`
-JSONL plus a `.dist.json` sidecar with per-rule counts. This is the
-command used to build the v4 dataset for our BEA 2026 paper.
+JSONL plus a `.dist.json` sidecar with per-rule counts. The built-in
+target set covers 48 Rozental-derived rules, empirically weighted;
+supply your own with `--targets targets.json`. This command built the
+training data for our BEA 2026 paper.
 
 ### 3. Use the Python API
 

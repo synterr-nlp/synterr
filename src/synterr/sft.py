@@ -1,8 +1,15 @@
 """Rule-targeted SFT data generation.
 
-Force-applies errors per LoRuGEC rule mapping, with direction-balanced
-output. Produces ``{src, tgt, rule}`` JSONL plus a ``.dist.json`` sidecar
-of per-rule counts.
+Force-applies errors to fill per-rule quotas from a *target set* — a
+mapping of rule names to handler+subtype (plus an optional word filter)
+with relative weights. Produces ``{src, tgt, rule}`` JSONL plus a
+``.dist.json`` sidecar of per-rule counts, with optional
+direction-balancing of paired [split]/[merge] and [delete]/[insert]
+rules.
+
+The built-in target set (``synterr.lorugec``) covers 48 rules from a
+public Rozental-derived benchmark; pass ``rules``/``rule_weights`` (or
+``--targets`` on the CLI) to target any other rule inventory.
 
 This is the engine behind ``synterr generate-targeted``. Importable as
 a function for programmatic use; ``scripts/generate_sft.py`` is a thin
@@ -43,18 +50,47 @@ def _detokenize_factory(lang: str) -> Callable[[list[str]], str]:
     return lambda tokens: md.detokenize(tokens)
 
 
-def _compute_targets(total: int) -> dict[str, int]:
-    """Scale LoRuGEC's empirical rule distribution to the given total."""
-    rule_counts = get_lorugec_distribution()
-    grand = sum(rule_counts.values())
+def load_target_set(path: Path | str) -> tuple[dict[str, tuple], dict[str, float]]:
+    """Load a user-supplied target set from JSON.
+
+    Expected shape::
+
+        {"rules": {"<rule name>": {"handler": "...", "subtype": "..." | [...],
+                                   "word_filter": "...",   # optional
+                                   "weight": 12},          # relative share
+                   ...}}
+
+    Returns ``(rules, weights)`` in the internal representation:
+    rule name → ``(handler, subtype[, word_filter])`` and
+    rule name → relative weight.
+    """
+    with Path(path).open(encoding="utf-8") as f:
+        data = json.load(f)
+    rules: dict[str, tuple] = {}
+    weights: dict[str, float] = {}
+    for name, spec in data["rules"].items():
+        subtype = spec["subtype"]
+        if isinstance(subtype, list):
+            subtype = tuple(subtype)
+        entry: tuple = (spec["handler"], subtype)
+        if spec.get("word_filter") is not None:
+            entry = (*entry, spec["word_filter"])
+        rules[name] = entry
+        weights[name] = float(spec.get("weight", 1))
+    return rules, weights
+
+
+def _compute_targets(total: int, weights: dict[str, float]) -> dict[str, int]:
+    """Scale the target set's relative rule weights to the given total."""
+    grand = sum(weights.values())
     return {
-        rule: max(1, round(count / grand * total))
-        for rule, count in rule_counts.items()
+        rule: max(1, round(count / grand * total)) for rule, count in weights.items()
     }
 
 
 def _group_by_subtype(
     targets: dict[str, int],
+    rules: dict[str, tuple],
 ) -> tuple[
     dict[tuple[str, str, str | None], list[str]],
     dict[tuple[str, str, str | None], int],
@@ -65,7 +101,7 @@ def _group_by_subtype(
     handler+subtype match.
     """
     groups: dict[tuple[str, str, str | None], list[str]] = defaultdict(list)
-    for rule, mapping in LORUGEC_RULES.items():
+    for rule, mapping in rules.items():
         handler_name, subtype = mapping[0], mapping[1]
         word_filter = mapping[2] if len(mapping) > 2 else None
         if rule in targets:
@@ -93,6 +129,7 @@ def _balance_directions(
     examples: list[dict],
     results_per_rule: dict[str, int],
     rng: random.Random,
+    rules: dict[str, tuple],
 ) -> int:
     """Cap direction pairs to min of the two directions, but never below floor.
 
@@ -103,8 +140,8 @@ def _balance_directions(
     """
     pairs = []
     for a_tag, b_tag in [("[split]", "[merge]"), ("[delete]", "[insert]")]:
-        a_rules = {r for r in LORUGEC_RULES if a_tag in r}
-        b_rules = {r for r in LORUGEC_RULES if b_tag in r}
+        a_rules = {r for r in rules if a_tag in r}
+        b_rules = {r for r in rules if b_tag in r}
         for ar in a_rules:
             br = ar.replace(f" {a_tag}", "") + f" {b_tag}"
             if br in b_rules:
@@ -143,11 +180,13 @@ def generate_targeted(
     batch_size: int = 128,
     balance_directions: bool = True,
     lang: str = "ru",
+    rules: dict[str, tuple] | None = None,
+    rule_weights: dict[str, float] | None = None,
 ) -> dict:
     """Generate rule-targeted SFT data.
 
-    Force-applies each LoRuGEC rule's mapped handler+subtype, scaled to
-    the empirical LoRuGEC rule distribution. Writes ``{src, tgt, rule}``
+    Force-applies each target-set rule's mapped handler+subtype, scaled
+    to the set's relative rule weights. Writes ``{src, tgt, rule}``
     JSONL plus a ``.dist.json`` sidecar.
 
     Args:
@@ -163,6 +202,11 @@ def generate_targeted(
         balance_directions: Cap split/merge pairs to min(split, merge),
             preventing bidirectional learning.
         lang: Language code (currently only "ru" supported).
+        rules: Target set — rule name → ``(handler, subtype[, word_filter])``.
+            Defaults to the built-in lorugec set (see ``load_target_set``
+            for supplying your own).
+        rule_weights: Relative share per rule name; defaults to the
+            built-in set's empirical distribution.
 
     Returns:
         The distribution dict written to the sidecar.
@@ -173,10 +217,14 @@ def generate_targeted(
     output_path = Path(output_path)
     detokenize = _detokenize_factory(lang)
 
-    targets = _compute_targets(total)
-    subtype_groups, subtype_targets = _group_by_subtype(targets)
+    if rules is None:
+        rules = LORUGEC_RULES
+    if rule_weights is None:
+        rule_weights = {str(k): float(v) for k, v in get_lorugec_distribution().items()}
+    targets = _compute_targets(total, rule_weights)
+    subtype_groups, subtype_targets = _group_by_subtype(targets, rules)
 
-    print(f"LoRuGEC rules mapped: {len(LORUGEC_RULES)}")
+    print(f"Target-set rules mapped: {len(rules)}")
     print(f"Unique (handler, subtype) pairs: {len(subtype_targets)}")
     print(f"Target total: {sum(subtype_targets.values())}")
 
@@ -201,7 +249,7 @@ def generate_targeted(
 
     rng = random.Random(seed)
     all_examples: list[dict] = []
-    results_per_rule: dict[str, int] = {r: 0 for r in LORUGEC_RULES}
+    results_per_rule: dict[str, int] = {r: 0 for r in rules}
 
     for (handler_name, subtype, word_filter), target in subtype_targets.items():
         handler = pipeline._get_handler_by_name(handler_name)
@@ -289,7 +337,7 @@ def generate_targeted(
         print(f"  {label}: {count}/{target}")
 
     if balance_directions:
-        dropped = _balance_directions(all_examples, results_per_rule, rng)
+        dropped = _balance_directions(all_examples, results_per_rule, rng, rules)
         if dropped:
             print(f"  Total dropped for balance: {dropped}")
 
@@ -313,7 +361,7 @@ def generate_targeted(
         "source": input_path.name,
         "rules": {
             r: {"got": results_per_rule.get(r, 0), "want": targets.get(r, 0)}
-            for r in sorted(LORUGEC_RULES.keys())
+            for r in sorted(rules.keys())
         },
     }
     dist_path = output_path.with_suffix(".dist.json")
@@ -323,7 +371,7 @@ def generate_targeted(
 
     print(f"\n{'Rule':<65s} {'Got':>5s} {'Want':>5s}")
     print("-" * 80)
-    for rule in sorted(LORUGEC_RULES.keys()):
+    for rule in sorted(rules.keys()):
         got = results_per_rule.get(rule, 0)
         want = targets.get(rule, 0)
         marker = " ***" if got < want * 0.5 else ""
@@ -331,7 +379,7 @@ def generate_targeted(
 
     shortfalls = {
         r: targets[r] - results_per_rule.get(r, 0)
-        for r in LORUGEC_RULES
+        for r in rules
         if results_per_rule.get(r, 0) < targets[r]
     }
     if shortfalls:

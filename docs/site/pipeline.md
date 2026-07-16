@@ -59,17 +59,25 @@ uv run synterr mine-pools \
 
 Sweeps large sources with per-class surface patterns and
 reservoir-samples up to `--cap` candidate sentences per class into
-`data/pools/<class>.txt` (+ `pools.meta.json` with seen/sampled counts).
+`data/pools/<class>.txt` (+ `pools.meta.json` with per-run counts and a
+`classes` section carrying per-class provenance — sources, cap, seed —
+that survives targeted re-runs over a pattern subset).
 
 Two design points worth knowing:
 
 - **Patterns derive from the live handler lexicons** (frozen phrases,
-  adverb pair lists, …) where possible, so pools cannot drift out of
-  sync with the handlers.
+  adverb pair lists, agreement lemma sets, the hyphenated-compound
+  lexicon, …) where possible, so pools cannot drift out of sync with
+  the handlers.
 - **Pools are recall-oriented.** A pool only needs to contain
   *candidates*; the handler's own `can_apply` does the precise filtering
   at generation time. Measured effect: `verb_tense` fires at 10.5/1k on
-  raw news vs ~1700/1k on its mined pool.
+  raw news vs ~1700/1k on its mined pool. Same story for
+  `agr_sv_collective` (§183): its bare-collective-subject trigger fired
+  0 times in 10k news sentences, but a mined pool yields a full
+  per-class sample — news prose almost never writes «Большинство
+  проголосовало» without a genitive dependent, which is exactly the
+  configuration where only one agreement is normative.
 
 To verify a pool feeds its class, survey it: `synterr survey -i
 data/pools/<class>.txt`.

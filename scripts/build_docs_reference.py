@@ -18,8 +18,6 @@ Usage:
 
 from __future__ import annotations
 
-import io
-import textwrap
 from pathlib import Path
 
 import click
@@ -52,6 +50,8 @@ def generate_cli_md() -> None:
 
     for name in sorted(cli_root.commands.keys()):
         cmd = cli_root.commands[name]
+        if cmd.hidden:
+            continue  # compat aliases stay callable but undocumented
         ctx = click.Context(cmd, info_name=f"synterr {name}", parent=ctx_root)
         short = (cmd.short_help or "").strip()
         lines.append(f"## `synterr {name}`\n\n")
@@ -143,7 +143,7 @@ def generate_schemas_md() -> None:
             lines.append(
                 f"| `{name}`{marker} | {len(s.tags)} | {s.description.strip()} |\n"
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             lines.append(f"| `{name}` | ? | (load error: {e!r}) |\n")
     lines.append("\n")
 
