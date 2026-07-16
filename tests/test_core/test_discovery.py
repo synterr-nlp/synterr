@@ -301,3 +301,20 @@ def test_empty_lexicon_alternation_is_dropped_not_match_all(
         p.search("Обычное предложение без всяких паттернов тут .")
         for p in patterns.values()
     )
+
+
+def test_numeral_declension_pattern_targets_oblique_forms() -> None:
+    pat = build_class_patterns()["numeral_declension"]
+    for pos in (
+        "Речь шла о пятидесяти новых школах района .",
+        "Он ограничился двумя короткими фразами в ответ .",
+        "Из девяноста заявок отобрали лишь семь лучших .",
+        "Штраф составил около трёхсот тысяч рублей сразу .",
+    ):
+        assert pat.search(pos), pos
+    for neg in (
+        "Пять человек пришли на собрание вчера вечером .",
+        "Пятьдесят делегатов проголосовали за резолюцию единогласно .",
+        "Сто лет прошло с того памятного дня .",
+    ):
+        assert not pat.search(neg), neg

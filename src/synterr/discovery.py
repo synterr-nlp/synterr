@@ -267,6 +267,25 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         "verb_tense_anchor": r"\b(?:вчера|позавчера|завтра|послезавтра|недавно)\b",
         "noun_case_prep_e_u": rf"\b(?:в|на)\s+(?:{'|'.join(loc2)})\b",
         "numeral_poltora": r"\b(?:полтора|полторы|полутора|полтораста)\b",
+        # cardinal numerals in oblique cases — hosts for numeral_declension
+        # (the rule has ~8 training examples total; Nom/Acc citation forms
+        # are everywhere but oblique hosts are scarce). Genitive/dative/
+        # locative -и forms, instrumental -ью/-мя forms, and the oblique
+        # tens/hundreds. Recall-oriented: «сорока» the bird and «ста» false
+        # hits are filtered by the handler's can_apply.
+        "numeral_declension": (
+            r"\b(?:двух|тр[её]х|четыр[её]х|пяти|шести|семи|восьми|девяти|"
+            r"десяти|(?:один|две|три|четыр|пят|шест|сем|восем|девят)надцати|"
+            r"двадцати|тридцати|сорока|пятидесяти|шестидесяти|семидесяти|"
+            r"восьмидесяти|девяноста|двухсот|тр[её]хсот|четыр[её]хсот|"
+            r"пятисот|шестисот|семисот|восьмисот|девятисот|двумя|тремя|"
+            r"четырьмя|пятью|шестью|семью|восемью|восьмью|девятью|десятью|"
+            r"двадцатью|тридцатью|пятьюдесятью|шестьюдесятью|семьюдесятью|"
+            r"восьмьюдесятью|двумстам|тремстам|четыр[её]мстам|пятистам|"
+            r"шестистам|семистам|восьмистам|девятистам|двумястами|"
+            r"тремястами|четырьмястами|пятьюстами|шестьюстами|семьюстами|"
+            r"восемьюстами|девятьюстами|стами?)\b"
+        ),
         # night-wave agreement/morph classes (2026-07: scarce on news corpora)
         "agr_sv_collective": rf"\b(?:{collective_stems})[а-яё]{{0,2}}\b(?!\s+{gen_tail})",
         "agr_mn_apposition": rf"\b(?:{geo_stems})[а-яё]{{0,2}}\s+[«\"]?[А-ЯЁ]",

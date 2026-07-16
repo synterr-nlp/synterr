@@ -1225,3 +1225,20 @@ class TestCommaPairedConj:
         tokens = _paired_np_tokens()
         sentence = [t.text for t in tokens]
         assert h.apply(tokens, sentence, 2, set(), rng=Random(42)) is None
+
+
+def test_frozen_phrase_new_87_3_pairs_fire():
+    # §87.3 additions from the canonical inventory (walk 2026-07-16)
+    h = _force_subtype("comma_in_set_phrase")
+    tokens = [
+        _tok("Остался", pos="VERB", idx=0),
+        _tok("ни", pos="PART", idx=1),
+        _tok("дна", pos="NOUN", idx=2),
+        _tok("ни", pos="PART", idx=3),
+        _tok("покрышки", pos="NOUN", idx=4),
+    ]
+    assert h.can_apply(tokens, 1)
+    sentence = [t.text for t in tokens]
+    result = h.apply(tokens, sentence, 1, set(), rng=Random(42))
+    assert result is not None
+    assert "," in sentence
