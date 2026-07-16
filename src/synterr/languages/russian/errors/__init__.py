@@ -68,6 +68,7 @@ def get_all_handlers() -> list[ErrorHandler]:
     from synterr.languages.russian.errors.punctuation import (
         CommaDeleteHandler,
         CommaPairDeleteHandler,
+        CommaToDashHandler,
         DashDeleteHandler,
         DashToCommaHandler,
     )
@@ -134,6 +135,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         CommaDeleteHandler(),
         CommaPairDeleteHandler(),
         CommaInsertHandler(),
+        CommaToDashHandler(),
         DashDeleteHandler(),
         DashToCommaHandler(),
         # Structural

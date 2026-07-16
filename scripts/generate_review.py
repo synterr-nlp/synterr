@@ -62,21 +62,26 @@ def generate_for_handler(
 ) -> int:
     from synterr.core.pipeline import ErrorPipeline, GenerationConfig
 
+    # "handler:subtype" specs pass through apply_error untouched (same
+    # resolution as `synterr corrupt -e`); only the handler half is used
+    # for the existence check and pipeline enablement
+    base_handler = handler_name.split(":")[0]
+
     config = GenerationConfig(
         seed=seed,
         schema=schema,
-        enabled_errors={handler_name},
+        enabled_errors={base_handler},
         use_depparse=True,
     )
     pipeline = ErrorPipeline("ru", config)
 
     # Check handler exists
-    handler = pipeline._get_handler_by_name(handler_name)
+    handler = pipeline._get_handler_by_name(base_handler)
     if handler is None:
         print(f"  SKIP {handler_name}: handler not found")
         return 0
 
-    out_path = output_dir / f"review_{handler_name}.jsonl"
+    out_path = output_dir / f"review_{handler_name.replace(':', '_')}.jsonl"
     count = 0
     rng = Random(seed)
     shuffled = list(range(len(sentences)))

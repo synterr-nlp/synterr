@@ -1646,6 +1646,176 @@ class DashToCommaHandler:
         )
 
 
+# =============================================================================
+# comma_to_dash — spurious dash at a §116 asyndetic comma junction
+# =============================================================================
+
+# §117 п.2 / §118 п.7: a speech/perception/cognition predicate in the first
+# clause licenses colon (classically) or dash (изъяснительное) — those
+# junctions are not clean comma-only sites. Extends SPEECH_VERB_LEMMAS.
+_BSP_COGNITION_LEMMAS = frozenset(
+    {
+        "видеть",
+        "увидеть",
+        "смотреть",
+        "посмотреть",
+        "глядеть",
+        "слышать",
+        "услышать",
+        "понимать",
+        "понять",
+        "узнать",
+        "узнавать",
+        "чувствовать",
+        "почувствовать",
+        "думать",
+        "подумать",
+        "казаться",
+        "показаться",
+        "замечать",
+        "заметить",
+        "помнить",
+        "вспомнить",
+        "знать",
+    }
+)
+
+# §118 п.8: a second clause opening with a connective pronoun is exactly the
+# присоединительное reading where the dash IS correct.
+_BSP_CLAUSE2_OPENER_SKIP = frozenset(
+    {"это", "так", "таков", "такова", "таково", "таковы"}
+)
+
+
+class CommaToDashHandler:
+    """Replace the §116 asyndetic comma with a spurious dash.
+
+    Insert-direction mirror of ``dash_delete:dash_asyndetic`` (v5
+    bidirectional design): the delete side trains the model to ADD a
+    §118 dash; this side trains it to REMOVE a dash from a junction
+    where §116 wants a comma («День был серый — небо висело низко»).
+
+    The precision problem is that §118 licenses a dash at the same
+    surface shape under dynamic readings (быстрая смена, следствие,
+    условие/время, сравнение, изъяснение, присоединение). Those are
+    excluded structurally rather than semantically:
+
+    - both clause predicates must be imperfective past/present verbs, or
+      copular predicates without a future copula — §118 п.1/3/4/5
+      readings ride perfective or future dynamics («Ударил гром —
+      задрожали окна», «Будет дождик — будут и грибки»);
+    - both clauses need overt subjects — subjectless first clauses are
+      the condition/time/comparison shapes of §118 п.4–6 («Победим —…»,
+      «Молвит слово —…»);
+    - a speech/perception/cognition first predicate is §117 п.2/§118 п.7
+      territory (colon/dash licensed) — skipped;
+    - a second clause carrying negation is the §118 п.2 contrast shape
+      («шныряли по лесу — нет зверя») — skipped on any не/нет in the
+      clause (accepted risk: overbroad, drops some valid §116 sites —
+      skip > mislabel);
+    - a second clause opening with это/так/таков is §118 п.8 — skipped.
+
+    What survives is the §116 descriptive core: two stative clauses in
+    tight semantic linkage, where the dash is a clean intonation error.
+    """
+
+    name = "comma_to_dash"
+    subtypes = ["comma_to_dash_asyndetic"]
+    category = "PUNCT"
+    changes_length = False
+
+    def __init__(self) -> None:
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
+    @staticmethod
+    def _predicate_is_stative(
+        tokens: Sequence[AnalyzedToken], pred: AnalyzedToken
+    ) -> bool:
+        """Imperfective past/present verb, or copular predicate with a
+        non-future (or absent) copula."""
+        if pred.pos in FINITE_POS:
+            if pred.get_feature("Aspect") != "Imp":
+                return False
+            return pred.get_feature("Tense") in ("Past", "Pres")
+        # nominal/adjectival predicate: reject only a future copula (§118 п.5)
+        for t in tokens:
+            if t.head_idx == pred.idx and t.dep_rel == "cop":
+                if t.get_feature("Tense") == "Fut":
+                    return False
+        return True
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        if idx == 0 or idx >= len(tokens) - 1:
+            return False
+        tok = tokens[idx]
+        if tok.pos != "PUNCT" or tok.text != ",":
+            return False
+        if _classify_comma(tokens, idx) != "comma_asyndetic":
+            return False
+        if tok.head_idx is None or not (0 <= tok.head_idx < len(tokens)):
+            return False
+        second = tokens[tok.head_idx]
+        first = _get_head(tokens, second)
+        if first is None:
+            return False
+        if not _has_own_subject(tokens, first.idx) or not _has_own_subject(
+            tokens, second.idx
+        ):
+            return False
+        if not self._predicate_is_stative(tokens, first):
+            return False
+        if not self._predicate_is_stative(tokens, second):
+            return False
+        first_lemma = (first.lemma or "").lower()
+        if first_lemma in SPEECH_VERB_LEMMAS or first_lemma in _BSP_COGNITION_LEMMAS:
+            return False
+        # clause 2 = comma to the end of the second predicate's subtree
+        _, second_hi = _get_subtree_span(tokens, second.idx)
+        opener_seen = False
+        for j in range(idx + 1, min(second_hi + 1, len(tokens))):
+            t_lower = tokens[j].text.lower()
+            if t_lower in ("не", "нет"):
+                return False
+            if not opener_seen and tokens[j].pos != "PUNCT":
+                if t_lower in _BSP_CLAUSE2_OPENER_SKIP:
+                    return False
+                opener_seen = True
+        return True
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        if not self.can_apply(tokens, idx):
+            return None
+
+        subtype = "comma_to_dash_asyndetic"
+        if self._enabled_subtypes is not None and subtype not in self._enabled_subtypes:
+            return None
+
+        sentence[idx] = "—"
+        return ErrorResult(
+            error_type=subtype,
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx,
+            original=",",
+            corrupted="—",
+            fix_tag="$REPLACE_,",
+        )
+
+
 class CommaPairDeleteHandler:
     """Delete both commas of a paired construction (обособление).
 

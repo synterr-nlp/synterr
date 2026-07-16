@@ -3181,3 +3181,145 @@ class TestRealStanzaSchemaReviewFixesJuly2026:
             "Он передал письмо — без лишних слов.", "dash_delete", position=3
         )
         assert result is None
+
+
+class TestCommaToDashAsyndetic:
+    """§116 asyndetic comma → spurious dash (insert mirror of dash_asyndetic)."""
+
+    @staticmethod
+    def _handler():
+        from synterr.languages.russian.errors.punctuation import CommaToDashHandler
+
+        return CommaToDashHandler()
+
+    def _stative_bsp(self):
+        """«День был серый , небо висело низко .» — §116 descriptive core."""
+        return [
+            _tok("День", "NOUN", idx=0, dep_rel="nsubj", head_idx=2),
+            _tok(
+                "был",
+                "AUX",
+                idx=1,
+                dep_rel="cop",
+                head_idx=2,
+                features={"Tense": "Past"},
+            ),
+            _tok("серый", "ADJ", idx=2, dep_rel="root"),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=5),
+            _tok("небо", "NOUN", idx=4, dep_rel="nsubj", head_idx=5),
+            _tok(
+                "висело",
+                "VERB",
+                lemma="висеть",
+                idx=5,
+                dep_rel="parataxis",
+                head_idx=2,
+                features={"Aspect": "Imp", "Tense": "Past", "VerbForm": "Fin"},
+            ),
+            _tok("низко", "ADV", idx=6, dep_rel="advmod", head_idx=5),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=2),
+        ]
+
+    def test_fires_on_stative_bsp(self):
+        h = self._handler()
+        tokens = self._stative_bsp()
+        assert h.can_apply(tokens, 3)
+
+    def test_apply_substitutes_dash(self):
+        from random import Random
+
+        h = self._handler()
+        tokens = self._stative_bsp()
+        sentence = [t.text for t in tokens]
+        result = h.apply(tokens, sentence, 3, set(), rng=Random(42))
+        assert result is not None
+        assert result.error_type == "comma_to_dash_asyndetic"
+        assert result.fix_tag == "$REPLACE_,"
+        assert sentence[3] == "—"
+        assert len(sentence) == 8  # substitution, not insertion
+
+    def test_skips_perfective_dynamics(self):
+        # «Ударил гром , задрожали окна» — §118 п.1, dash would be CORRECT
+        h = self._handler()
+        tokens = [
+            _tok(
+                "Ударил",
+                "VERB",
+                lemma="ударить",
+                idx=0,
+                dep_rel="root",
+                features={"Aspect": "Perf", "Tense": "Past", "VerbForm": "Fin"},
+            ),
+            _tok("гром", "NOUN", idx=1, dep_rel="nsubj", head_idx=0),
+            _tok(",", "PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok(
+                "задрожали",
+                "VERB",
+                lemma="задрожать",
+                idx=3,
+                dep_rel="parataxis",
+                head_idx=0,
+                features={"Aspect": "Perf", "Tense": "Past", "VerbForm": "Fin"},
+            ),
+            _tok("окна", "NOUN", idx=4, dep_rel="nsubj", head_idx=3),
+            _tok(".", "PUNCT", idx=5, dep_rel="punct", head_idx=0),
+        ]
+        assert not h.can_apply(tokens, 2)
+
+    def test_skips_negated_second_clause(self):
+        # «шныряли по лесу , нет зверя» — §118 п.2 contrast shape
+        h = self._handler()
+        tokens = self._stative_bsp()
+        tokens[6] = _tok("не", "PART", idx=6, dep_rel="advmod", head_idx=5)
+        assert not h.can_apply(tokens, 3)
+
+    def test_skips_speech_first_predicate(self):
+        # «Овца же говорит , она спала» — §118 п.7 изъяснительное
+        h = self._handler()
+        tokens = self._stative_bsp()
+        tokens[2] = _tok(
+            "говорит",
+            "VERB",
+            lemma="говорить",
+            idx=2,
+            dep_rel="root",
+            features={"Aspect": "Imp", "Tense": "Pres", "VerbForm": "Fin"},
+        )
+        assert not h.can_apply(tokens, 3)
+
+    def test_skips_eto_opener(self):
+        # second clause opening with «это» — §118 п.8 присоединительное
+        h = self._handler()
+        tokens = self._stative_bsp()
+        tokens[4] = _tok("это", "PRON", idx=4, dep_rel="nsubj", head_idx=5)
+        assert not h.can_apply(tokens, 3)
+
+    def test_skips_subjectless_first_clause(self):
+        # «Победим , дом построишь» shapes — §118 п.4/5 condition/time
+        h = self._handler()
+        tokens = self._stative_bsp()
+        tokens[0] = _tok("Вчера", "ADV", idx=0, dep_rel="advmod", head_idx=2)
+        assert not h.can_apply(tokens, 3)
+
+    def test_skips_junction_with_conjunction(self):
+        # «День был серый , и небо висело низко» — ССП, not БСП
+        h = self._handler()
+        tokens = [
+            _tok("День", "NOUN", idx=0, dep_rel="nsubj", head_idx=2),
+            _tok("был", "AUX", idx=1, dep_rel="cop", head_idx=2),
+            _tok("серый", "ADJ", idx=2, dep_rel="root"),
+            _tok(",", "PUNCT", idx=3, dep_rel="punct", head_idx=6),
+            _tok("и", "CCONJ", idx=4, dep_rel="cc", head_idx=6),
+            _tok("небо", "NOUN", idx=5, dep_rel="nsubj", head_idx=6),
+            _tok(
+                "висело",
+                "VERB",
+                lemma="висеть",
+                idx=6,
+                dep_rel="conj",
+                head_idx=2,
+                features={"Aspect": "Imp", "Tense": "Past", "VerbForm": "Fin"},
+            ),
+            _tok(".", "PUNCT", idx=7, dep_rel="punct", head_idx=2),
+        ]
+        assert not h.can_apply(tokens, 3)

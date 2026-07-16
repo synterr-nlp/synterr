@@ -176,7 +176,15 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     ),
     "Тире при приложении": ("dash_delete", "dash_other"),
     "Тире между подлежащим и сказуемым": ("dash_delete", "dash_subj_pred"),
-    "Тире в бессоюзных предложениях": ("dash_delete", "dash_asyndetic"),
+    # BIDIRECTIONAL (v5): the benchmark items need dash INSERTION by the
+    # model ([delete] corruption side); [insert] mirrors it so the remove
+    # direction is not suppressed (comma_to_dash = spurious §118 dash at a
+    # §116 comma junction).
+    "Тире в бессоюзных предложениях [delete]": ("dash_delete", "dash_asyndetic"),
+    "Тире в бессоюзных предложениях [insert]": (
+        "comma_to_dash",
+        "comma_to_dash_asyndetic",
+    ),
     "Запятая на стыке двух союзов": ("comma_insert", "comma_between_conjunctions"),
 }
 

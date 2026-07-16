@@ -64,6 +64,7 @@ weights:
   comma_insert: 0.0
   dash_delete: 0.0
   dash_to_comma: 0.0
+  comma_to_dash: 0.0
 
   # Function word spelling (not separately attested in RULEC; estimated)
   function_spelling: 0.05

@@ -37,6 +37,9 @@ weights:
   # dash_to_comma: substitution variant of §93 appos (тире→запятая, common L1 form)
   dash_to_comma: 0.0208         # 1/48
 
+  # comma_to_dash: [insert] twin of «Тире в бессоюзных» (§116 comma → spurious dash)
+  comma_to_dash: 0.0208
+
   # numeral_declension: 2 rules
   #   - полтора/полторы/полтораста: two-form (Nom/Acc ↔ oblique) confusion
   #   - количественные числительных: oblique general cardinal fails to decline,
