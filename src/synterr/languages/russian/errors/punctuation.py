@@ -1670,6 +1670,9 @@ _BSP_COGNITION_LEMMAS = frozenset(
         "почувствовать",
         "думать",
         "подумать",
+        "полагать",
+        "считать",
+        "посчитать",
         "казаться",
         "показаться",
         "замечать",
@@ -1677,13 +1680,47 @@ _BSP_COGNITION_LEMMAS = frozenset(
         "помнить",
         "вспомнить",
         "знать",
+        # attribution verbs common in news prose (SPEECH_VERB_LEMMAS misses
+        # these; first review pass leaked «указал»/«полагают» junctions)
+        "указывать",
+        "указать",
+        "подчеркивать",
+        "подчеркнуть",
+        "добавлять",
+        "добавить",
+        "отвечать",
+        "ответить",
+        "рассказывать",
+        "рассказать",
+        "напоминать",
+        "напомнить",
     }
 )
 
-# §118 п.8: a second clause opening with a connective pronoun is exactly the
-# присоединительное reading where the dash IS correct.
+# closing quotes: a comma right after direct speech is the «П», — а
+# attribution frame, where the DASH is the correct mark (§ прямая речь)
+_BSP_CLOSING_QUOTES = frozenset({"»", '"', "'", "“", "”", "„"})
+
+# §118 п.8 / п.3: a second clause opening with a connective pronoun
+# (присоединительное) or a consequence connective (следствие) is exactly
+# where the dash IS correct or defensible. «при этом» is caught as a
+# bigram in can_apply.
 _BSP_CLAUSE2_OPENER_SKIP = frozenset(
-    {"это", "так", "таков", "такова", "таково", "таковы"}
+    {
+        "это",
+        "так",
+        "таков",
+        "такова",
+        "таково",
+        "таковы",
+        "поэтому",
+        "значит",
+        "следовательно",
+        "тогда",
+        "однако",
+        "зато",
+        "впрочем",
+    }
 )
 
 
@@ -1757,6 +1794,10 @@ class CommaToDashHandler:
         tok = tokens[idx]
         if tok.pos != "PUNCT" or tok.text != ",":
             return False
+        # direct-speech attribution («П», — а): the dash after the closing
+        # quote is CORRECT — never corrupt that junction
+        if tokens[idx - 1].text in _BSP_CLOSING_QUOTES:
+            return False
         if _classify_comma(tokens, idx) != "comma_asyndetic":
             return False
         if tok.head_idx is None or not (0 <= tok.head_idx < len(tokens)):
@@ -1773,18 +1814,40 @@ class CommaToDashHandler:
             return False
         if not self._predicate_is_stative(tokens, second):
             return False
-        first_lemma = (first.lemma or "").lower()
-        if first_lemma in SPEECH_VERB_LEMMAS or first_lemma in _BSP_COGNITION_LEMMAS:
+        # §117 п.2/§118 п.7: any speech/cognition verb BEFORE the junction —
+        # not just the first clause's head — signals the изъяснительное
+        # frame («полагают, что достаточно X, АОК требует больше»: the
+        # embedding verb governs the whole left context). Overbroad on
+        # attribution-heavy news prose by design: skip > mislabel.
+        for j in range(idx):
+            lem = (tokens[j].lemma or "").lower()
+            if lem in SPEECH_VERB_LEMMAS or lem in _BSP_COGNITION_LEMMAS:
+                return False
+        # ...and a speech/cognition SECOND predicate is the quoteless
+        # «П, — а» attribution frame («недоказуем, — замечает корреспондент»)
+        # where the dash is correct
+        second_lemma = (second.lemma or "").lower()
+        if second_lemma in SPEECH_VERB_LEMMAS or second_lemma in _BSP_COGNITION_LEMMAS:
+            return False
+        # §118 п.2 contrast rides negation on EITHER side of the junction
+        # («сведений нет — однако…», «шныряли — нет зверя»); whole-sentence
+        # scan, deliberately overbroad
+        if any(t.text.lower() in ("не", "нет") for t in tokens):
             return False
         # clause 2 = comma to the end of the second predicate's subtree
         _, second_hi = _get_subtree_span(tokens, second.idx)
         opener_seen = False
         for j in range(idx + 1, min(second_hi + 1, len(tokens))):
             t_lower = tokens[j].text.lower()
-            if t_lower in ("не", "нет"):
-                return False
             if not opener_seen and tokens[j].pos != "PUNCT":
                 if t_lower in _BSP_CLAUSE2_OPENER_SKIP:
+                    return False
+                # «при этом» — §118 п.8-adjacent connective, caught as bigram
+                if (
+                    t_lower == "при"
+                    and j + 1 < len(tokens)
+                    and tokens[j + 1].text.lower() == "этом"
+                ):
                     return False
                 opener_seen = True
         return True
