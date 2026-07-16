@@ -126,9 +126,16 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
         "comma_insert",
         "comma_in_indivisible",
     ),
-    "Знаки препинания в предложениях с однородными членами: пары": (
+    # BIDIRECTIONAL (v5): the benchmark's 20/20 «пары» items need comma
+    # REMOVAL by the model, so [insert] carries the tested direction;
+    # [delete] keeps the add-comma signal for the same rule family.
+    "Знаки препинания в предложениях с однородными членами: пары [delete]": (
         "comma_delete",
         "comma_homogeneous",
+    ),
+    "Знаки препинания в предложениях с однородными членами: пары [insert]": (
+        "comma_insert",
+        "comma_paired_conj",
     ),
     "Обособление деепричастий после союзов": ("comma_pair_delete", "pair_gerund"),
     # BIDIRECTIONAL comma rules (v5): [delete] = corruption removes a required

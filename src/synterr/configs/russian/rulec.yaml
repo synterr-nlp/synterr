@@ -102,6 +102,7 @@ subtype_weights:
   # handler DEFAULT weights.
   comma_insert:
     comma_homogeneous_conj: 25      # §86 п.1 — workhorse
+    comma_paired_conj: 8            # §87.5 прим./§87.7 — tight «A и B и C» chains
     comma_subj_pred: 20             # heavy-NP pause comma — workhorse
     comma_pseudo_parenthetical: 18  # §99 п.2 Прим. (single-comma MVP)
     comma_compound_conj_split: 4    # §108 Прим.

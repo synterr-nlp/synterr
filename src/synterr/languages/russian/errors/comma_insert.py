@@ -510,6 +510,79 @@ def _can_insert_homogeneous_conj(tokens: Sequence[AnalyzedToken], idx: int) -> b
 
 
 # =============================================================================
+# NP-level «пары» chains (§87.5 примечание / §87.7): «соль и перец и масло»
+# =============================================================================
+
+# Conjunct POS classes eligible for the пары pattern. Nominal chains and
+# adjectival chains only — clausal conjuncts belong to comma_clause_junction.
+_PAIRED_CONJ_NOMINAL = frozenset({"NOUN", "PROPN"})
+
+
+def _can_insert_paired_conj(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+    """§87.5 прим. / §87.7: comma into a tight «A и B и C» noun-phrase chain.
+
+    The norm writes tightly-grouped three-member chains without commas
+    («наука и техника и оперативность» — two members forming a pair,
+    joined by «и» to a third). Writers who misread the chain as a
+    repeating union (§87 main rule) comma both conjunctions — that
+    spurious comma is this subtype's corruption, and the direction the
+    «пары» benchmark rule tests (20/20 items need comma deletion).
+
+    Disambiguation rests on the clean-source premise: a *correct*
+    sentence shaped «A и B и C» with no commas cannot be a repeating
+    union (§87 would demand commas there), so the no-comma tight-group
+    reading is the only normative parse. Accepted risk: a dirty source
+    that itself omitted required repeating-union commas gets its error
+    reinforced rather than injected — same risk class as the other
+    Jul-2 insert subtypes, mitigated by the exactly-three-conjuncts
+    gate (real repeating unions run longer more often than pairs do).
+
+    Gates, in order: the token is a lowercase «и» with dep_rel=cc whose
+    head is a non-clausal conj; the coordination has EXACTLY three
+    conjuncts, all NOUN/PROPN or all ADJ, none clausal; every non-first
+    conjunct is introduced by bare «и» (no да/или/ни mixes, no
+    cc:preconj — a leading conjunction signals the §87-main or §87.3
+    frozen-pair patterns where commas are correct or the phrase is
+    untouchable); no «и»/«ни» immediately before the first conjunct
+    (same reason); and no punctuation of any kind inside the chain span
+    (§87.7 writes commas BETWEEN pair groups — those sites are correct
+    as written and must not double-punctuate).
+    """
+    token = tokens[idx]
+    if token.text != "и" or token.dep_rel != "cc":
+        return False
+    if idx == 0 or tokens[idx - 1].text == ",":
+        return False
+    if token.head_idx is None or not (0 <= token.head_idx < len(tokens)):
+        return False
+    head = tokens[token.head_idx]
+    if head.dep_rel != "conj" or _is_clausal_head(head, tokens):
+        return False
+    family = _coordination_family(tokens, head)
+    if family is None or len(family) != 3:
+        return False
+    fam_tokens = [tokens[i] for i in sorted(family)]
+    poses = {t.pos for t in fam_tokens}
+    if not (poses <= _PAIRED_CONJ_NOMINAL or poses == {"ADJ"}):
+        return False
+    if any(_is_clausal_head(t, tokens) for t in fam_tokens):
+        return False
+    ccs = [t for t in tokens if t.head_idx in family and t.dep_rel == "cc"]
+    if len(ccs) != 2 or any(t.text != "и" for t in ccs):
+        return False
+    if any(t.head_idx in family and t.dep_rel == "cc:preconj" for t in tokens):
+        return False
+    first = min(family)
+    last = max(family)
+    if first > 0 and tokens[first - 1].text.lower() in ("и", "ни"):
+        return False
+    for i in range(first, last + 1):
+        if tokens[i].pos == "PUNCT" or tokens[i].text in _PUNCT_CHARS:
+            return False
+    return True
+
+
+# =============================================================================
 # Comma between subject group and predicate (§79-zone; nothing licenses it)
 # =============================================================================
 
@@ -850,6 +923,7 @@ class CommaInsertHandler:
     - comma_in_indivisible: insert comma inside indivisible expressions
     - comma_clause_junction: insert comma before clause-joining cc (§104/§109)
     - comma_homogeneous_conj: comma before single и between homogeneous members (§86)
+    - comma_paired_conj: commas into tight «A и B и C» NP chains (§87.5 прим./§87.7)
     - comma_subj_pred: comma between heavy subject NP and predicate
     - comma_pseudo_parenthetical: bracket never-вводные words (§99 п.2 Прим.)
     - comma_after_odnako: comma after sentence-initial однако (§99 п.7)
@@ -866,6 +940,7 @@ class CommaInsertHandler:
         "comma_in_indivisible",
         "comma_clause_junction",
         "comma_homogeneous_conj",
+        "comma_paired_conj",
         "comma_subj_pred",
         "comma_pseudo_parenthetical",
         "comma_after_odnako",
@@ -884,6 +959,7 @@ class CommaInsertHandler:
         "comma_in_indivisible": 15,
         "comma_clause_junction": 20,
         "comma_homogeneous_conj": 30,
+        "comma_paired_conj": 12,
         "comma_subj_pred": 20,
         "comma_pseudo_parenthetical": 15,
         "comma_after_odnako": 8,
@@ -983,6 +1059,9 @@ class CommaInsertHandler:
         if _can_insert_homogeneous_conj(tokens, idx):
             detected.append("comma_homogeneous_conj")
 
+        if _can_insert_paired_conj(tokens, idx):
+            detected.append("comma_paired_conj")
+
         if _can_insert_subj_pred(tokens, idx):
             detected.append("comma_subj_pred")
 
@@ -1047,6 +1126,8 @@ class CommaInsertHandler:
             return self._insert_in_indivisible(sentence, idx, tokens)
         elif chosen == "comma_homogeneous_conj":
             return self._insert_homogeneous_conj(sentence, idx)
+        elif chosen == "comma_paired_conj":
+            return self._insert_paired_conj(sentence, idx)
         elif chosen == "comma_subj_pred":
             return self._insert_subj_pred(sentence, idx, tokens)
         elif chosen == "comma_pseudo_parenthetical":
@@ -1166,6 +1247,24 @@ class CommaInsertHandler:
         sentence.insert(idx, ",")
         return ErrorResult(
             error_type="comma_insert_comma_homogeneous_conj",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original="",
+            corrupted=",",
+            fix_tag="$DELETE",
+        )
+
+    def _insert_paired_conj(self, sentence: list[str], idx: int) -> ErrorResult | None:
+        """Insert comma before «и» in a tight NP chain: соль и перец → соль , и перец.
+
+        Fires once per «и» site; a sentence corrupted at both sites (the
+        full benchmark shape «A , и B , и C») arises when the pipeline
+        applies the subtype at each junction.
+        """
+        sentence.insert(idx, ",")
+        return ErrorResult(
+            error_type="comma_insert_comma_paired_conj",
             category=self.category,
             start_idx=idx,
             end_idx=idx + 1,

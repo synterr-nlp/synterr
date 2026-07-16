@@ -1207,6 +1207,11 @@ mappings:
     primary: pu_comma
     modifier: Extra
     l2_tag: pu_comma_homogeneous
+  # §87.5 прим. / §87.7: spurious commas in tight «A и B и C» NP chains (пары)
+  comma_paired_conj:
+    primary: pu_comma
+    modifier: Extra
+    l2_tag: pu_comma_homogeneous
   # No § licenses a comma at the subject–predicate junction (§79 is dash-or-nothing
   # territory) — primary-only, no fine-grained child fits
   comma_subj_pred:

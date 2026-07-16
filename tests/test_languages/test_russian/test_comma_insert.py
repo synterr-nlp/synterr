@@ -35,7 +35,7 @@ class TestProtocol:
         assert self.handler.name == "comma_insert"
         assert self.handler.category == "PUNCT"
         assert self.handler.changes_length is True
-        assert len(self.handler.subtypes) == 11
+        assert len(self.handler.subtypes) == 12
 
     def test_every_subtype_has_default_weight(self):
         assert set(self.handler.DEFAULT_WEIGHTS) == set(self.handler.subtypes)
@@ -1094,3 +1094,134 @@ class TestZeroWeightExclusion:
         tokens = _homogeneous_tokens()
         sentence = [t.text for t in tokens]
         assert h.apply(tokens, sentence, 3, set(), rng=Random(42)) is None
+
+
+def _paired_np_tokens():
+    """«Добавить яблоко и грушу и корицу .» — tight three-noun chain, no commas."""
+    return [
+        _tok("Добавить", pos="VERB", idx=0, dep_rel="root"),
+        _tok("яблоко", pos="NOUN", idx=1, dep_rel="obj", head_idx=0),
+        _tok("и", pos="CCONJ", idx=2, dep_rel="cc", head_idx=3),
+        _tok("грушу", pos="NOUN", idx=3, dep_rel="conj", head_idx=1),
+        _tok("и", pos="CCONJ", idx=4, dep_rel="cc", head_idx=5),
+        _tok("корицу", pos="NOUN", idx=5, dep_rel="conj", head_idx=1),
+        _tok(".", pos="PUNCT", idx=6, dep_rel="punct", head_idx=0),
+    ]
+
+
+class TestCommaPairedConj:
+    """§87.5 прим./§87.7: commas into tight «A и B и C» NP chains («пары»)."""
+
+    def test_fires_at_both_conjunction_sites(self):
+        h = _force_subtype("comma_paired_conj")
+        tokens = _paired_np_tokens()
+        assert h.can_apply(tokens, 2)
+        assert h.can_apply(tokens, 4)
+
+    def test_insert_produces_comma_before_i(self):
+        h = _force_subtype("comma_paired_conj")
+        tokens = _paired_np_tokens()
+        sentence = [t.text for t in tokens]
+        result = h.apply(tokens, sentence, 2, set(), rng=Random(42))
+        assert result is not None
+        assert result.error_type == "comma_insert_comma_paired_conj"
+        assert result.fix_tag == "$DELETE"
+        assert sentence[:4] == ["Добавить", "яблоко", ",", "и"]
+
+    def test_skips_two_member_chain(self):
+        # «яблоко и грушу» — no third member: §86 single-conj territory
+        # (comma_homogeneous_conj), so paired_conj must NOT claim the site
+        h = _force_subtype("comma_paired_conj")
+        h.set_enabled_subtypes({"comma_paired_conj"})
+        tokens = [
+            _tok("Добавить", pos="VERB", idx=0, dep_rel="root"),
+            _tok("яблоко", pos="NOUN", idx=1, dep_rel="obj", head_idx=0),
+            _tok("и", pos="CCONJ", idx=2, dep_rel="cc", head_idx=3),
+            _tok("грушу", pos="NOUN", idx=3, dep_rel="conj", head_idx=1),
+        ]
+        sentence = [t.text for t in tokens]
+        assert h.apply(tokens, sentence, 2, set(), rng=Random(42)) is None
+
+    def test_skips_four_member_chain(self):
+        # longer chains read as genuine repeating unions — precision gate
+        h = _force_subtype("comma_paired_conj")
+        tokens = [
+            *_paired_np_tokens()[:-1],
+            _tok("и", pos="CCONJ", idx=6, dep_rel="cc", head_idx=7),
+            _tok("ваниль", pos="NOUN", idx=7, dep_rel="conj", head_idx=1),
+            _tok(".", pos="PUNCT", idx=8, dep_rel="punct", head_idx=0),
+        ]
+        assert not h.can_apply(tokens, 2)
+        assert not h.can_apply(tokens, 4)
+
+    def test_skips_existing_comma_in_span(self):
+        # «астры , и циннии и записку» — §87-main repeating union as written
+        h = _force_subtype("comma_paired_conj")
+        tokens = [
+            _tok("Принесли", pos="VERB", idx=0, dep_rel="root"),
+            _tok("астры", pos="NOUN", idx=1, dep_rel="obj", head_idx=0),
+            _tok(",", pos="PUNCT", idx=2, dep_rel="punct", head_idx=3),
+            _tok("и", pos="CCONJ", idx=3, dep_rel="cc", head_idx=4),
+            _tok("циннии", pos="NOUN", idx=4, dep_rel="conj", head_idx=1),
+            _tok("и", pos="CCONJ", idx=5, dep_rel="cc", head_idx=6),
+            _tok("записку", pos="NOUN", idx=6, dep_rel="conj", head_idx=1),
+        ]
+        assert not h.can_apply(tokens, 5)
+
+    def test_skips_leading_conjunction(self):
+        # «и стар и млад и молод» — §87.3/§87-main leading-и patterns
+        h = _force_subtype("comma_paired_conj")
+        tokens = [
+            _tok("и", pos="PART", idx=0, dep_rel="advmod", head_idx=1),
+            _tok("хлеб", pos="NOUN", idx=1, dep_rel="nsubj", head_idx=6),
+            _tok("и", pos="CCONJ", idx=2, dep_rel="cc", head_idx=3),
+            _tok("соль", pos="NOUN", idx=3, dep_rel="conj", head_idx=1),
+            _tok("и", pos="CCONJ", idx=4, dep_rel="cc", head_idx=5),
+            _tok("вода", pos="NOUN", idx=5, dep_rel="conj", head_idx=1),
+            _tok("нужны", pos="ADJ", idx=6, dep_rel="root"),
+        ]
+        assert not h.can_apply(tokens, 2)
+        assert not h.can_apply(tokens, 4)
+
+    def test_skips_clausal_conjuncts(self):
+        # verb conjuncts are clause junctions, not NP chains
+        h = _force_subtype("comma_paired_conj")
+        tokens = [
+            _tok("Он", pos="PRON", idx=0, dep_rel="nsubj", head_idx=1),
+            _tok("пришёл", pos="VERB", idx=1, dep_rel="root"),
+            _tok("и", pos="CCONJ", idx=2, dep_rel="cc", head_idx=3),
+            _tok("увидел", pos="VERB", idx=3, dep_rel="conj", head_idx=1),
+            _tok("и", pos="CCONJ", idx=4, dep_rel="cc", head_idx=5),
+            _tok("победил", pos="VERB", idx=5, dep_rel="conj", head_idx=1),
+        ]
+        assert not h.can_apply(tokens, 2)
+        assert not h.can_apply(tokens, 4)
+
+    def test_skips_mixed_conjunctions(self):
+        # «яблоко и грушу да корицу» — not a pure «и» chain
+        h = _force_subtype("comma_paired_conj")
+        tokens = _paired_np_tokens()
+        tokens[4] = _tok("да", pos="CCONJ", idx=4, dep_rel="cc", head_idx=5)
+        assert not h.can_apply(tokens, 2)
+
+    def test_allows_adjective_chain(self):
+        # all-ADJ chains are AdjP-level пары («тихий и тёмный и пустой двор»)
+        h = _force_subtype("comma_paired_conj")
+        tokens = [
+            _tok("тихий", pos="ADJ", idx=0, dep_rel="amod", head_idx=6),
+            _tok("и", pos="CCONJ", idx=1, dep_rel="cc", head_idx=2),
+            _tok("тёмный", pos="ADJ", idx=2, dep_rel="conj", head_idx=0),
+            _tok("и", pos="CCONJ", idx=3, dep_rel="cc", head_idx=4),
+            _tok("пустой", pos="ADJ", idx=4, dep_rel="conj", head_idx=0),
+            _tok("двор", pos="NOUN", idx=5, dep_rel="nsubj", head_idx=6),
+            _tok("спал", pos="VERB", idx=6, dep_rel="root"),
+        ]
+        assert h.can_apply(tokens, 1)
+        assert h.can_apply(tokens, 3)
+
+    def test_homogeneous_conj_does_not_double_fire(self):
+        # the §87 guard in comma_homogeneous_conj must skip пары sites
+        h = _force_subtype("comma_homogeneous_conj")
+        tokens = _paired_np_tokens()
+        sentence = [t.text for t in tokens]
+        assert h.apply(tokens, sentence, 2, set(), rng=Random(42)) is None
