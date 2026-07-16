@@ -31,20 +31,32 @@ numbers re-measured on qwen_sft_v4.jsonl):
 Free bonuses already in main: July-12 generator fixes (four punctuation sites
 freed, compound-term lexicon, morpheme offsets) + schema v1.1 § correctness.
 
-## Workstreams
+## Workstreams (state corrected 2026-07-16 — much more was already done)
 
-- **W1 (#48, in flight)** — finish bidirectional commas. Done: однородные
-  придаточные + СПП с общей частью (f5a8355). Remaining: «пары» rule needs an
-  NP-level insert subtype (comma_clause_junction requires clausal head; «и день
-  и ночь» doesn't trigger). §87 read during the schema walk — incl. the §114
-  цельные-выражения exceptions; ready to implement.
-- **W2 (#49)** — asyndetic clause-clause dash (§116–118, mainly §118), both
-  directions.
-- **W3 (#50)** — pool rebuild with dedup (seeded) + host mining for the three
-  thin rules (Taiga 2.8M + RuBLiMP pool 741K + wiki 200K have the hosts; v4
-  never searched deliberately).
+- **W1 (#48, in flight)** — bidirectional commas. Done: однородные придаточные
+  + СПП с общей частью (f5a8355) **plus SIX delete-direction subtypes since
+  Jul 2** (1544f0b: comma_homogeneous_conj §86, comma_subj_pred,
+  comma_pseudo_parenthetical §99, comma_after_odnako §99.7,
+  comma_compound_conj_split §108, comma_x_ne_x §90 + gera_bidir preset).
+  Remaining: ONLY the «пары» NP-level insert subtype (§87; verified absent
+  2026-07-16 — comma_clause_junction still requires a clausal head).
+- **W2 (#49)** — asyndetic dash: delete-direction (`dash_asyndetic`) exists;
+  remaining = the insert side (spurious dash into asyndetic junctions).
+- **W3 (#50)** — LARGELY DONE since Jun 10 / Jul 2 (the plan's "v4 never
+  searched deliberately" was written from the stale March report):
+  `data/pools/` = 19 seeded per-rule host pools (seed 42, cap 2000, Taiga×3 +
+  RuBLiMP; incl. insk_ensk 480KB, enk_onk, poltora, taki, between_conjunctions,
+  indivisible, set_phrase) + `mine_class_pools.py`/`mine_semgrex.py`/
+  `build_source_mix.py`. Remaining: numeral_declension host pool (only poltora
+  exists; the 8-example rule still needs oblique-case numeral hosts),
+  comma_in_set_phrase boost (28KB = thinnest pool), and a verification pass
+  over pool freshness + the mixed-pool dedup story (build_v4_sources already
+  dedupes via set(); confirm where the 47K figure came from before "fixing").
 - **W4 (stretch, non-blocking)** — §169–170 pronoun handlers (honest gaps found
-  by the v1.1 walk). Take only if W1–W3 finish early; else v6.
+  by the v1.1 walk). NB: night-wave handlers (pronoun_n_form, verb_iterative,
+  agr_sv/agr_mn families) already exist + review bundles (d35feac) — the
+  generator's rule surface is wider than v4's 59 keys; decide at generation
+  time which new keys enter v5.
 - **W5 (#51)** — generate (`--balance-directions`, seeded), write
   `V5_DATA_PROVENANCE.md` BEFORE freeze, run gates, freeze.
 
