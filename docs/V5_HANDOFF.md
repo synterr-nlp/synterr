@@ -97,3 +97,43 @@ the gector-side session and Anna read this file to sync the plan after.
 ## Log
 
 *(executing session appends here: date · task · what landed · commit)*
+
+- **2026-07-16 · Task 1 · DONE · e9625af.** `comma_insert:comma_paired_conj`:
+  fires on tight «A и B и C» chains (exactly 3 non-clausal NOUN/PROPN or ADJ
+  conjuncts, pure bare-«и», no leading и/ни, no punct in span); clean-source
+  premise excludes the §87-main repeating-union reading. Verified end-to-end
+  on three LORuGEC tgt shapes (соль и перец…, наука и техника…, искусства и
+  культуры…) — all corrupt to the benchmark's error form. LORUGEC_RULES rule
+  split into [delete]/[insert] twins (СПП precedent, balance pairing works);
+  weighted lorugec 12 / rulec 8; mapped pu_comma_homogeneous. 10 unit tests.
+  Review bundle: 93 examples from a mined RuBLiMP/mixed candidate file
+  (chain shape ≈ absent from 10k lenta) → tools/review/. Side improvement:
+  generate_review.py now accepts `-e handler:subtype` for sparse subtypes.
+
+- **2026-07-16 · Task 2 · DONE · e4d412c.** New `comma_to_dash` handler
+  (`comma_to_dash_asyndetic`): §116 asyndetic comma → spurious dash, the
+  insert mirror of dash_asyndetic. Sites from the existing comma_asyndetic
+  classifier; §118 exclusions structural: perfective/future predicates
+  (п.1/3/4/5), subjectless clauses (п.4–6), speech/cognition first predicate
+  (§117 п.2/§118 п.7, SPEECH_VERB_LEMMAS + new cognition set), не/нет in
+  clause 2 (п.2, deliberately overbroad — skip > mislabel), это/так openers
+  (п.8). Survives: §116 descriptive imperfective core. Live probe: «Поезд
+  шёл быстро , огни мерцали» → dash ✓; «Он покраснел : ему было стыдно»
+  refused ✓. «Тире в бессоюзных» split into [delete]/[insert] twins.
+  8 unit tests; suite 1390 green.
+
+- **2026-07-16 · Task 4 · MEASURED — the 47K figure is not reproducible.**
+  Every candidate location measured: mixed_sources_v4.txt exact-dup surplus
+  = 181 raw / 595 counting the head-vs-meta anomaly below (top "dups" are
+  corpus junk: «Reuters»×15, «Рис.»×14); scarce∩rublimp input overlap =
+  12,502 (correctly removed by the build); v4∩v3 cross-version = 1,371;
+  qwen_sft_v4 tgt reuse = 4,912 of 39,209. Nothing near 47K ⇒ stale claim.
+  REAL finding instead: the on-disk mixed_sources_v4.txt (155,073 lines)
+  does not match its .meta.json (output_count 149,999) — 5,074 lines sit
+  beyond the meta count, ending in truncated fragments («Дома некоторых
+  из»), and even the first 149,999 lines carry 414 dups, impossible for the
+  current set-based build_v4_sources.py ⇒ the file predates the script or
+  was appended to. Magnitude ≈0.4% — harmless for training source use, but
+  provenance is broken. Recommendation (not done unilaterally: v4 is the
+  paper's historical corpus): rerun build_v4_sources.py (seed 42) before
+  W5 so v5 sources from a file that matches its own metadata.
