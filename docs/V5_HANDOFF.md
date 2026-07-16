@@ -122,6 +122,25 @@ the gector-side session and Anna read this file to sync the plan after.
   refused ✓. «Тире в бессоюзных» split into [delete]/[insert] twins.
   8 unit tests; suite 1390 green.
 
+- **2026-07-16 · Task 2 addendum · bcac56e.** Self-review of comma_to_dash's
+  first lenta bundle found four leak classes; gates extended (attribution
+  lemmas incl. полагать/считать/указать, clause-2 speech predicate =
+  quoteless «П, — а», closing-quote junctions, sentence-wide не/нет,
+  однако/зато/впрочем/при этом openers). Yield 77 → 41 on 10k lenta —
+  every cut was a dash-defensible junction. Suite 1409 green.
+
+- **2026-07-16 · Task 3 · DONE · a193896 (+ merge 71520d5).** Merged the
+  session's mining-first-class branch first (provenance-aware pools; same
+  build_class_patterns surface — avoids a guaranteed conflict).
+  numeral_declension host pool: new oblique-cardinal pattern (gen/dat -и,
+  instr -ью/-мя, oblique tens/hundreds) → 72,579 seen / 2,000 pooled from
+  Taiga×3+RuBLiMP, seed 42. comma_in_set_phrase: _FROZEN_PHRASES completed
+  against §87.3's canonical inventory (+10 pairs; multi-word idioms out —
+  matcher takes one word per half) → pool 193 sentences (~+20%). Honest
+  note: the frozen-phrase class is intrinsically rare in edited news/wiki
+  prose; the real unlock remains the unextracted Subtitles/proza shelf.
+  Full re-mine refreshed all 22 pools with complete per-class provenance.
+
 - **2026-07-16 · Task 4 · MEASURED — the 47K figure is not reproducible.**
   Every candidate location measured: mixed_sources_v4.txt exact-dup surplus
   = 181 raw / 595 counting the head-vs-meta anomaly below (top "dups" are
