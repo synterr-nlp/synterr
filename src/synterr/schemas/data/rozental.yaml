@@ -1051,6 +1051,13 @@ mappings:
     modifier: Miss
     l2_tag: lx_word_missing
 
+  # Syntax handlers (sy_ family — first generator coverage of the SYNT block)
+  # §207 п.1: preposition must repeat under repeating conjunctions
+  prep_repeat:
+    primary: sy_construction
+    modifier: Miss
+    l2_tag: sy_homogeneous
+
   # Orthographic spelling handler subtypes
   pre_pri:
     primary: sp_affix

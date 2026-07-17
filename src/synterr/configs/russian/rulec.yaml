@@ -86,6 +86,9 @@ weights:
   word_omission: 0.146 # insert: 14.6%
   word_insertion: 0.082 # delete: 8.2%
 
+  # Syntax (sy_ family; §207 п.1 — rare construction, precision class)
+  prep_repeat: 0.005
+
 # Subtype weights within handlers
 # These control the distribution of error subtypes when a handler is selected.
 # Values are relative weights (not probabilities) - higher = more likely.
