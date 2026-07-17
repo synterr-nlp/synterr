@@ -31,6 +31,34 @@ numbers re-measured on qwen_sft_v4.jsonl):
 Free bonuses already in main: July-12 generator fixes (four punctuation sites
 freed, compound-term lexicon, morpheme offsets) + schema v1.1 § correctness.
 
+## Status 2026-07-17: W1–W3 COMPLETE (executing session, log in V5_HANDOFF.md)
+
+- **W1 ✓** `e9625af` — `comma_paired_conj` NP-insert subtype (§87 chains,
+  «пары» rule gets its [delete]/[insert] twins). The last suppressed rule is
+  now bidirectional. 10 unit tests + 93-example review bundle.
+- **W2 ✓** `e4d412c` + `bcac56e` — `comma_to_dash_asyndetic` (§116 insert
+  mirror, §117–118 exclusions structural; self-review tightened four leak
+  classes, yield 77→41 on 10k lenta, every cut dash-defensible).
+  «Тире в бессоюзных» split into direction twins. Suite 1409 green.
+- **W3 ✓** `a193896` (+merge `71520d5`) — numeral_declension pool (72,579
+  seen → 2,000 pooled), set-phrase lexicon completed vs §87.3 (+~20% pool;
+  honest note: frozen phrases are intrinsically rare in edited prose — the
+  unlock is the unextracted Subtitles/proza shelf), all 22 pools re-mined
+  with per-class provenance.
+- **W4** — still open stretch (§169–170), unchanged.
+- **«47K duplicates» — MYTH, measured**: nothing near 47K anywhere (worst
+  real number: 12,502 scarce∩rublimp input overlap, correctly removed by the
+  build). REAL finding: on-disk `mixed_sources_v4.txt` (155,073 lines) does
+  not match its own .meta.json (149,999) — 5,074 trailing lines with
+  truncated fragments + 414 dups in the head; file predates the script or
+  was appended to. ~0.4%, harmless for training, but provenance broken ⇒
+  **W5 gains a pre-step: rerun `build_v4_sources.py` (seed 42) so v5 sources
+  from a file matching its own metadata.** (v4 file itself untouched — it's
+  the paper's historical corpus.)
+
+Remaining before freeze: **W5 only** (pool rebuild pre-step → generate →
+provenance → gates), pending the call's size decision.
+
 ## Workstreams (state corrected 2026-07-16 — much more was already done)
 
 - **W1 (#48, in flight)** — bidirectional commas. Done: однородные придаточные
