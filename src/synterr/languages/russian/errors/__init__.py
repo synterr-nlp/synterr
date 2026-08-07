@@ -81,7 +81,10 @@ def get_all_handlers() -> list[ErrorHandler]:
         WordInsertionHandler,
         WordOmissionHandler,
     )
-    from synterr.languages.russian.errors.syntax import PrepRepeatHandler
+    from synterr.languages.russian.errors.syntax import (
+        ParallelMixHandler,
+        PrepRepeatHandler,
+    )
 
     return [
         # Spelling
@@ -143,6 +146,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         WordOmissionHandler(),
         # Syntax (sy_ family)
         PrepRepeatHandler(),
+        ParallelMixHandler(),
         WordInsertionHandler(),
     ]
 

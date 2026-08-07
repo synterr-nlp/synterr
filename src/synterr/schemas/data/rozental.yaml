@@ -1057,6 +1057,10 @@ mappings:
     primary: sy_construction
     modifier: Miss
     l2_tag: sy_homogeneous
+  # §211–212: причастный оборот coordinated with a который-clause
+  parallel_mix:
+    primary: sy_construction
+    l2_tag: sy_parallel
 
   # Orthographic spelling handler subtypes
   pre_pri:

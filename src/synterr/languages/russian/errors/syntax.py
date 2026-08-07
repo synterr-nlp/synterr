@@ -14,6 +14,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.inflector import (
+    UD_TO_PYMORPHY_CASE,
+    UD_TO_PYMORPHY_GENDER,
+    UD_TO_PYMORPHY_NUMBER,
+    inflect_word,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -147,4 +153,175 @@ class PrepRepeatHandler:
             original=deleted,
             corrupted="",
             fix_tag=f"$APPEND_{deleted}",
+        )
+
+
+# =============================================================================
+# parallel_mix (§211–212): причастный оборот coordinated with который-clause
+# =============================================================================
+
+_RELCL_DEPRELS = frozenset({"acl:relcl", "acl"})
+
+
+def _active_participle_for(
+    v_token: AnalyzedToken, noun_token: AnalyzedToken
+) -> str | None:
+    """Active-participle form of ``v_token`` agreeing with ``noun_token``.
+
+    None when the norm provides no form (present participles exist only
+    for imperfectives) or when pymorphy cannot build/inflect it — the
+    handler skips rather than guesses.
+    """
+    parse = v_token.extra.get("pymorphy_parse")
+    if parse is None:
+        return None
+    tense = {"Pres": "pres", "Past": "past"}.get(v_token.get_feature("Tense"))
+    if tense is None:
+        return None
+    if tense == "pres" and v_token.get_feature("Aspect") != "Imp":
+        return None
+
+    prtf = None
+    for form in parse.lexeme:
+        tag = form.tag
+        if "PRTF" in tag and "actv" in tag and tense in tag:
+            prtf = form
+            break
+    if prtf is None:
+        return None
+
+    grammemes: set[str] = set()
+    case = UD_TO_PYMORPHY_CASE.get(noun_token.get_feature("Case"))
+    if case is None:
+        return None
+    grammemes.add(case)
+    number = UD_TO_PYMORPHY_NUMBER.get(noun_token.get_feature("Number"))
+    if number is None:
+        return None
+    grammemes.add(number)
+    if number == "sing":
+        gender = UD_TO_PYMORPHY_GENDER.get(noun_token.get_feature("Gender"))
+        if gender is None:
+            return None
+        grammemes.add(gender)
+    if case == "accs":
+        animacy = {"Anim": "anim", "Inan": "inan"}.get(
+            noun_token.get_feature("Animacy")
+        )
+        if animacy:
+            grammemes.add(animacy)
+    return inflect_word(prtf, grammemes)
+
+
+class ParallelMixHandler:
+    """Mix a причастный оборот into a который-coordination (§211–212).
+
+    Rozental's parallel-construction norm: coordinated attributive
+    clauses must keep one form — two который-clauses or two participial
+    phrases, never one of each. The attested error coordinates them
+    («книга, лежащая на столе и которую я взял»). This handler produces
+    it from the correct two-который shape: «N, который V1 …, и который
+    V2 …» → «N, V1-щий …, и который V2 …».
+
+    Gates: the first «который» must be the nominative subject of its
+    relative clause (only that configuration converts to an ACTIVE
+    participle without argument surgery), adjacent to its verb (MVP —
+    intervening adverbs would need reordering), V1 present-imperfective
+    or past (the norm has no present-perfective participle, §211.1), a
+    second который-clause coordinated via conj on V1, and a real
+    participle obtainable from pymorphy with full agreement (case,
+    number, gender, accusative animacy) against the head noun. Any
+    failure skips.
+    """
+
+    name = "parallel_mix"
+    subtypes = ["parallel_mix"]
+    category = "OTHER"
+    changes_length = True
+
+    def __init__(self) -> None:
+        self._enabled_subtypes: set[str] | None = None
+
+    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
+        if subtypes is not None:
+            invalid = subtypes - set(self.subtypes)
+            if invalid:
+                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
+        self._enabled_subtypes = subtypes
+
+    def _site(
+        self, tokens: Sequence[AnalyzedToken], idx: int
+    ) -> tuple[AnalyzedToken, AnalyzedToken] | None:
+        """(V1, head noun) when idx is a convertible «который», else None."""
+        token = tokens[idx]
+        if (token.lemma or "").lower() != "который" or token.dep_rel != "nsubj":
+            return None
+        if idx == 0 or tokens[idx - 1].text != ",":
+            return None
+        if token.head_idx is None or token.head_idx != idx + 1:
+            return None  # MVP: который directly before its verb
+        v1 = tokens[idx + 1]
+        if v1.pos != "VERB" or v1.dep_rel not in _RELCL_DEPRELS:
+            return None
+        if v1.head_idx is None or not (0 <= v1.head_idx < len(tokens)):
+            return None
+        noun = tokens[v1.head_idx]
+        if noun.pos not in ("NOUN", "PROPN"):
+            return None
+        # the coordinated second который-clause that creates the mixing
+        second = False
+        for t in tokens:
+            if (
+                t.head_idx == v1.idx
+                and t.dep_rel == "conj"
+                and any(
+                    (k.lemma or "").lower() == "который" and k.head_idx == t.idx
+                    for k in tokens
+                )
+            ):
+                second = True
+                break
+        if not second:
+            return None
+        return v1, noun
+
+    def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
+        site = self._site(tokens, idx)
+        if site is None:
+            return False
+        v1, noun = site
+        return _active_participle_for(v1, noun) is not None
+
+    def apply(
+        self,
+        tokens: Sequence[AnalyzedToken],
+        sentence: list[str],
+        idx: int,
+        modified: set[int],
+        rng: Random | None = None,
+    ) -> ErrorResult | None:
+        site = self._site(tokens, idx)
+        if site is None:
+            return None
+        if self._enabled_subtypes is not None and "parallel_mix" not in (
+            self._enabled_subtypes
+        ):
+            return None
+        v1, noun = site
+        participle = _active_participle_for(v1, noun)
+        if participle is None:
+            return None
+
+        original_1 = sentence[idx]
+        original_2 = sentence[idx + 1]
+        sentence[idx] = participle
+        del sentence[idx + 1]
+        return ErrorResult(
+            error_type="parallel_mix",
+            category=self.category,
+            start_idx=idx,
+            end_idx=idx + 1,
+            original=f"{original_1} {original_2}",
+            corrupted=participle,
+            fix_tag=f"$SPLIT_{original_1}_{original_2}",
         )
