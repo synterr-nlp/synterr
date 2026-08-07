@@ -6,6 +6,16 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **SYNT block opened** — first generator coverage of the sy_ tag family:
+  `prep_repeat` (§207 п.1: obligatory repeated preposition dropped from a
+  non-first conjunct under repeating и/ни) and `parallel_mix` (§211–212:
+  причастный оборот coordinated with a который-clause, built from the
+  correct two-который shape with full pymorphy agreement). General word
+  order (§178–182) documented as deliberately out of scope — reordering
+  free word order emits marked-but-grammatical variants, not errors.
+
 ### Changed
 
 - **Neutral targeted-generation surface**: `generate-targeted` now takes
