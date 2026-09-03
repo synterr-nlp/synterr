@@ -17,9 +17,9 @@ single "correct" form corrupted to a "wrong" one. Concretely:
   большой, а маленький" (contrastive negation of "большой") are both
   grammatical; antithesis/contrast context can make the separate spelling
   the *correct* one.
-These pairs are kept (the 2,724-item native annotation pass — see
-memory/artem_annotations_2026-07.md — rated this handler 100% real_error on
-sampled output; the ambiguous contexts above are rare in running text), but a
+These pairs are kept (the 2,724-item native annotation pass rated this
+handler 100% real_error on sampled output; the ambiguous contexts above are
+rare in running text), but a
 future maintainer adding stronger context guards should know these two
 semantic-ambiguity classes are the known false-positive source.
 """
@@ -30,6 +30,7 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import WeightedSubtypeMixin
 from synterr.languages.russian.resources import get_morpheme_analyzer
 
 if TYPE_CHECKING:
@@ -135,10 +136,6 @@ NE_ATTACHABLE_POS = {"NOUN", "ADJ", "ADV", "VERB"}
 # VERB included: "невзлюбил" → "не взлюбил" (§69 exceptions: ненавидеть, негодовать, etc.)
 NE_DETACHABLE_POS = {"ADJ", "NOUN", "ADV", "VERB"}
 
-# -таки: should be hyphenated after certain words
-# Error: remove hyphen or detach
-TAKI_TRIGGER_POS = {"VERB", "ADV", "PART"}
-
 # =============================================================================
 # NEGATIVE PRONOUN не/ни (§47)
 # Closed class of negative-pronoun wordforms (некого/нечего paradigm).
@@ -175,7 +172,7 @@ NEG_PRONOUN_NI: frozenset[str] = frozenset(
 NEG_PRONOUN_FORMS: frozenset[str] = NEG_PRONOUN_NE | NEG_PRONOUN_NI
 
 
-class FunctionSpellingHandler:
+class FunctionSpellingHandler(WeightedSubtypeMixin):
     """Corrupt function word spelling: не/ни, conjunctions, particles.
 
     Subtypes:
@@ -208,29 +205,6 @@ class FunctionSpellingHandler:
         "taki_hyphen": 5,
         "neg_pronoun_ne_ni": 10,
     }
-
-    def __init__(self):
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
-
-        When set, apply() returns None if the weighted choice falls outside
-        the enabled set — letting the pipeline try another position instead
-        of emitting a mislabeled error.
-        """
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]

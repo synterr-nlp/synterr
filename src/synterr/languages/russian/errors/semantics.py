@@ -12,35 +12,22 @@ from __future__ import annotations
 import json
 import random as random_module
 from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
-from synterr.languages.russian.inflector import (
-    UD_TO_PYMORPHY_CASE,
-    UD_TO_PYMORPHY_GENDER,
-    UD_TO_PYMORPHY_NUMBER,
-    inflect_word,
-    match_capitalization,
+from synterr.languages.russian.errors._common import (
+    DATA_DIR,
+    _context_grammemes,
+    _transfer_grammemes,
 )
+from synterr.languages.russian.inflector import inflect_word, match_capitalization
+from synterr.languages.russian.resources import get_morph_analyzer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from random import Random
 
     from synterr.core.protocol import AnalyzedToken
-
-
-def _data_path() -> Path:
-    return Path(__file__).parent.parent.parent.parent / "data" / "russian"
-
-
-@lru_cache(maxsize=1)
-def _morph():
-    """Lazily build a shared pymorphy3 analyzer (heavy to instantiate)."""
-    import pymorphy3
-
-    return pymorphy3.MorphAnalyzer()
 
 
 # Coarse POS classes for matching a replacement's parse to the original
@@ -66,89 +53,6 @@ def _pos_class(pos: str | None) -> str | None:
     return _POS_CLASSES.get(str(pos), str(pos)) if pos else None
 
 
-# Grammemes that may be transferred from the original word's parse to the
-# collocate replacement: POS class plus form-level (inflectional) values.
-# Mirrors the paronym handler's approach (errors/lexical.py, the 98%-precision
-# reference); kept local because that module is separately owned. Transferring
-# the POS grammeme (PRTS/PRTF/...) and voice (actv/pssv) is what keeps a short
-# passive participle a short passive participle: "принято" → "сделано", not
-# the finite "сделало" (2026-07 annotation pass, 20/73 flagged). Lexeme-level
-# grammemes (aspect, transitivity, Qual) must stay behind — the replacement
-# lexeme often lacks them, which would make inflection fail spuriously.
-_TRANSFER_POS = {
-    "NOUN",
-    "ADJF",
-    "ADJS",
-    "COMP",
-    "VERB",
-    "INFN",
-    "PRTF",
-    "PRTS",
-    "GRND",
-    "NUMR",
-    "ADVB",
-}
-_TRANSFER_FORM = {
-    "nomn",
-    "gent",
-    "datv",
-    "accs",
-    "ablt",
-    "loct",
-    "voct",
-    "gen2",
-    "loc2",
-    "sing",
-    "plur",
-    "masc",
-    "femn",
-    "neut",
-    "1per",
-    "2per",
-    "3per",
-    "past",
-    "pres",
-    "futr",
-    "actv",
-    "pssv",
-    "indc",
-    "impr",
-}
-_ANIMACY = {"anim", "inan"}
-
-
-def _transfer_grammemes(parse) -> set[str]:
-    """Form-level grammemes to carry over to the collocate replacement."""
-    grammemes = set(parse.tag.grammemes)
-    transfer = grammemes & (_TRANSFER_POS | _TRANSFER_FORM)
-    if "accs" in transfer:
-        # Accusative surface form depends on animacy; without it pymorphy
-        # would pick an arbitrary anim/inan variant.
-        transfer |= grammemes & _ANIMACY
-    return transfer
-
-
-# UD features whose pymorphy equivalents must survive the swap intact:
-# transferring an undisambiguated parse's case/gender/number would stack a
-# spurious agreement error on top of the intended Lex error.
-_UD_FEATURE_MAPS = (
-    ("Case", UD_TO_PYMORPHY_CASE),
-    ("Number", UD_TO_PYMORPHY_NUMBER),
-    ("Gender", UD_TO_PYMORPHY_GENDER),
-)
-
-
-def _context_grammemes(token: AnalyzedToken) -> set[str]:
-    """pymorphy grammemes implied by stanza's disambiguated features."""
-    wanted: set[str] = set()
-    for feature, mapping in _UD_FEATURE_MAPS:
-        value = token.features.get(feature)
-        grammeme = mapping.get(value) if value is not None else None
-        if grammeme:
-            wanted.add(grammeme)
-    return wanted
-
-
 def _consistent_parses(token: AnalyzedToken, word: str) -> list:
     """Parses of ``word`` consistent with stanza's disambiguated features.
 
@@ -164,7 +68,7 @@ def _consistent_parses(token: AnalyzedToken, word: str) -> list:
     stored = token.extra.get("pymorphy_parse") if token.extra else None
     if stored is not None:
         candidates.append(stored)
-    candidates.extend(_morph().parse(word))
+    candidates.extend(get_morph_analyzer().parse(word))
     return [p for p in candidates if wanted <= set(p.tag.grammemes)]
 
 
@@ -188,7 +92,7 @@ def _inflect_to_match(
     if not grammemes:
         return None
 
-    parses = _morph().parse(wrong_lemma)
+    parses = get_morph_analyzer().parse(wrong_lemma)
     if not parses:
         return None
     target_class = _pos_class(original_parse.tag.POS)
@@ -203,7 +107,7 @@ def _inflect_to_match(
 
 @lru_cache(maxsize=1)
 def _load_pleonasms() -> dict[str, list[dict[str, str]]]:
-    path = _data_path() / "pleonasms.json"
+    path = DATA_DIR / "pleonasms.json"
     if path.exists():
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
@@ -214,7 +118,7 @@ def _load_pleonasms() -> dict[str, list[dict[str, str]]]:
 def _is_preposition(word: str) -> bool:
     """Whether pymorphy reads ``word`` as a preposition (any parse)."""
     try:
-        return any(str(p.tag.POS) == "PREP" for p in _morph().parse(word))
+        return any(str(p.tag.POS) == "PREP" for p in get_morph_analyzer().parse(word))
     except Exception:
         return False
 
@@ -222,7 +126,7 @@ def _is_preposition(word: str) -> bool:
 def _lemmatize(word: str) -> str:
     """Normal form of `word`, lowercased. Falls back to the lowercased word."""
     try:
-        parses = _morph().parse(word)
+        parses = get_morph_analyzer().parse(word)
         if parses:
             return parses[0].normal_form.lower()
     except Exception:
@@ -232,7 +136,7 @@ def _lemmatize(word: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_collocations() -> dict[str, list[dict[str, str]]]:
-    path = _data_path() / "collocations.json"
+    path = DATA_DIR / "collocations.json"
     if not path.exists():
         return {}
     with path.open(encoding="utf-8") as f:
@@ -307,7 +211,7 @@ class PleonasmHandler:
         )
         red_lemmas = {red_first}
         try:
-            for p in _morph().parse(red_first):
+            for p in get_morph_analyzer().parse(red_first):
                 red_lemmas.add(p.normal_form.lower())
         except Exception:
             pass
@@ -349,7 +253,8 @@ class PleonasmHandler:
             return True
         try:
             return any(
-                str(p.tag.POS) == "NUMR" for p in _morph().parse(token.text.lower())
+                str(p.tag.POS) == "NUMR"
+                for p in get_morph_analyzer().parse(token.text.lower())
             )
         except Exception:
             return False
@@ -398,7 +303,7 @@ class PleonasmHandler:
         token = tokens[idx]
         if str(token.pos) not in ("NOUN", "PROPN"):
             return False
-        parses = _morph().parse(redundant)
+        parses = get_morph_analyzer().parse(redundant)
         if not parses or str(parses[0].tag.POS) != "NOUN":
             return False
         nxt = tokens[idx + 1] if idx + 1 < len(tokens) else None
@@ -459,7 +364,7 @@ class PleonasmHandler:
         agreement garbage). Returns None when agreement is required but
         cannot be established — the caller skips the entry.
         """
-        parses = _morph().parse(redundant)
+        parses = get_morph_analyzer().parse(redundant)
         if not parses:
             return redundant
         red_parse = next(

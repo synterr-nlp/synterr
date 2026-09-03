@@ -5,10 +5,16 @@ from __future__ import annotations
 import json
 import random as random_module
 from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import (
+    DATA_DIR,
+    UD_TO_PYMORPHY_ANIMACY,
+    WeightedSubtypeMixin,
+    _get_pymorphy_parse,
+    _get_token_safe,
+)
 from synterr.languages.russian.inflector import (
     CASES,
     GENDERS,
@@ -22,6 +28,7 @@ from synterr.languages.russian.inflector import (
     match_capitalization,
     sample_confused_grammeme,
 )
+from synterr.languages.russian.resources import get_morph_analyzer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -44,29 +51,12 @@ def _is_adj_or_participle(token: AnalyzedToken) -> bool:
 # dep_rels used by participles/adjectives pointing at their head noun
 _MODIFIER_DEPRELS = {"amod", "acl", "acl:relcl"}
 
-# UD Animacy → pymorphy grammeme. The inflector has no animacy map, but the
-# Acc slot of masc-singular and plural adjectives is animacy-ambiguous
-# (взрывотехнический/взрывотехнического), so agreement handlers must pin it.
-_UD_TO_PYMORPHY_ANIMACY = {"Anim": "anim", "Inan": "inan"}
-
 # dep_rels where the head governs the noun's case (government relation)
 _GOVERNED_DEPRELS = {"obl", "nmod", "iobj", "obj"}
 
-# Subject dep_rels. Shared by NounCaseErrorHandler (subject-case subtype) and
-# NounNumberErrorHandler (predicate agreement evidence).
+# Subject dep_rels. Shared by NounCaseErrorHandler (subject-case subtype),
+# NounNumberErrorHandler (predicate agreement evidence) and _find_overt_subject.
 _SUBJECT_DEPRELS = {"nsubj", "nsubj:pass"}
-
-
-def _get_pymorphy_parse(token: AnalyzedToken):
-    """Get pymorphy parse object from token."""
-    return token.extra.get("pymorphy_parse")
-
-
-def _get_token_safe(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
-    """Safely get token by index, returning None if out of bounds."""
-    if 0 <= idx < len(tokens):
-        return tokens[idx]
-    return None
 
 
 def _find_dependent(
@@ -80,15 +70,13 @@ def _find_dependent(
 
 
 # Small hand-curated lexicons for §150/§154/§155 handlers, bundled under
-# synterr/data/russian/ alongside the other language resources (paronyms,
-# collocations, ...). Loaded lazily and cached: these files are tiny and
+# synterr/data/russian/. Loaded lazily and cached: these files are tiny and
 # rarely change, so a process-lifetime cache is appropriate.
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "russian"
 
 
 def _load_json_resource(filename: str) -> dict:
     """Load a bundled JSON data file, or {} if it is missing."""
-    path = _DATA_DIR / filename
+    path = DATA_DIR / filename
     if not path.exists():
         return {}
     with path.open(encoding="utf-8") as f:
@@ -132,7 +120,7 @@ def _under_negated_predicate(
     return _has_neg_particle(tokens, token.head_idx)
 
 
-class NounCaseErrorHandler:
+class NounCaseErrorHandler(WeightedSubtypeMixin):
     """Change noun case to create morphological error.
 
     Arc-aware subtypes (phase 2 of the dep-arc plan): the noun's own dep_rel
@@ -166,26 +154,11 @@ class NounCaseErrorHandler:
     }
 
     def __init__(self) -> None:
+        super().__init__()
         self._confusion_matrices: dict | None = None
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
 
     def set_confusion_matrix(self, matrices: dict) -> None:
         self._confusion_matrices = matrices
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype)."""
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     @staticmethod
     def _classify(token: AnalyzedToken) -> str | None:
@@ -469,7 +442,7 @@ def _animacy_grammeme(token: AnalyzedToken, head: AnalyzedToken | None) -> str |
     for source in (head, token):
         if source is None:
             continue
-        animacy = _UD_TO_PYMORPHY_ANIMACY.get(source.get_feature("Animacy"))
+        animacy = UD_TO_PYMORPHY_ANIMACY.get(source.get_feature("Animacy"))
         if animacy is None:
             parse = _get_pymorphy_parse(source)
             animacy = getattr(parse.tag, "animacy", None) if parse else None
@@ -842,8 +815,6 @@ class AdjGenderErrorHandler:
         return None
 
 
-_SUBJECT_NSUBJ_DEPRELS = {"nsubj", "nsubj:pass"}
-
 # Subject lemmas with which Rozental §183–184 explicitly permit both singular
 # and plural predicates (большинство студентов пришло/пришли, ряд делегатов
 # участвовал/участвовали) — flipping the predicate's number there is a
@@ -873,7 +844,7 @@ def _find_overt_subject(
 ) -> tuple[int, AnalyzedToken] | None:
     """Find the verb's overt subject (nsubj / nsubj:pass) with its position."""
     for i, token in enumerate(tokens):
-        if token.head_idx == verb_idx and token.dep_rel in _SUBJECT_NSUBJ_DEPRELS:
+        if token.head_idx == verb_idx and token.dep_rel in _SUBJECT_DEPRELS:
             return i, token
     return None
 
@@ -1284,13 +1255,13 @@ def _is_dominant_lemma_reading(surface: str, lemma: str) -> bool:
     against. The failure mode is a *dominated* reading, where the intended
     lemma is far down pymorphy's ranking and a completely different, more
     salient word wins (полу -> поле: "пол" scores ~0.01 against "поле"
-    (field) at ~0.47). ``_morph()`` is defined later in this module (shared
+    (field) at ~0.47). ``get_morph_analyzer()`` is defined later in this module (shared
     with the о/а-iterative and short-form handlers) but, like those, is only
     called at apply time, once the module is fully loaded.
     """
     own_best = 0.0
     other_best = 0.0
-    for candidate in _morph().parse(surface):
+    for candidate in get_morph_analyzer().parse(surface):
         score = float(candidate.score)
         if candidate.normal_form == lemma:
             own_best = max(own_best, score)
@@ -2152,20 +2123,6 @@ class NegGenitiveErrorHandler:
         )
 
 
-@lru_cache(maxsize=1)
-def _morph():
-    """Lazily build a shared pymorphy3 analyzer (heavy to instantiate).
-
-    Same idiom as errors/semantics.py's ``_morph()``: the token-attached
-    ``pymorphy_parse`` extra only covers the word actually in the sentence,
-    but the three handlers below need to re-parse a *candidate* corrupted
-    surface (not yet in any token) to confirm pymorphy still recognizes it.
-    """
-    import pymorphy3
-
-    return pymorphy3.MorphAnalyzer()
-
-
 # =============================================================================
 # Iterative-suffix о/а variant (обусловливать <-> обуславливать, §172.2)
 # =============================================================================
@@ -2288,7 +2245,7 @@ class VerbIterativeSuffixHandler:
             return None
 
         wanted_profile = _verb_grammeme_profile(parse.tag)
-        for candidate in _morph().parse(new_word):
+        for candidate in get_morph_analyzer().parse(new_word):
             if _verb_grammeme_profile(candidate.tag) == wanted_profile:
                 return new_word
         return None
@@ -2493,7 +2450,7 @@ class AdjShortEnEnenHandler:
 
     @staticmethod
     def _is_valid_marked_form(marked: str) -> bool:
-        for candidate in _morph().parse(marked):
+        for candidate in get_morph_analyzer().parse(marked):
             tag = candidate.tag
             if tag.POS == "ADJS" and "masc" in tag and "sing" in tag:
                 return True

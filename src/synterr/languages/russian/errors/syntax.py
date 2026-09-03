@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import SubtypeGateMixin
 from synterr.languages.russian.inflector import (
     UD_TO_PYMORPHY_CASE,
     UD_TO_PYMORPHY_GENDER,
@@ -56,7 +57,7 @@ def _repeating_conj_count(tokens: Sequence[AnalyzedToken], family: set[int]) -> 
     )
 
 
-class PrepRepeatHandler:
+class PrepRepeatHandler(SubtypeGateMixin):
     """Drop an obligatory repeated preposition (§207 п.1).
 
     With repeating conjunctions the preposition must repeat before every
@@ -78,16 +79,6 @@ class PrepRepeatHandler:
     subtypes = ["prep_repeat"]
     category = "OTHER"
     changes_length = True
-
-    def __init__(self) -> None:
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]
@@ -213,7 +204,7 @@ def _active_participle_for(
     return inflect_word(prtf, grammemes)
 
 
-class ParallelMixHandler:
+class ParallelMixHandler(SubtypeGateMixin):
     """Mix a причастный оборот into a который-coordination (§211–212).
 
     Rozental's parallel-construction norm: coordinated attributive
@@ -238,16 +229,6 @@ class ParallelMixHandler:
     subtypes = ["parallel_mix"]
     category = "OTHER"
     changes_length = True
-
-    def __init__(self) -> None:
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def _site(
         self, tokens: Sequence[AnalyzedToken], idx: int

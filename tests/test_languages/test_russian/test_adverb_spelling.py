@@ -1,22 +1,15 @@
 """Tests for AdverbSpellingHandler — solid/separate/hyphen confusion."""
 
+from functools import partial
 from random import Random
 
 import pytest
 
-from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.adverb_spelling import AdverbSpellingHandler
 
+from .helpers import make_token
 
-def _tok(text, pos="ADV", lemma=None, idx=0, head_idx=None, features=None):
-    return AnalyzedToken(
-        text=text,
-        lemma=lemma or text.lower(),
-        pos=pos,
-        features=features or {},
-        idx=idx,
-        head_idx=head_idx,
-    )
+_tok = partial(make_token, pos="ADV")
 
 
 class TestProtocol:

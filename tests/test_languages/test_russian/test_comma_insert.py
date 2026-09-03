@@ -2,22 +2,9 @@
 
 from random import Random
 
-from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.comma_insert import CommaInsertHandler
 
-
-def _tok(
-    text, pos="NOUN", lemma=None, idx=0, dep_rel=None, head_idx=None, features=None
-):
-    return AnalyzedToken(
-        text=text,
-        lemma=lemma or text.lower(),
-        pos=pos,
-        features=features or {},
-        idx=idx,
-        dep_rel=dep_rel,
-        head_idx=head_idx,
-    )
+from .helpers import make_token as _tok
 
 
 def _force_subtype(subtype: str) -> CommaInsertHandler:

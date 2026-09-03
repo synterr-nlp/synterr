@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import (
+    FINITE_POS,
+    SubtypeGateMixin,
+    WeightedSubtypeMixin,
+    _is_predicate_token,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -13,50 +19,6 @@ if TYPE_CHECKING:
     from synterr.core.protocol import AnalyzedToken
 
 # ── Comma classification data ───────────────────────────────────────────────
-
-SUBORDINATE_CONJUNCTIONS = frozenset(
-    {
-        "что",
-        "чтобы",
-        "когда",
-        "если",
-        "потому",
-        "хотя",
-        "пока",
-        "как",
-        "чем",
-        "ибо",
-        "поскольку",
-        "пускай",
-        "будто",
-        "словно",
-        "точно",
-        "раз",
-        "лишь",
-        "едва",
-        "прежде",
-        "который",
-        "где",
-        "куда",
-        "откуда",
-        "после",
-        "перед",
-    }
-)
-
-COMPOUND_CONJUNCTIONS = frozenset(
-    {
-        "и",
-        "а",
-        "но",
-        "или",
-        "да",
-        "однако",
-        "зато",
-        "же",
-        "либо",
-    }
-)
 
 PARENTHETICAL_WORDS = frozenset(
     {
@@ -97,8 +59,6 @@ RESPONSE_WORDS = frozenset({"да", "нет"})
 
 # §90 — repeated content-word POS classes that take commas between repetitions
 REPEATED_CONTENT_POS = frozenset({"NOUN", "VERB", "ADJ", "ADV"})
-
-FINITE_POS = frozenset({"VERB", "AUX"})
 
 DASH_CHARS = frozenset({"—", "–", "--"})
 
@@ -189,17 +149,6 @@ def _is_clausal(tokens: Sequence[AnalyzedToken], tok: AnalyzedToken) -> bool:
     if _has_own_subject(tokens, tok.idx):
         return True
     return tok.dep_rel == "root"
-
-
-def _is_predicate_token(tok: AnalyzedToken) -> bool:
-    """A token that anchors a clause as its predicate: a finite verb/aux, or
-    a short participle («расположены», «убеждён») — the predicative forms."""
-    if tok.pos not in FINITE_POS:
-        return False
-    verb_form = tok.get_feature("VerbForm")
-    if verb_form in (None, "Fin"):
-        return True
-    return verb_form == "Part" and tok.get_feature("Variant") == "Short"
 
 
 def _segment_has_predicate(tokens: Sequence[AnalyzedToken], lo: int, hi: int) -> bool:
@@ -1307,7 +1256,7 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
 # ── Handlers ────────────────────────────────────────────────────────────────
 
 
-class CommaDeleteHandler:
+class CommaDeleteHandler(WeightedSubtypeMixin):
     """Delete a comma with L2 subtype classification.
 
     Classification is deterministic (the comma's context decides the
@@ -1346,29 +1295,6 @@ class CommaDeleteHandler:
         "comma_asyndetic": 8,  # §116 БСП
         "comma_vocative": 5,  # §101 обращения
     }
-
-    def __init__(self) -> None:
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
-
-        When set, apply() returns None for commas that classify into any
-        subtype not in this set — letting the pipeline try the next comma
-        instead of producing a mislabeled error.
-        """
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
@@ -1418,7 +1344,7 @@ class CommaDeleteHandler:
         )
 
 
-class DashDeleteHandler:
+class DashDeleteHandler(WeightedSubtypeMixin):
     """Delete a dash (em/en) with L2 subtype classification."""
 
     name = "dash_delete"
@@ -1441,23 +1367,6 @@ class DashDeleteHandler:
         "dash_ellipsis": 15,
         "dash_other": 25,
     }
-
-    def __init__(self) -> None:
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
@@ -1574,7 +1483,7 @@ def _appositional_dash_arcs(
     return arcs
 
 
-class DashToCommaHandler:
+class DashToCommaHandler(SubtypeGateMixin):
     """Replace dash with comma — Rozental §93 apposition L1 error pattern.
 
     Many L1 errors substitute a comma for the required dash around an
@@ -1588,16 +1497,6 @@ class DashToCommaHandler:
     subtypes = ["dash_to_comma_apposition"]
     category = "PUNCT"
     changes_length = False
-
-    def __init__(self) -> None:
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
@@ -1724,7 +1623,7 @@ _BSP_CLAUSE2_OPENER_SKIP = frozenset(
 )
 
 
-class CommaToDashHandler:
+class CommaToDashHandler(SubtypeGateMixin):
     """Replace the §116 asyndetic comma with a spurious dash.
 
     Insert-direction mirror of ``dash_delete:dash_asyndetic`` (v5
@@ -1760,16 +1659,6 @@ class CommaToDashHandler:
     subtypes = ["comma_to_dash_asyndetic"]
     category = "PUNCT"
     changes_length = False
-
-    def __init__(self) -> None:
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     @staticmethod
     def _predicate_is_stative(
@@ -1879,7 +1768,7 @@ class CommaToDashHandler:
         )
 
 
-class CommaPairDeleteHandler:
+class CommaPairDeleteHandler(SubtypeGateMixin):
     """Delete both commas of a paired construction (обособление).
 
     Detects constructions where two commas share the same dep-tree head:
@@ -1899,16 +1788,6 @@ class CommaPairDeleteHandler:
     ]
     category = "PUNCT"
     changes_length = True
-
-    def __init__(self) -> None:
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         if idx == 0:
