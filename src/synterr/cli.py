@@ -3,13 +3,63 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 from pathlib import Path
 
 import click
 
-from synterr.core.pipeline import ErrorPipeline, GenerationConfig
+from synterr.core.pipeline import ErrorPipeline, GeneratedSentence, GenerationConfig
 from synterr.core.registry import get_language, list_languages
+
+_CHAT_SYSTEM_PROMPT = (
+    "Исправь грамматические ошибки в тексте. Верни только исправленный текст."
+)
+
+
+def _read_sentences(path: str, max_sentences: int | None) -> list[str]:
+    """Non-empty stripped lines of a one-sentence-per-line file, capped."""
+    sentences: list[str] = []
+    with Path(path).open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                sentences.append(line)
+                if max_sentences and len(sentences) >= max_sentences:
+                    break
+    return sentences
+
+
+def _format_result(
+    result: GeneratedSentence,
+    output_format: str,
+    *,
+    seed: int,
+    backend: str | None,
+    schema: str | None,
+    system_prompt: str | None,
+) -> str:
+    """One output line for `generate` (empty string = nothing to write)."""
+    if output_format == "gector":
+        return result.formatted
+    if output_format == "tsv":
+        return result.to_tsv()
+    if output_format == "jsonl":
+        return result.to_jsonl(seed=seed, backend=backend, schema=schema)
+    original = " ".join(result.original_tokens)
+    corrupted = " ".join(result.corrupted_tokens)
+    record: dict
+    if output_format == "chat":
+        record = {
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": corrupted},
+                {"role": "assistant", "content": original},
+            ]
+        }
+    else:  # sft
+        record = {"src": corrupted, "tgt": original}
+    return json.dumps(record, ensure_ascii=False)
 
 
 @click.group()
@@ -99,7 +149,6 @@ def cmd_list_errors(lang: str, preset: str | None) -> None:
 
     handlers = language.get_error_handlers()
 
-    # Get distribution from preset or language default
     if preset:
         try:
             data = load_preset(lang, preset)
@@ -116,14 +165,11 @@ def cmd_list_errors(lang: str, preset: str | None) -> None:
     click.echo(f"Weights from: {source}")
     click.echo()
 
-    # Group by category
     by_category: dict[str, list[tuple[str, float, bool, list[str]]]] = {}
     for h in handlers:
-        cat = h.category
-        weight = distribution.get(h.name, 0)
-        if cat not in by_category:
-            by_category[cat] = []
-        by_category[cat].append((h.name, weight, h.changes_length, h.subtypes))
+        by_category.setdefault(h.category, []).append(
+            (h.name, distribution.get(h.name, 0), h.changes_length, h.subtypes)
+        )
 
     for category in sorted(by_category.keys()):
         click.echo(f"  [{category}]")
@@ -162,13 +208,9 @@ def cmd_coverage(lang: str, schema: str) -> None:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
-    # Get all subtypes from handlers
-    handlers = language.get_error_handlers()
-    available_subtypes = set()
-    for h in handlers:
+    available_subtypes: set[str] = set()
+    for h in language.get_error_handlers():
         available_subtypes.update(h.subtypes)
-
-    # Get coverage report
     report = sch.get_coverage_report(available_subtypes)
 
     click.echo(f"Schema: {sch.name} v{sch.version}")
@@ -312,8 +354,6 @@ def cmd_corrupt(
       # Schema tag for case errors
       synterr corrupt -l ru -e Gov --schema rlc "Мама мыла раму."
     """
-    from synterr.core.pipeline import ErrorPipeline, GenerationConfig
-
     try:
         language = get_language(lang)
     except KeyError as e:
@@ -329,7 +369,6 @@ def cmd_corrupt(
 
     if result is None:
         click.echo(f"Cannot apply error '{error}' to this sentence.", err=True)
-        # Show available handlers and applicable positions
         click.echo("\nAvailable error types:", err=True)
         for h in pipeline.handlers:
             click.echo(f"  {h.name}: {h.subtypes}", err=True)
@@ -433,20 +472,16 @@ def cmd_generate(
       synterr generate -l ru --preset balanced --depparse -i in.txt -o out.jsonl -f jsonl
       synterr generate -l ru -e spelling -w '{"spelling": 0.7}' -i in.txt -o out.edits
     """
-    import json
-
     try:
         language = get_language(lang)
     except KeyError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
-    # Parse enabled errors
     enabled_errors = None
     if errors:
         enabled_errors = set(e.strip() for e in errors.split(","))
 
-    # Parse custom weights
     error_weights = None
     if weights:
         try:
@@ -455,9 +490,7 @@ def cmd_generate(
             click.echo(f"Error parsing --weights JSON: {e}", err=True)
             sys.exit(1)
 
-    # Build config from various sources
     if config_path:
-        # Load from custom config file
         config = GenerationConfig.from_file(
             config_path,
             seed=seed,
@@ -469,7 +502,6 @@ def cmd_generate(
         )
         click.echo(f"Using config: {config_path}")
     elif preset:
-        # Load from preset
         config = GenerationConfig.from_preset(
             lang,
             preset,
@@ -482,7 +514,6 @@ def cmd_generate(
         )
         click.echo(f"Using preset: {preset}")
     else:
-        # Default config
         config = GenerationConfig(
             seed=seed,
             use_depparse=bool(depparse),
@@ -496,42 +527,24 @@ def cmd_generate(
     if schema:
         click.echo(f"Using schema: {schema}")
 
-    # Override error_weights if provided via --weights (takes precedence)
+    # --weights beats the preset/config file's own weights
     if error_weights and config.error_weights != error_weights:
         config.error_weights = error_weights
-
-    # Override error_probability if provided
     if error_prob is not None:
         config.error_probability = error_prob
 
-    # Create pipeline
     pipeline = ErrorPipeline(language, config)
 
-    # Read input
-    input_file = Path(input_path)
-    sentences: list[str] = []
-
-    click.echo(f"Reading from {input_file}...")
-    with input_file.open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                sentences.append(line)
-                if max_sentences and len(sentences) >= max_sentences:
-                    break
-
+    click.echo(f"Reading from {Path(input_path)}...")
+    sentences = _read_sentences(input_path, max_sentences)
     click.echo(f"Processing {len(sentences)} sentences...")
 
-    # Generate errors
     output_file = Path(output_path)
     written = 0
     errors_count = 0
 
-    # Default system prompt for chat format
     if output_format == "chat" and system_prompt is None:
-        system_prompt = (
-            "Исправь грамматические ошибки в тексте. Верни только исправленный текст."
-        )
+        system_prompt = _CHAT_SYSTEM_PROMPT
 
     with (
         output_file.open("w", encoding="utf-8") as out,
@@ -542,40 +555,19 @@ def cmd_generate(
         ) as results,
     ):
         for result in results:
+            # tsv is the only format that keeps unchanged sentences
             if not result.errors and output_format != "tsv":
-                # Skip unchanged sentences for non-tsv formats
                 continue
-
-            if output_format == "gector":
-                if result.formatted:
-                    out.write(result.formatted + "\n")
-            elif output_format == "tsv":
-                out.write(result.to_tsv() + "\n")
-            elif output_format == "jsonl":
-                out.write(
-                    result.to_jsonl(seed=seed, backend=backend, schema=schema) + "\n"
-                )
-            elif output_format == "chat":
-                import json
-
-                original = " ".join(result.original_tokens)
-                corrupted = " ".join(result.corrupted_tokens)
-                record = {
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": corrupted},
-                        {"role": "assistant", "content": original},
-                    ]
-                }
-                out.write(json.dumps(record, ensure_ascii=False) + "\n")
-            elif output_format == "sft":
-                import json
-
-                original = " ".join(result.original_tokens)
-                corrupted = " ".join(result.corrupted_tokens)
-                record = {"src": corrupted, "tgt": original}
-                out.write(json.dumps(record, ensure_ascii=False) + "\n")
-
+            line = _format_result(
+                result,
+                output_format,
+                seed=seed,
+                backend=backend,
+                schema=schema,
+                system_prompt=system_prompt,
+            )
+            if line:
+                out.write(line + "\n")
             written += 1
             errors_count += len(result.errors)
 
@@ -608,20 +600,15 @@ def cmd_analyze_distribution(m2_files: tuple[str, ...], output: str | None) -> N
             f"  {stats.total_sentences:,} sentences, {stats.total_errors:,} errors"
         )
 
-    # Aggregate if multiple files
     if len(stats_list) > 1:
         combined = aggregate_distributions(stats_list)
         combined.source = f"combined ({len(stats_list)} files)"
     else:
         combined = stats_list[0]
 
-    # Print report
     print_distribution_report(combined)
 
-    # Output JSON if requested
     if output:
-        import json
-
         weights = combined.get_synterr_weights()
         output_path = Path(output)
         with output_path.open("w", encoding="utf-8") as f:
@@ -773,8 +760,6 @@ def cmd_survey(
     two actionable lists: STARVING (below threshold) and NEVER FIRED.
     Feed those to `synterr mine-pools` to build targeted source pools.
     """
-    import json as _json
-
     from synterr.discovery import read_sentences, survey
 
     sentences = read_sentences(Path(input_file), limit=limit)
@@ -805,7 +790,7 @@ def cmd_survey(
     if output:
         report["input"] = input_file
         Path(output).write_text(
-            _json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+            json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
         )
         click.echo(f"\nWrote {output}")
 
@@ -908,8 +893,6 @@ def cmd_audit_jsonl(path: str, samples: int, no_morphology: bool) -> None:
     Run on synterr output before training to catch handler bugs at
     scale; run on third-party datasets to spot quality issues.
     """
-    import json
-
     from synterr.diagnostics import audit_jsonl
 
     result = audit_jsonl(
@@ -961,10 +944,6 @@ def cmd_audit_jsonl(path: str, samples: int, no_morphology: bool) -> None:
                 click.echo(json.dumps(rec, ensure_ascii=False))
 
 
-if __name__ == "__main__":
-    main()
-
-
 @main.command("minimal-pairs")
 @click.option("--lang", "-l", required=True, help="Language code")
 @click.option("--input", "-i", "input_path", required=True, help="Input sentences file")
@@ -1007,11 +986,8 @@ def cmd_minimal_pairs(
     Example:
       synterr minimal-pairs -l ru -i sents.txt -o pairs.jsonl -e pronoun_svoy,neg_genitive
     """
-    import json
-    from pathlib import Path
     from random import Random
 
-    from synterr.core.pipeline import ErrorPipeline, GenerationConfig
     from synterr.schemas.loader import load_schema
 
     try:
@@ -1035,14 +1011,7 @@ def cmd_minimal_pairs(
         click.echo(f"Error: unknown handlers: {unknown}", err=True)
         sys.exit(1)
 
-    sentences: list[str] = []
-    with Path(input_path).open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                sentences.append(line)
-                if max_sentences and len(sentences) >= max_sentences:
-                    break
+    sentences = _read_sentences(input_path, max_sentences)
 
     total = 0
     with Path(output_path).open("w", encoding="utf-8") as out:
@@ -1082,3 +1051,7 @@ def cmd_minimal_pairs(
             total += count
 
     click.echo(f"Total: {total} minimal pairs -> {output_path}")
+
+
+if __name__ == "__main__":
+    main()

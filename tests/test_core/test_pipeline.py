@@ -7,108 +7,56 @@ import json
 import pytest
 
 from synterr.core.pipeline import ErrorPipeline, GeneratedSentence, GenerationConfig
-from synterr.core.protocol import AnalyzedToken, ErrorResult
+from synterr.core.protocol import ErrorResult
+
+
+def _noun_case_error(start_idx: int) -> ErrorResult:
+    return ErrorResult(
+        error_type="noun_case",
+        category="MORPH",
+        start_idx=start_idx,
+        end_idx=start_idx + 1,
+        original="школу",
+        corrupted="школе",
+        fix_tag="$TRANSFORM_CASE_Acc",
+    )
+
+
+@pytest.fixture
+def bare_pipeline(mock_language) -> ErrorPipeline:
+    """Pipeline with no handlers — enough to exercise the index helpers."""
+    return ErrorPipeline(mock_language())
 
 
 class TestAdjustIndicesForLengthChange:
     """Tests for _adjust_indices_for_length_change helper."""
 
-    @pytest.fixture
-    def pipeline(self):
-        """Create a pipeline instance for testing."""
-        # We need to mock the language module for the pipeline
-        # but we can test the helper method directly
-        return None
-
-    def test_deletion_shifts_later_errors_down(self):
+    def test_deletion_shifts_later_errors_down(self, bare_pipeline):
         """Deletion at index 2 should shift errors at 3+ down by 1."""
-        # Create a pipeline with a mock language to access the method
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
-        # Original: ["Я", "иду", "в", "школу"] (indices 0, 1, 2, 3)
-        # Error at idx=3: "школу" → "школе"
-        # Deletion at idx=2: delete "в"
-        # After: ["Я", "иду", "школе"] - error should now be at idx=2
-
-        errors = [
-            ErrorResult(
-                error_type="noun_case",
-                category="MORPH",
-                start_idx=3,
-                end_idx=4,
-                original="школу",
-                corrupted="школе",
-                fix_tag="$TRANSFORM_CASE_Acc",
-            )
-        ]
-
-        # Deletion at index 2, delta=-1
-        adjusted = pipeline._adjust_indices_for_length_change(
-            errors, change_idx=2, delta=-1
+        # ["Я", "иду", "в", "школу"]: error at 3, delete "в" at 2 → error at 2
+        adjusted = bare_pipeline._adjust_indices_for_length_change(
+            [_noun_case_error(3)], change_idx=2, delta=-1
         )
 
         assert len(adjusted) == 1
-        assert adjusted[0].start_idx == 2  # 3 + (-1) = 2
-        assert adjusted[0].end_idx == 3  # 4 + (-1) = 3
-        # Other fields unchanged
+        assert adjusted[0].start_idx == 2
+        assert adjusted[0].end_idx == 3
         assert adjusted[0].error_type == "noun_case"
         assert adjusted[0].original == "школу"
 
-    def test_insertion_shifts_later_errors_up(self):
+    def test_insertion_shifts_later_errors_up(self, bare_pipeline):
         """Insertion at index 2 should shift errors at 2+ up by 1."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
-        # Original: ["Я", "иду", "школу"] (indices 0, 1, 2)
-        # Error at idx=2: "школу" → "школе"
-        # Insertion at idx=2: insert "в" before "школу"
-        # After: ["Я", "иду", "в", "школе"] - error should now be at idx=3
-
-        errors = [
-            ErrorResult(
-                error_type="noun_case",
-                category="MORPH",
-                start_idx=2,
-                end_idx=3,
-                original="школу",
-                corrupted="школе",
-                fix_tag="$TRANSFORM_CASE_Acc",
-            )
-        ]
-
-        # Insertion at index 2, delta=+1
-        adjusted = pipeline._adjust_indices_for_length_change(
-            errors, change_idx=2, delta=+1
+        # ["Я", "иду", "школу"]: error at 2, insert "в" before it → error at 3
+        adjusted = bare_pipeline._adjust_indices_for_length_change(
+            [_noun_case_error(2)], change_idx=2, delta=+1
         )
 
         assert len(adjusted) == 1
-        assert adjusted[0].start_idx == 3  # 2 + 1 = 3
-        assert adjusted[0].end_idx == 4  # 3 + 1 = 4
+        assert adjusted[0].start_idx == 3
+        assert adjusted[0].end_idx == 4
 
-    def test_earlier_errors_unchanged(self):
+    def test_earlier_errors_unchanged(self, bare_pipeline):
         """Errors before the change index should not be adjusted."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
         errors = [
             ErrorResult(
                 error_type="spelling",
@@ -119,89 +67,49 @@ class TestAdjustIndicesForLengthChange:
                 corrupted="Йа",
                 fix_tag="$REPLACE_Я",
             ),
-            ErrorResult(
-                error_type="noun_case",
-                category="MORPH",
-                start_idx=3,
-                end_idx=4,
-                original="школу",
-                corrupted="школе",
-                fix_tag="$TRANSFORM_CASE_Acc",
-            ),
+            _noun_case_error(3),
         ]
 
-        # Deletion at index 2
-        adjusted = pipeline._adjust_indices_for_length_change(
+        adjusted = bare_pipeline._adjust_indices_for_length_change(
             errors, change_idx=2, delta=-1
         )
 
         assert len(adjusted) == 2
-        # First error unchanged (idx=0 < change_idx=2)
         assert adjusted[0].start_idx == 0
         assert adjusted[0].end_idx == 1
-        # Second error shifted (idx=3 >= change_idx=2)
         assert adjusted[1].start_idx == 2
         assert adjusted[1].end_idx == 3
 
-    def test_empty_errors_list(self):
+    def test_empty_errors_list(self, bare_pipeline):
         """Empty errors list should return empty list."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
-        adjusted = pipeline._adjust_indices_for_length_change(
-            [], change_idx=2, delta=-1
+        assert (
+            bare_pipeline._adjust_indices_for_length_change([], change_idx=2, delta=-1)
+            == []
         )
-        assert adjusted == []
 
 
 class TestGetLengthChangeInfo:
     """Tests for _get_length_change_info helper."""
 
-    def test_deletion_returns_negative_delta(self):
+    def test_deletion_returns_negative_delta(self, bare_pipeline):
         """Deletion (word_omission) should return delta=-1."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
-        # word_omission creates $APPEND_<word> tag
         result = ErrorResult(
             error_type="word_omission",
             category="OTHER",
             start_idx=2,
-            end_idx=2,  # Empty span after deletion
+            end_idx=2,
             original="в",
             corrupted="",
             fix_tag="$APPEND_в",
         )
 
-        change_idx, delta = pipeline._get_length_change_info(result, handler_idx=2)
+        change_idx, delta = bare_pipeline._get_length_change_info(result, handler_idx=2)
 
         assert change_idx == 2
         assert delta == -1
 
-    def test_insertion_returns_positive_delta(self):
+    def test_insertion_returns_positive_delta(self, bare_pipeline):
         """Insertion (word_insertion) should return delta=+1."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
-        # word_insertion creates $DELETE tag
         result = ErrorResult(
             error_type="word_insertion",
             category="OTHER",
@@ -212,22 +120,13 @@ class TestGetLengthChangeInfo:
             fix_tag="$DELETE",
         )
 
-        change_idx, delta = pipeline._get_length_change_info(result, handler_idx=2)
+        change_idx, delta = bare_pipeline._get_length_change_info(result, handler_idx=2)
 
         assert change_idx == 3  # handler_idx + 1
         assert delta == +1
 
-    def test_unknown_tag_returns_zero_delta(self):
+    def test_unknown_tag_returns_zero_delta(self, bare_pipeline):
         """Unknown tag should return zero delta (no adjustment)."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-        mock_lang.get_analyzer.return_value = MagicMock()
-        mock_lang.get_error_handlers.return_value = []
-        mock_lang.get_error_distribution.return_value = {}
-
-        pipeline = ErrorPipeline(mock_lang)
-
         result = ErrorResult(
             error_type="unknown",
             category="OTHER",
@@ -238,7 +137,7 @@ class TestGetLengthChangeInfo:
             fix_tag="$REPLACE_test",
         )
 
-        change_idx, delta = pipeline._get_length_change_info(result, handler_idx=2)
+        change_idx, delta = bare_pipeline._get_length_change_info(result, handler_idx=2)
 
         assert change_idx == 0
         assert delta == 0
@@ -248,92 +147,50 @@ class TestGenerateAndGenerateBatchParity:
     """Tests to verify feature parity between generate() and generate_batch()."""
 
     @pytest.fixture
-    def mock_pipeline(self):
-        """Create a pipeline with mock handlers."""
-        from unittest.mock import MagicMock
-
-        mock_lang = MagicMock()
-
-        # Create mock analyzer
-        mock_analyzer = MagicMock()
-
-        def mock_analyze(text):
-            tokens = text.split()
-            return [
-                AnalyzedToken(
-                    text=t,
-                    lemma=t.lower(),
-                    pos="NOUN",
-                    features={},
-                    idx=i,
-                )
-                for i, t in enumerate(tokens)
-            ]
-
-        def mock_analyze_batch(texts):
-            return [mock_analyze(t) for t in texts]
-
-        mock_analyzer.analyze = mock_analyze
-        mock_analyzer.analyze_batch = mock_analyze_batch
-        mock_lang.get_analyzer.return_value = mock_analyzer
-
-        # Create mock non-length-changing handler
-        mock_handler = MagicMock()
-        mock_handler.name = "mock_error"
-        mock_handler.subtypes = ["mock_error"]
-        mock_handler.category = "OTHER"
-        mock_handler.changes_length = False
-        mock_handler.can_apply.return_value = True
-        mock_handler.apply.return_value = ErrorResult(
-            error_type="mock_error",
-            category="OTHER",
-            start_idx=0,
-            end_idx=1,
-            original="test",
-            corrupted="tset",
-            fix_tag="$REPLACE_test",
+    def mock_pipeline(self, mock_language, mock_handler):
+        """Pipeline with one plain and one length-changing mock handler."""
+        plain = mock_handler(
+            "mock_error",
+            result=ErrorResult(
+                error_type="mock_error",
+                category="OTHER",
+                start_idx=0,
+                end_idx=1,
+                original="test",
+                corrupted="tset",
+                fix_tag="$REPLACE_test",
+            ),
         )
-
-        # Create mock length-changing handler
-        mock_length_handler = MagicMock()
-        mock_length_handler.name = "mock_deletion"
-        mock_length_handler.subtypes = ["mock_deletion"]
-        mock_length_handler.category = "OTHER"
-        mock_length_handler.changes_length = True
-        mock_length_handler.can_apply.return_value = True
-        mock_length_handler.apply.return_value = ErrorResult(
-            error_type="mock_deletion",
-            category="OTHER",
-            start_idx=1,
-            end_idx=1,
-            original="word",
-            corrupted="",
-            fix_tag="$APPEND_word",
+        deletion = mock_handler(
+            "mock_deletion",
+            changes_length=True,
+            result=ErrorResult(
+                error_type="mock_deletion",
+                category="OTHER",
+                start_idx=1,
+                end_idx=1,
+                original="word",
+                corrupted="",
+                fix_tag="$APPEND_word",
+            ),
         )
-
-        mock_lang.get_error_handlers.return_value = [mock_handler, mock_length_handler]
-        mock_lang.get_error_distribution.return_value = {
-            "mock_error": 0.7,
-            "mock_deletion": 0.3,
-        }
-
+        lang = mock_language(
+            [plain, deletion], {"mock_error": 0.7, "mock_deletion": 0.3}
+        )
         config = GenerationConfig(
             seed=42,
             error_probability=1.0,  # Always introduce errors
             max_errors_per_sentence=2,
         )
-
-        return ErrorPipeline(mock_lang, config)
+        return ErrorPipeline(lang, config)
 
     def test_same_seed_produces_same_results(self, mock_pipeline):
         """Same seed should produce identical results for generate() and generate_batch()."""
         text = "test word here"
 
-        # Reset RNG and generate single
         mock_pipeline._rng.seed(42)
         single_result = mock_pipeline.generate(text)
 
-        # Reset RNG and generate batch
         mock_pipeline._rng.seed(42)
         batch_results = list(mock_pipeline.generate_batch([text]))
 
@@ -353,21 +210,16 @@ class TestGenerateAndGenerateBatchParity:
 
     def test_both_support_length_changing_handlers(self, mock_pipeline):
         """Both generate() and generate_batch() should support length-changing handlers."""
-        # Force length-changing handler to be used by setting high probability
-        mock_pipeline._rng.seed(100)  # Find a seed that triggers length change
-
+        mock_pipeline._rng.seed(100)
         text = "test word here"
 
-        # Check that length-changing handlers are available
         length_handlers = [h for h in mock_pipeline.handlers if h.changes_length]
         assert len(length_handlers) > 0, "Test requires length-changing handlers"
 
-        # Both methods should be able to produce results with length-changing errors
-        # (exact behavior depends on random sampling, but the capability should exist)
+        # exact draws depend on the RNG; the capability is what's asserted
         single_result = mock_pipeline.generate(text)
         batch_results = list(mock_pipeline.generate_batch([text]))
 
-        # Both should produce valid output
         assert single_result.original_tokens is not None
         assert batch_results[0].original_tokens is not None
 
@@ -513,52 +365,36 @@ class TestZeroWeightSampling:
     (review finding, 2026-07-12).
     """
 
-    @staticmethod
-    def _mock_language(weights: dict[str, float]):
-        """Mock language module with one non-length handler per weight key."""
-        from unittest.mock import MagicMock
+    @pytest.fixture
+    def weighted_language(self, mock_language, mock_handler):
+        """Factory: one always-firing handler per weight key."""
 
-        mock_lang = MagicMock()
-
-        mock_analyzer = MagicMock()
-
-        def mock_analyze(text):
-            return [
-                AnalyzedToken(text=t, lemma=t.lower(), pos="NOUN", features={}, idx=i)
-                for i, t in enumerate(text.split())
+        def make(weights: dict[str, float]):
+            handlers = [
+                mock_handler(
+                    name,
+                    result=ErrorResult(
+                        error_type=name,
+                        category="OTHER",
+                        start_idx=0,
+                        end_idx=1,
+                        original="слово",
+                        corrupted="слова",
+                        fix_tag="$REPLACE_слово",
+                    ),
+                )
+                for name in weights
             ]
+            return mock_language(handlers, weights)
 
-        mock_analyzer.analyze = mock_analyze
-        mock_analyzer.analyze_batch = lambda texts: [mock_analyze(t) for t in texts]
-        mock_lang.get_analyzer.return_value = mock_analyzer
+        return make
 
-        handlers = []
-        for name in weights:
-            handler = MagicMock()
-            handler.name = name
-            handler.subtypes = [name]
-            handler.category = "OTHER"
-            handler.changes_length = False
-            handler.can_apply.return_value = True
-            handler.apply.return_value = ErrorResult(
-                error_type=name,
-                category="OTHER",
-                start_idx=0,
-                end_idx=1,
-                original="слово",
-                corrupted="слова",
-                fix_tag="$REPLACE_слово",
-            )
-            handlers.append(handler)
-
-        mock_lang.get_error_handlers.return_value = handlers
-        mock_lang.get_error_distribution.return_value = dict(weights)
-        return mock_lang
-
-    def test_explicitly_enabled_zero_weight_handler_fires_uniformly(self):
+    def test_explicitly_enabled_zero_weight_handler_fires_uniformly(
+        self, weighted_language
+    ):
         """-e naming a quarantined (weight 0.0) handler must not crash:
         an explicit request beats the preset's zero — uniform fallback."""
-        lang = self._mock_language({"quarantined": 0.0, "other": 5.0})
+        lang = weighted_language({"quarantined": 0.0, "other": 5.0})
         config = GenerationConfig(
             seed=42,
             error_probability=1.0,
@@ -577,10 +413,12 @@ class TestZeroWeightSampling:
         assert len(result.errors) == 1
         assert result.errors[0].error_type == "quarantined"
 
-    def test_zero_weight_handler_never_sampled_without_explicit_enable(self):
+    def test_zero_weight_handler_never_sampled_without_explicit_enable(
+        self, weighted_language
+    ):
         """Without enabled_errors, zero-weight entries are dropped from
         sampling — the quarantined handler must never fire."""
-        lang = self._mock_language({"quarantined": 0.0, "other": 5.0})
+        lang = weighted_language({"quarantined": 0.0, "other": 5.0})
         config = GenerationConfig(
             seed=42, error_probability=1.0, max_errors_per_sentence=3
         )
@@ -591,10 +429,12 @@ class TestZeroWeightSampling:
             assert handler is not None
             assert handler.name == "other"
 
-    def test_all_zero_distribution_without_explicit_enable_yields_no_errors(self):
+    def test_all_zero_distribution_without_explicit_enable_yields_no_errors(
+        self, weighted_language
+    ):
         """All-zero distribution and no explicit enable: nothing to sample —
         generate() must return the sentence untouched, not crash."""
-        lang = self._mock_language({"quarantined": 0.0, "also_zero": 0.0})
+        lang = weighted_language({"quarantined": 0.0, "also_zero": 0.0})
         config = GenerationConfig(
             seed=42, error_probability=1.0, max_errors_per_sentence=3
         )
@@ -606,10 +446,12 @@ class TestZeroWeightSampling:
         assert result.errors == []
         assert result.corrupted_tokens == result.original_tokens
 
-    def test_explicit_enable_of_multiple_zero_weight_handlers_is_uniform(self):
+    def test_explicit_enable_of_multiple_zero_weight_handlers_is_uniform(
+        self, weighted_language
+    ):
         """Uniform fallback covers every explicitly enabled handler, not
         just the first: both zero-weight handlers must be sampleable."""
-        lang = self._mock_language({"quar_a": 0.0, "quar_b": 0.0, "other": 5.0})
+        lang = weighted_language({"quar_a": 0.0, "quar_b": 0.0, "other": 5.0})
         config = GenerationConfig(
             seed=42,
             error_probability=1.0,

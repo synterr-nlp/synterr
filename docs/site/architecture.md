@@ -104,7 +104,7 @@ Synterr ships four schemas:
 |--------|-------------|----------|
 | `synterr` (default) | Native handler subtype tags | Direct rule tracing in your own pipeline |
 | `rlc` | 35 tags | Russian Learner Corpus annotation alignment |
-| `rozental` | 8 / 29 / 100 tags (L0 / L1 / L2 hierarchy) | Rule-grounded error tracing |
+| `rozental` | 8 / 29 / 103 tags (L0 / L1 / L2 hierarchy) | Rule-grounded error tracing |
 | `errant` | ERRANT-style POS:operation tags | Cross-lingual GEC eval alignment |
 
 When generating data, the same corruption gets the right tag for

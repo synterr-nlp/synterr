@@ -58,22 +58,26 @@ Schemas are YAML files in `src/synterr/schemas/data/`. The structure:
 name: my_schema
 description: "What this schema represents"
 
-primary_tags: [Tag1, Tag2, ...]    # L0 categories
-modifiers: [...]                    # optional, for compound tags
-
-# Hierarchical structure (L0 → L1 → L2)
-tags:
+# L1 tags (the key may also be spelled `tags`)
+primary_tags:
   Tag1:
     description: "..."
-    detection_category: SPELL
+    detection_category: SPELL     # SPELL / MORPH / PUNCT / OTHER
+
+modifiers: {}                     # optional, for compound tags (see rlc.yaml)
+
+# Optional L2 tags, each parented to an L1 tag
+fine_grained_tags:
+  Tag1_specific:
+    parent: Tag1
+    description: "..."
     paras: "§reference"
-    parent: null
 
 # Map handler subtypes → schema tags
-subtype_mappings:
+mappings:
   my_subtype:
     primary: Tag1
-    l2_tag: Tag1_specific  # optional fine-grained
+    l2_tag: Tag1_specific         # optional fine-grained
 ```
 
 **Where to copy from:** `src/synterr/schemas/data/rlc.yaml` is the simplest;
@@ -136,7 +140,8 @@ class MyBackend:
 ```
 
 **Where to copy from:** `src/synterr/languages/russian/backends/stanza_backend.py`
-is the canonical example. `natasha_backend.py` is faster but lacks dep parse.
+is the canonical example; `natasha_backend.py` and `spacy_backend.py` are
+the lighter alternatives.
 
 The translation work is: for every token, populate `text`, `lemma`, `pos`
 (UD), `features` dict (UD-style), and optionally `dep_rel` + `head_idx`.
@@ -149,13 +154,14 @@ and the dispatch in `LanguageModule.get_analyzer()`.
 
 ## 5. Add an output format
 
-Output formats live in `ErrorPipeline` result objects. The current set:
-`gector`, `tsv`, `jsonl`, `chat`, `sft`, `diff`. Adding one means adding
-a `to_<format>()` method on the result class and a `--output-format` choice
-in the CLI.
+Output formats live in `GeneratedSentence` (`src/synterr/core/pipeline.py`)
+and the CLI's `_format_result`. The current CLI set: `gector`, `tsv`,
+`jsonl`, `chat`, `sft` (plus `to_diff()` on the Python side). Adding one
+means adding a `to_<format>()` method on the result class and a
+`--output-format` choice in the CLI.
 
 **Where to copy from:** `src/synterr/core/pipeline.py` (search for
-`to_jsonl`, `to_tsv`, `to_chat`).
+`to_jsonl`, `to_tsv`).
 
 This is small enough that it usually lives in a single PR.
 

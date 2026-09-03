@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import AnalyzedToken, ErrorResult
@@ -184,8 +185,6 @@ class GeneratedSentence:
         Returns:
             JSON string (single line, no trailing newline)
         """
-        import json
-
         errors_list = []
         for err in self.errors:
             err_dict: dict = {
@@ -241,10 +240,7 @@ class GeneratedSentence:
             del_start, del_end = "[-", "-]"
             ins_start, ins_end = "{+", "+}"
 
-        # Build error lookup
-        error_at: dict[int, ErrorResult] = {}
-        for err in self.errors:
-            error_at[err.start_idx] = err
+        error_at = {err.start_idx: err for err in self.errors}
 
         parts = []
         for i, token in enumerate(self.corrupted_tokens):
@@ -296,19 +292,6 @@ class ErrorPipeline:
             self._schema = load_schema(self.config.schema)
         return self._schema
 
-    def get_available_subtypes(self) -> set[str]:
-        """Get all subtypes available from registered handlers."""
-        subtypes = set()
-        for handler in self.handlers:
-            subtypes.update(handler.subtypes)
-        return subtypes
-
-    def get_schema_coverage(self) -> dict | None:
-        """Get schema coverage report if schema is loaded."""
-        if self.schema is None:
-            return None
-        return self.schema.get_coverage_report(self.get_available_subtypes())
-
     @property
     def analyzer(self) -> Analyzer:
         """Get or create analyzer (lazy initialization)."""
@@ -331,16 +314,15 @@ class ErrorPipeline:
             else:
                 self._handlers = all_handlers
 
-            # Apply subtype weights from config to handlers that support them
             if self.config.subtype_weights:
                 for handler in self._handlers:
-                    if handler.name in self.config.subtype_weights:
-                        weights = self.config.subtype_weights[handler.name]
-                        # Call set_subtype_weights if handler supports it
-                        if hasattr(handler, "set_subtype_weights"):
-                            handler.set_subtype_weights(weights)
+                    if handler.name in self.config.subtype_weights and hasattr(
+                        handler, "set_subtype_weights"
+                    ):
+                        handler.set_subtype_weights(
+                            self.config.subtype_weights[handler.name]
+                        )
 
-            # Apply confusion matrices from config to handlers that support them
             if self.config.confusion_matrices:
                 for handler in self._handlers:
                     if hasattr(handler, "set_confusion_matrix"):
@@ -355,13 +337,11 @@ class ErrorPipeline:
         Priority: config.error_weights > language default
         """
         if self._distribution is None:
-            # Use config weights if provided, otherwise language default
             if self.config.error_weights is not None:
                 dist = self.config.error_weights.copy()
             else:
                 dist = self.language.get_error_distribution()
 
-            # Filter to enabled errors if specified
             if self.config.enabled_errors is not None:
                 dist = {
                     k: v for k, v in dist.items() if k in self.config.enabled_errors
@@ -432,26 +412,12 @@ class ErrorPipeline:
         Returns:
             New list of ErrorResults with adjusted indices
         """
-        adjusted = []
-        for err in errors:
-            if err.start_idx >= change_idx:
-                adjusted.append(
-                    ErrorResult(
-                        error_type=err.error_type,
-                        category=err.category,
-                        start_idx=err.start_idx + delta,
-                        end_idx=err.end_idx + delta,
-                        original=err.original,
-                        corrupted=err.corrupted,
-                        fix_tag=err.fix_tag,
-                        schema_tag=err.schema_tag,
-                        schema_l2_tag=err.schema_l2_tag,
-                        schema_l2_applicability=err.schema_l2_applicability,
-                    )
-                )
-            else:
-                adjusted.append(err)
-        return adjusted
+        return [
+            replace(err, start_idx=err.start_idx + delta, end_idx=err.end_idx + delta)
+            if err.start_idx >= change_idx
+            else err
+            for err in errors
+        ]
 
     def _get_length_change_info(
         self,
@@ -468,15 +434,13 @@ class ErrorPipeline:
             (change_idx, delta) where delta is +1 for insertion, -1 for deletion.
             Returns (0, 0) if the change type cannot be determined.
         """
-        # Deletion (word_omission): creates $APPEND_x tag to restore the word
+        # deletion: $APPEND_x restores the dropped word; insertion: $DELETE
+        # removes the inserted one
         if result.fix_tag.startswith("$APPEND_"):
             return (handler_idx, -1)
-
-        # Insertion (word_insertion): creates $DELETE tag to remove the word
         if result.fix_tag == "$DELETE":
             return (handler_idx + 1, +1)
-
-        return (0, 0)  # Unknown — no adjustment
+        return (0, 0)
 
     def _apply_errors_to_sentence(
         self,
@@ -485,9 +449,8 @@ class ErrorPipeline:
     ) -> tuple[list[str], list[ErrorResult]]:
         """Apply errors to a sentence following the generation rules.
 
-        This is the shared logic for both generate() and generate_batch().
-        It applies non-length-changing errors first, then optionally one
-        length-changing error, adjusting prior error indices as needed.
+        Non-length-changing errors first, then at most one length-changing
+        error, adjusting prior error indices as needed.
 
         Args:
             tokens: Analyzed tokens from the sentence
@@ -530,7 +493,6 @@ class ErrorPipeline:
                 errors.append(result)
                 modified.add(idx)
 
-        # Apply the deferred length-changing error last (if one was drawn)
         if pending_length_handler is not None:
             handler = pending_length_handler
             applicable = self._find_applicable_indices(handler, tokens, modified)
@@ -538,7 +500,6 @@ class ErrorPipeline:
                 idx = self._rng.choice(applicable)
                 result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
                 if result is not None:
-                    # Adjust prior error indices for the length change
                     change_idx, delta = self._get_length_change_info(result, idx)
                     if delta != 0:
                         errors = self._adjust_indices_for_length_change(
@@ -563,12 +524,7 @@ class ErrorPipeline:
         Returns:
             Formatted string with tags
         """
-        # Build error lookup by position
-        error_at: dict[int, ErrorResult] = {}
-        for err in errors:
-            error_at[err.start_idx] = err
-
-        # Build output tokens
+        error_at = {err.start_idx: err for err in errors}
         parts = [SENTENCE_START]
 
         for i, token in enumerate(corrupted):
@@ -580,7 +536,6 @@ class ErrorPipeline:
                 tag = "$KEEP"
                 category = CATEGORY_CORRECT
 
-            # Format based on label_format
             if self.config.label_format == "binary":
                 label = (
                     CATEGORY_CORRECT if category == CATEGORY_CORRECT else "INCORRECT"
@@ -606,11 +561,9 @@ class ErrorPipeline:
         Returns:
             Subtype string that matches a schema mapping key
         """
-        # Direct match first
         if self.schema is not None and error_type in self.schema.mappings:
             return error_type
 
-        # Try stripping handler name prefixes
         for handler in self.handlers:
             prefix = handler.name + "_"
             if error_type.startswith(prefix):
@@ -649,15 +602,12 @@ class ErrorPipeline:
         Returns:
             Detection category (SPELL, MORPH, PUNCT, OTHER)
         """
-        # If schema is loaded, try to get category from schema
         if self.schema is not None and error_type is not None:
             subtype = self._extract_subtype(error_type)
-
             schema_category = self.schema.get_detection_category(subtype)
             if schema_category != "OTHER" or subtype in self.schema.mappings:
                 return schema_category
 
-        # Fall back to handler's category
         category_upper = category.upper()
         if category_upper in (
             CATEGORY_SPELL,
@@ -667,38 +617,6 @@ class ErrorPipeline:
         ):
             return category_upper
         return CATEGORY_OTHER
-
-    def get_handler(self, error_type: str) -> ErrorHandler | None:
-        """Get handler by name or schema tag.
-
-        Args:
-            error_type: Handler name ('noun_case') or schema tag ('Gov')
-
-        Returns:
-            ErrorHandler or None if not found
-        """
-        # Try direct handler name match
-        for handler in self.handlers:
-            if handler.name == error_type:
-                return handler
-
-        # Try schema tag → subtype → handler mapping
-        if self.schema is not None:
-            mapping = self.schema.get_mapping(error_type)
-            if mapping:
-                # error_type is a subtype, find handler with this subtype
-                for handler in self.handlers:
-                    if error_type in handler.subtypes:
-                        return handler
-
-            # Try reverse lookup: schema tag → subtype → handler
-            for subtype, m in self.schema.mappings.items():
-                if m.primary == error_type:
-                    for handler in self.handlers:
-                        if subtype in handler.subtypes:
-                            return handler
-
-        return None
 
     def get_subtypes_for_schema_tag(self, tag: str) -> set[str]:
         """Get all handler subtypes that map to a schema tag.
@@ -711,12 +629,7 @@ class ErrorPipeline:
         """
         if self.schema is None:
             return set()
-
-        subtypes = set()
-        for subtype, mapping in self.schema.mappings.items():
-            if mapping.primary == tag:
-                subtypes.add(subtype)
-        return subtypes
+        return {s for s, m in self.schema.mappings.items() if m.primary == tag}
 
     def resolve_error_spec(
         self, spec: str
@@ -736,23 +649,19 @@ class ErrorPipeline:
         """
         handler_name, subtype = parse_error_spec(spec)
 
-        # Direct handler:subtype syntax
         if subtype is not None:
             handler = self._get_handler_by_name(handler_name)
             if handler is not None and subtype in handler.subtypes:
                 return handler, {subtype}
             return None, None
 
-        # Try as direct handler name first
         handler = self._get_handler_by_name(handler_name)
         if handler is not None:
-            return handler, None  # All subtypes
+            return handler, None
 
-        # Try as schema tag (returns handler with filtered subtypes)
         if self.schema is not None:
             subtypes = self.get_subtypes_for_schema_tag(handler_name)
             if subtypes:
-                # Find a handler that has any of these subtypes
                 for h in self.handlers:
                     handler_subtypes = set(h.subtypes) & subtypes
                     if handler_subtypes:
@@ -795,64 +704,80 @@ class ErrorPipeline:
         if handler is None:
             return None
 
-        # Configure handler with subtype filter if applicable
+        # The subtype filter is handler state; it must be cleared on every
+        # exit path or it leaks into later apply_error/generate calls.
         if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
             handler.set_enabled_subtypes(subtype_filter)
+            try:
+                return self._apply_error_with(handler, text, position)
+            finally:
+                handler.set_enabled_subtypes(None)
+        return self._apply_error_with(handler, text, position)
 
+    def _apply_error_with(
+        self, handler: ErrorHandler, text: str, position: int | None
+    ) -> GeneratedSentence | None:
         tokens = self.analyzer.analyze(text)
         if not tokens:
             return None
 
-        # Find applicable positions
         applicable = self._find_applicable_indices(handler, tokens, set())
         if not applicable:
-            # Reset subtype filter before returning
-            if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
-                handler.set_enabled_subtypes(None)
             return None
 
         original = [t.text for t in tokens]
 
-        # If specific position requested, try only that
         if position is not None:
             if position not in applicable:
-                if subtype_filter is not None and hasattr(
-                    handler, "set_enabled_subtypes"
-                ):
-                    handler.set_enabled_subtypes(None)
                 return None
             positions_to_try = [position]
         else:
-            # Shuffle positions to try multiple if first fails
             positions_to_try = applicable.copy()
             self._rng.shuffle(positions_to_try)
 
-        # Try positions until one succeeds
-        result = None
-        idx = None
         for idx in positions_to_try:
             sentence = original.copy()
             modified: set[int] = set()
             result = handler.apply(tokens, sentence, idx, modified, rng=self._rng)
             if result is not None:
                 break
-
-        # Reset subtype filter after use
-        if subtype_filter is not None and hasattr(handler, "set_enabled_subtypes"):
-            handler.set_enabled_subtypes(None)
-
-        if result is None:
+        else:
             return None
 
         self._enrich_error_with_schema(result)
         errors = [result]
-        formatted = self._format_output(sentence, errors)
-
         return GeneratedSentence(
             original_tokens=original,
             corrupted_tokens=sentence,
             errors=errors,
-            formatted=formatted,
+            formatted=self._format_output(sentence, errors),
+        )
+
+    def _generate_from_tokens(
+        self, tokens: Sequence[AnalyzedToken]
+    ) -> GeneratedSentence:
+        """Roll error_probability, corrupt, and format one analyzed sentence."""
+        if not tokens:
+            return GeneratedSentence(
+                original_tokens=[], corrupted_tokens=[], errors=[], formatted=""
+            )
+
+        original = [t.text for t in tokens]
+
+        if self._rng.random() > self.config.error_probability:
+            return GeneratedSentence(
+                original_tokens=original,
+                corrupted_tokens=original.copy(),
+                errors=[],
+                formatted=self._format_output(original, []),
+            )
+
+        sentence, errors = self._apply_errors_to_sentence(tokens, original)
+        return GeneratedSentence(
+            original_tokens=original,
+            corrupted_tokens=sentence,
+            errors=errors,
+            formatted=self._format_output(sentence, errors),
         )
 
     def generate(self, text: str) -> GeneratedSentence:
@@ -864,43 +789,7 @@ class ErrorPipeline:
         Returns:
             GeneratedSentence with corrupted tokens and errors
         """
-        # Analyze sentence
-        tokens = self.analyzer.analyze(text)
-
-        if not tokens:
-            return GeneratedSentence(
-                original_tokens=[],
-                corrupted_tokens=[],
-                errors=[],
-                formatted="",
-            )
-
-        # Prepare original tokens
-        original = [t.text for t in tokens]
-
-        # Decide whether to introduce errors
-        if self._rng.random() > self.config.error_probability:
-            # No errors - return clean sentence
-            formatted = self._format_output(original, [])
-            return GeneratedSentence(
-                original_tokens=original,
-                corrupted_tokens=original.copy(),
-                errors=[],
-                formatted=formatted,
-            )
-
-        # Apply errors using shared helper
-        sentence, errors = self._apply_errors_to_sentence(tokens, original)
-
-        # Format output
-        formatted = self._format_output(sentence, errors)
-
-        return GeneratedSentence(
-            original_tokens=original,
-            corrupted_tokens=sentence,
-            errors=errors,
-            formatted=formatted,
-        )
+        return self._generate_from_tokens(self.analyzer.analyze(text))
 
     def generate_batch(
         self,
@@ -920,41 +809,5 @@ class ErrorPipeline:
         """
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            token_batches = self.analyzer.analyze_batch(batch)
-
-            for _text, tokens in zip(batch, token_batches, strict=False):
-                if not tokens:
-                    yield GeneratedSentence(
-                        original_tokens=[],
-                        corrupted_tokens=[],
-                        errors=[],
-                        formatted="",
-                    )
-                    continue
-
-                # Prepare original tokens
-                original = [t.text for t in tokens]
-
-                # Decide whether to introduce errors
-                if self._rng.random() > self.config.error_probability:
-                    # No errors - return clean sentence
-                    formatted = self._format_output(original, [])
-                    yield GeneratedSentence(
-                        original_tokens=original,
-                        corrupted_tokens=original.copy(),
-                        errors=[],
-                        formatted=formatted,
-                    )
-                    continue
-
-                # Apply errors using shared helper
-                sentence, errors = self._apply_errors_to_sentence(tokens, original)
-
-                formatted = self._format_output(sentence, errors)
-
-                yield GeneratedSentence(
-                    original_tokens=original,
-                    corrupted_tokens=sentence,
-                    errors=errors,
-                    formatted=formatted,
-                )
+            for tokens in self.analyzer.analyze_batch(batch):
+                yield self._generate_from_tokens(tokens)

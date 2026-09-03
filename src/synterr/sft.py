@@ -28,13 +28,7 @@ from typing import TYPE_CHECKING
 
 from sacremoses import MosesDetokenizer
 
-from synterr.lorugec import (
-    LORUGEC_RULES,
-    get_lorugec_distribution,
-)
-from synterr.lorugec import (
-    extract_subtype as _extract_subtype_fn,
-)
+from synterr.lorugec import LORUGEC_RULES, extract_subtype, get_lorugec_distribution
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -159,7 +153,6 @@ def _balance_directions(
                 rng.shuffle(indices)
                 to_remove = set(indices[cap:])
                 n_remove = len(to_remove)
-                # Replace examples list in-place
                 examples[:] = [
                     ex for i, ex in enumerate(examples) if i not in to_remove
                 ]
@@ -305,7 +298,7 @@ def generate_targeted(
                 if result is None:
                     continue
 
-                result_subtype = _extract_subtype_fn(result.error_type, handler_name)
+                result_subtype = extract_subtype(result.error_type, handler_name)
                 if isinstance(subtype, tuple):
                     if result_subtype not in subtype:
                         continue

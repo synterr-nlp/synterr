@@ -16,12 +16,12 @@ Usage:
 
 from __future__ import annotations
 
+import importlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from synterr.languages.french.backends.base import AnalyzerBackend
 
-# Available backends
 BACKENDS = {
     "stanza": "synterr.languages.french.backends.stanza_fr:StanzaFrBackend",
 }
@@ -54,12 +54,8 @@ def get_backend(
         available = ", ".join(BACKENDS.keys())
         raise ValueError(f"Unknown backend '{name}'. Available: {available}")
 
-    # Lazy import backend class
     module_path, class_name = BACKENDS[name].rsplit(":", 1)
-
     try:
-        import importlib
-
         module = importlib.import_module(module_path)
         backend_class = getattr(module, class_name)
     except ImportError as e:

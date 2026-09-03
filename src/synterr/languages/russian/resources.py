@@ -8,7 +8,6 @@ import re
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
-from typing import Any
 
 # Morpheme strings in unified_dict.json may carry annotation characters
 # that are NOT part of the surface spelling: '-' marks a linking-morpheme
@@ -46,10 +45,6 @@ def get_paronyms() -> dict[str, list[str]]:
             return json.load(f)
 
     return {}
-
-
-# Alias for backwards compatibility
-get_lexical_confusions = get_paronyms
 
 
 @lru_cache(maxsize=1)
@@ -138,36 +133,6 @@ def get_stress_dict() -> dict[str, int]:
             return json.load(f)
 
     return {}
-
-
-@lru_cache(maxsize=1)
-def get_pronoun_list() -> list[str]:
-    """Get list of frequent Russian pronouns."""
-    return [
-        "я",
-        "ты",
-        "он",
-        "она",
-        "оно",
-        "мы",
-        "вы",
-        "они",
-        "себя",
-        "кто",
-        "что",
-        "какой",
-        "который",
-        "чей",
-        "этот",
-        "тот",
-        "такой",
-        "весь",
-        "каждый",
-        "любой",
-        "другой",
-        "сам",
-        "самый",
-    ]
 
 
 @lru_cache(maxsize=1)
@@ -392,49 +357,16 @@ def get_morpheme_analyzer() -> MorphemeAnalyzer:
 
 def _get_package_data_path() -> Path:
     """Get path to package data directory (src/synterr/data/russian)."""
-    # Try package resources first (works in installed package)
     try:
         pkg_files = resources.files("synterr.data.russian")
-        # Convert to Path if possible
         if hasattr(pkg_files, "_path"):
             return Path(pkg_files._path)
     except (TypeError, ModuleNotFoundError):
         pass
-
-    # Fall back to relative path (for development)
-    # __file__ = src/synterr/languages/russian/resources.py
-    # parent.parent.parent = src/synterr/
-    # + data/russian = src/synterr/data/russian
+    # source checkout without an installed package
     return Path(__file__).parent.parent.parent / "data" / "russian"
 
 
 def _get_data_path() -> Path:
     """Get path to external data directory (data/russian in project root)."""
-    # Fall back to relative path (for development)
-    module_dir = Path(__file__).parent.parent.parent.parent.parent
-    data_path = module_dir / "data" / "russian"
-    if data_path.exists():
-        return data_path
-
-    # Create directory if it doesn't exist
-    return data_path
-
-
-def load_resource(name: str) -> Any:
-    """Load a named resource file.
-
-    Args:
-        name: Resource filename (without path)
-
-    Returns:
-        Loaded resource (JSON parsed if .json extension)
-    """
-    data_path = _get_data_path() / name
-
-    if not data_path.exists():
-        raise FileNotFoundError(f"Resource not found: {name}")
-
-    with data_path.open(encoding="utf-8") as f:
-        if name.endswith(".json"):
-            return json.load(f)
-        return f.read()
+    return Path(__file__).parent.parent.parent.parent.parent / "data" / "russian"

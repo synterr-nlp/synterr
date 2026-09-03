@@ -213,13 +213,14 @@ def generate_output_formats_md() -> None:
 
     lines.append("## Python API\n\n")
     lines.append(
-        "Beyond the CLI, the `GeneratedResult` object on `pipeline.generate()` "
-        "exposes:\n\n"
+        "Beyond the CLI, the `GeneratedSentence` object returned by "
+        "`pipeline.generate()` exposes:\n\n"
         "- `result.formatted` — GECToR token-level tags (string).\n"
         "- `result.to_tsv()` — parallel src/tgt.\n"
         "- `result.to_jsonl()` — rich per-record JSON.\n"
-        "- `result.to_chat()` — instruction-tuning chat format.\n"
         "- `result.to_diff()` — human-readable inline diff (CLI-unexposed).\n\n"
+        "The `chat` and `sft` records are assembled by the CLI from "
+        "`original_tokens` / `corrupted_tokens`.\n\n"
     )
     lines.append("## Rule-targeted SFT\n\n")
     lines.append(

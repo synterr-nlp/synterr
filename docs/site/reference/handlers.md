@@ -2,7 +2,7 @@
 
 # Handlers and subtypes
 
-**46 handlers, 106 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
+**49 handlers, 110 subtypes** across 4 categories. Source of truth: `src/synterr/languages/russian/errors/`.
 
 Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 
@@ -36,8 +36,10 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 | `verb_tense` | `verb_tense` | `MORPH` | no |
 | `collocation` | `collocation` | `OTHER` | no |
 | `conjunction` | `conjunction` | `OTHER` | no |
+| `parallel_mix` | `parallel_mix` | `OTHER` | yes |
 | `paronym` | `paronym` | `OTHER` | no |
 | `pleonasm` | `pleonasm` | `OTHER` | yes |
+| `prep_repeat` | `prep_repeat` | `OTHER` | yes |
 | `preposition` | `preposition` | `OTHER` | no |
 | `pronoun_n_form` | `pronoun_n_form` | `OTHER` | no |
 | `pronoun_sebya` | `pronoun_sebya` | `OTHER` | no |
@@ -45,8 +47,9 @@ Categories: `MORPH`, `OTHER`, `PUNCT`, `SPELL`.
 | `word_insertion` | `word_insertion` | `OTHER` | yes |
 | `word_omission` | `word_omission` | `OTHER` | yes |
 | `comma_delete` | `comma_subordinate`, `comma_compound`, `comma_parenthetical`, `comma_isolation`, `comma_homogeneous`, `comma_interjection`, `comma_response`, `comma_repeated`, `comma_asyndetic`, `comma_vocative` | `PUNCT` | yes |
-| `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible`, `comma_clause_junction`, `comma_homogeneous_conj`, `comma_subj_pred`, `comma_pseudo_parenthetical`, `comma_after_odnako`, `comma_compound_conj_split`, `comma_x_ne_x` | `PUNCT` | yes |
+| `comma_insert` | `comma_before_kak`, `comma_in_set_phrase`, `comma_between_conjunctions`, `comma_in_indivisible`, `comma_clause_junction`, `comma_homogeneous_conj`, `comma_paired_conj`, `comma_subj_pred`, `comma_pseudo_parenthetical`, `comma_after_odnako`, `comma_compound_conj_split`, `comma_x_ne_x` | `PUNCT` | yes |
 | `comma_pair_delete` | `pair_participle`, `pair_relative`, `pair_gerund`, `pair_parenthetical`, `pair_apposition` | `PUNCT` | yes |
+| `comma_to_dash` | `comma_to_dash_asyndetic` | `PUNCT` | no |
 | `dash_delete` | `dash_subj_pred`, `dash_asyndetic`, `dash_apposition`, `dash_ellipsis`, `dash_other` | `PUNCT` | yes |
 | `dash_to_comma` | `dash_to_comma_apposition` | `PUNCT` | no |
 | `adverb_spelling` | `adverb_solid_to_separate`, `adverb_separate_to_solid`, `adverb_hyphen_to_separate`, `adverb_separate_to_hyphen` | `SPELL` | yes |
@@ -232,6 +235,12 @@ Replace conjunction with an attested confusion from the same group.
 
 - `conjunction:conjunction`
 
+### `parallel_mix` (1 subtype)
+
+Mix a причастный оборот into a который-coordination (§211–212).
+
+- `parallel_mix:parallel_mix`
+
 ### `paronym` (1 subtype)
 
 Replace word from paronyms list to one from its paronyms
@@ -243,6 +252,12 @@ Replace word from paronyms list to one from its paronyms
 Insert redundant words to create pleonasm errors.
 
 - `pleonasm:pleonasm`
+
+### `prep_repeat` (1 subtype)
+
+Drop an obligatory repeated preposition (§207 п.1).
+
+- `prep_repeat:prep_repeat`
 
 ### `preposition` (1 subtype)
 
@@ -298,7 +313,7 @@ Delete a comma with L2 subtype classification.
 - `comma_delete:comma_asyndetic`
 - `comma_delete:comma_vocative`
 
-### `comma_insert` (11 subtypes)
+### `comma_insert` (12 subtypes)
 
 Insert spurious commas — creates extra-comma errors.
 
@@ -308,6 +323,7 @@ Insert spurious commas — creates extra-comma errors.
 - `comma_insert:comma_in_indivisible`
 - `comma_insert:comma_clause_junction`
 - `comma_insert:comma_homogeneous_conj`
+- `comma_insert:comma_paired_conj`
 - `comma_insert:comma_subj_pred`
 - `comma_insert:comma_pseudo_parenthetical`
 - `comma_insert:comma_after_odnako`
@@ -323,6 +339,12 @@ Delete both commas of a paired construction (обособление).
 - `comma_pair_delete:pair_gerund`
 - `comma_pair_delete:pair_parenthetical`
 - `comma_pair_delete:pair_apposition`
+
+### `comma_to_dash` (1 subtype)
+
+Replace the §116 asyndetic comma with a spurious dash.
+
+- `comma_to_dash:comma_to_dash_asyndetic`
 
 ### `dash_delete` (5 subtypes)
 

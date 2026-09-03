@@ -19,9 +19,9 @@ clean text ──► 1. survey ──► starving classes
 
 ## Stage 0 — prepare input
 
-Plain UTF-8 text, **one sentence per line**. Sentences shorter than five
-words are skipped. The text must be *clean* (grammatical) — synterr
-corrupts it; it does not correct.
+Plain UTF-8 text, **one sentence per line** (`survey` additionally skips
+lines shorter than five words). The text must be *clean* (grammatical) —
+synterr corrupts it; it does not correct.
 
 ## Stage 1 — survey: what can this corpus feed?
 
@@ -204,6 +204,6 @@ emitted file:
   error coincide, giving a benchmark that's meaningful for evaluating
   learner-facing correction too.
 
-`--schema` selects the labeling schema (default: the one configured for
-the language); `--depparse` is on by default since several handlers
+`--schema` selects the labeling schema (default: `rozental`);
+`--depparse` is on by default since several handlers
 (agreement, government) require dependency parses to fire correctly.

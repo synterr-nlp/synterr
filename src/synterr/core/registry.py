@@ -34,13 +34,12 @@ def _load_entry_points() -> None:
     for ep in eps:
         try:
             language_cls = ep.load()
-            # Instantiate if it's a class, use directly if already an instance
             language = (
                 language_cls() if isinstance(language_cls, type) else language_cls
             )
             register_language(language)
         except Exception as e:
-            # Don't fail if a language module can't be loaded
+            # one broken optional language must not take the registry down
             warnings.warn(
                 f"Failed to load language module '{ep.name}': {e}", stacklevel=2
             )

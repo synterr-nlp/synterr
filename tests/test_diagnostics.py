@@ -111,20 +111,8 @@ def test_audit_jsonl_finds_no_ops(tmp_path: Path):
 
 
 def test_audit_jsonl_flags_non_words(tmp_path: Path):
+    # exactly one replaced token: _find_replaced_token ignores multi-edits
     path = tmp_path / "data.jsonl"
-    path.write_text(
-        json.dumps(
-            {
-                "src": "Они xyzzqq книгу.",
-                "tgt": "Они купили книгу.",
-                "rule": "spelling",
-            }
-        )
-    )
-    result = audit_jsonl(path)
-    # Two replacements in this diff (xyzzqq, купили) — _find_replaced_token
-    # only fires on exactly one. So this is a multi-edit, not a single
-    # replacement, and the test would not flag. Let's use a single-edit case:
     path.write_text(
         json.dumps(
             {

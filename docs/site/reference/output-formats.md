@@ -16,13 +16,14 @@ Synterr emits corrupted text in several formats. CLI selection is via the `-f`/`
 
 ## Python API
 
-Beyond the CLI, the `GeneratedResult` object on `pipeline.generate()` exposes:
+Beyond the CLI, the `GeneratedSentence` object returned by `pipeline.generate()` exposes:
 
 - `result.formatted` — GECToR token-level tags (string).
 - `result.to_tsv()` — parallel src/tgt.
 - `result.to_jsonl()` — rich per-record JSON.
-- `result.to_chat()` — instruction-tuning chat format.
 - `result.to_diff()` — human-readable inline diff (CLI-unexposed).
+
+The `chat` and `sft` records are assembled by the CLI from `original_tokens` / `corrupted_tokens`.
 
 ## Rule-targeted SFT
 

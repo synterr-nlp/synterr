@@ -1,6 +1,6 @@
 # Error types (Russian)
 
-**46 handlers, 106 subtypes** across four detection categories (`SPELL`,
+**49 handlers, 110 subtypes** across four detection categories (`SPELL`,
 `MORPH`, `PUNCT`, `OTHER`). The full subtype lists and Rozental §
 mappings are in
 [`CLAUDE.md`](https://github.com/synterr-nlp/synterr/blob/master/CLAUDE.md);
@@ -72,7 +72,7 @@ A 5-handler French proof-of-concept exists on the same architecture
 |---------|--------------|
 | `comma_delete` | Delete a comma at clause boundaries (10 dep-tree-classified subtypes: subordinate, compound, parenthetical, isolation, homogeneous, interjection, response, repeated, asyndetic, vocative) |
 | `comma_pair_delete` | Delete both commas of an isolated phrase (5 subtypes: participle, relative, gerund, parenthetical, apposition) |
-| `comma_insert` | Add a spurious comma (11 subtypes, incl. bidirectional: homogeneous_conj §86, subj_pred, pseudo_parenthetical §99, after_odnako §99, compound_conj_split §108, x_ne_x §90) |
+| `comma_insert` | Add a spurious comma (12 subtypes, incl. bidirectional: homogeneous_conj §86, subj_pred, pseudo_parenthetical §99, after_odnako §99, compound_conj_split §108, x_ne_x §90) |
 | `dash_delete` | Delete a required dash (5 subtypes: subj_pred, asyndetic, apposition, ellipsis §80, other) |
 | `dash_to_comma` | Substitute dash → comma at sentence-final appositions (§93, non-length-changing) |
 

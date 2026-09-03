@@ -110,30 +110,6 @@ class Schema:
         mapping = self.mappings.get(subtype)
         return mapping.primary if mapping else None
 
-    def get_full_tag_for_subtype(self, subtype: str) -> str | None:
-        """Get full schema tag including modifier.
-
-        Args:
-            subtype: Handler subtype name
-
-        Returns:
-            Full tag like "Ref+Miss" or "Ortho", or None if not mapped
-        """
-        mapping = self.mappings.get(subtype)
-        return mapping.get_full_tag() if mapping else None
-
-    def get_modifier_for_subtype(self, subtype: str) -> str | None:
-        """Get modifier for a handler subtype.
-
-        Args:
-            subtype: Handler subtype name
-
-        Returns:
-            Modifier name (Miss, Extra, Transfer) or None
-        """
-        mapping = self.mappings.get(subtype)
-        return mapping.modifier if mapping else None
-
     def get_l2_tag_for_subtype(self, subtype: str) -> str | None:
         """Get L2 fine-grained tag for a handler subtype.
 
@@ -165,26 +141,6 @@ class Schema:
             return self.primary_tags[tag_name].detection_category
         return "OTHER"
 
-    def resolve_modifier_alias(self, alias: str) -> str | None:
-        """Resolve a modifier alias to its canonical name.
-
-        Args:
-            alias: Alias like "Del" or "Ins"
-
-        Returns:
-            Canonical modifier name like "Miss" or "Extra", or None
-        """
-        # Check if it's already a canonical name
-        if alias in self.modifiers:
-            return alias
-
-        # Check aliases
-        for mod_name, mod in self.modifiers.items():
-            if alias in mod.aliases:
-                return mod_name
-
-        return None
-
     def get_coverage_report(self, available_subtypes: set[str]) -> dict[str, Any]:
         """Report which schema tags are covered by available handlers.
 
@@ -196,13 +152,7 @@ class Schema:
         """
         mapped_subtypes = set(self.mappings.keys())
         covered_subtypes = mapped_subtypes & available_subtypes
-
-        # Find which primary tags are covered
-        covered_tags = set()
-        for subtype in covered_subtypes:
-            mapping = self.mappings.get(subtype)
-            if mapping:
-                covered_tags.add(mapping.primary)
+        covered_tags = {self.mappings[s].primary for s in covered_subtypes}
 
         return {
             "schema_name": self.name,
@@ -356,7 +306,6 @@ def load_schema(name_or_path: str) -> Schema:
         ValueError: If schema not found
         yaml.YAMLError: If schema file is invalid
     """
-    # Check for built-in schema
     builtin_path = _get_builtin_schema_path(name_or_path)
     if builtin_path:
         path = builtin_path
@@ -371,30 +320,16 @@ def load_schema(name_or_path: str) -> Schema:
     with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
-    # Parse primary tags - support both 'primary_tags' and 'tags' keys
-    if "primary_tags" in data:
-        primary_tags = _parse_tags(data, "primary_tags")
-    else:
-        primary_tags = _parse_tags(data, "tags")
-
-    # Parse modifiers
-    modifiers = _parse_modifiers(data)
-
-    # Parse mappings
-    mappings = _parse_mappings(data)
-
-    # Parse fine-grained (L2) tags
-    fine_grained_tags = _parse_fine_grained_tags(data)
-
+    tags_key = "primary_tags" if "primary_tags" in data else "tags"
     return Schema(
         name=data.get("name", Path(path).stem),
         version=data.get("version", "1.0"),
         description=data.get("description", ""),
         detection_categories=data.get("detection_categories", {}),
-        primary_tags=primary_tags,
-        modifiers=modifiers,
-        mappings=mappings,
-        fine_grained_tags=fine_grained_tags,
+        primary_tags=_parse_tags(data, tags_key),
+        modifiers=_parse_modifiers(data),
+        mappings=_parse_mappings(data),
+        fine_grained_tags=_parse_fine_grained_tags(data),
     )
 
 
