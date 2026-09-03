@@ -6,6 +6,19 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Deslop pass (two verified lanes)**: handler modules share one
+  `errors/_common.py` (helpers that were copy-pasted up to 3x, plus
+  `SubtypeGateMixin`/`WeightedSubtypeMixin`/`MorphAnalyzerMixin` replacing
+  the boilerplate in 14 handler classes); `core/pipeline.py`'s
+  generate/generate_batch share one code path and `apply_error` clears the
+  subtype filter on every exit; zero-caller helpers removed from the
+  pipeline, schema loader, inflector, and resources; test scaffolding
+  moved to conftest/helpers. ~1,300 lines removed. Fixed-seed generation
+  output is byte-identical before and after; docs counts re-verified
+  against the live CLI (49 handlers / 110 subtypes / 103 L2 tags).
+
 ### Added
 
 - **SYNT block opened** — first generator coverage of the sy_ tag family:
