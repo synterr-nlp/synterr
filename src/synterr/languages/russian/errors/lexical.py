@@ -6,14 +6,16 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import AnalyzedToken, ErrorResult
-from synterr.languages.russian.errors.morphological import (
+from synterr.languages.russian.errors._common import (
+    UD_TO_PYMORPHY_ANIMACY,
+    MorphAnalyzerMixin,
+    _context_grammemes,
     _get_pymorphy_parse,
-    inflect_word,
+    _transfer_grammemes,
 )
 from synterr.languages.russian.inflector import (
     UD_TO_PYMORPHY_CASE,
-    UD_TO_PYMORPHY_GENDER,
-    UD_TO_PYMORPHY_NUMBER,
+    inflect_word,
     match_capitalization,
 )
 
@@ -61,97 +63,7 @@ def _all_confusion_candidates(groups: dict[str, list[str]], word: str) -> list[s
     return candidates
 
 
-def _has_confusion(groups: dict[str, list[str]], word: str) -> bool:
-    return bool(_all_confusion_candidates(groups, word))
-
-
-def _pick_confusion(groups: dict[str, list[str]], word: str, rng: Random) -> str | None:
-    candidates = _all_confusion_candidates(groups, word)
-    if candidates:
-        return rng.choice(candidates)
-    return None
-
-
-# UD features whose pymorphy equivalents must survive a paronym swap intact:
-# transferring an undisambiguated parse's case/gender/number stacks a spurious
-# agreement error on top of the intended Lex error.
-_UD_FEATURE_MAPS = (
-    ("Case", UD_TO_PYMORPHY_CASE),
-    ("Number", UD_TO_PYMORPHY_NUMBER),
-    ("Gender", UD_TO_PYMORPHY_GENDER),
-)
-
-
-def _context_grammemes(token: AnalyzedToken) -> set[str]:
-    """pymorphy grammemes implied by stanza's disambiguated features."""
-    wanted: set[str] = set()
-    for feature, mapping in _UD_FEATURE_MAPS:
-        value = token.features.get(feature)
-        grammeme = mapping.get(value) if value is not None else None
-        if grammeme:
-            wanted.add(grammeme)
-    return wanted
-
-
-# Grammemes that may be transferred from the original word's parse to the
-# paronym replacement: POS class plus form-level (inflectional) values.
-# Lexeme-level grammemes (Qual, aspect, transitivity, animacy) must stay
-# behind — the partner lexeme often lacks them, which would make inflection
-# fail spuriously (e.g. практичный is Qual but практический is not).
-_TRANSFER_POS = {
-    "NOUN",
-    "ADJF",
-    "ADJS",
-    "COMP",
-    "VERB",
-    "INFN",
-    "PRTF",
-    "PRTS",
-    "GRND",
-    "NUMR",
-    "ADVB",
-}
-_TRANSFER_FORM = {
-    "nomn",
-    "gent",
-    "datv",
-    "accs",
-    "ablt",
-    "loct",
-    "voct",
-    "gen2",
-    "loc2",
-    "sing",
-    "plur",
-    "masc",
-    "femn",
-    "neut",
-    "1per",
-    "2per",
-    "3per",
-    "past",
-    "pres",
-    "futr",
-    "actv",
-    "pssv",
-    "indc",
-    "impr",
-}
-_ANIMACY = {"anim", "inan"}
-
-
-def _transfer_grammemes(parse) -> set[str]:
-    """Form-level grammemes to carry over to the paronym replacement."""
-    grammemes = set(parse.tag.grammemes)
-    transfer = grammemes & (_TRANSFER_POS | _TRANSFER_FORM)
-    if "accs" in transfer:
-        # Accusative surface form depends on animacy; without it pymorphy
-        # would pick an arbitrary anim/inan variant.
-        transfer |= grammemes & _ANIMACY
-    return transfer
-
-
-class ParonymErrorHandler:
+class ParonymErrorHandler(MorphAnalyzerMixin):
     """Replace word from paronyms list to one from its paronyms"""
 
     name = "paronym"
@@ -161,15 +73,6 @@ class ParonymErrorHandler:
 
     def __init__(self):
         self._paronyms = None
-        self.__morph = None
-
-    @property
-    def _morph(self):
-        if self.__morph is None:
-            from synterr.languages.russian.resources import get_morph_analyzer
-
-            self.__morph = get_morph_analyzer()
-        return self.__morph
 
     @property
     def paronyms(self):
@@ -531,11 +434,6 @@ def _walk_up_for_subject(
     return None
 
 
-# UD Animacy -> pymorphy grammeme. свой/мой/твой/наш/ваш never carry Animacy
-# themselves (only nouns do), but the masc-sing-Acc slot is animacy-ambiguous
-# in pymorphy (моего vs мой), so it must be read off the noun being modified.
-_UD_TO_PYMORPHY_ANIMACY = {"Anim": "anim", "Inan": "inan"}
-
 # свой -> personal possessive, referent is 1st/2nd person: these decline like
 # adjectives (мой, моя, моё, мои, моего, ...), so they go through pymorphy.
 _SVOY_TO_PERSONAL_DECLINABLE = {"я": "мой", "ты": "твой", "мы": "наш", "вы": "ваш"}
@@ -582,7 +480,7 @@ def _svoy_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | 
     return None
 
 
-class PronounSvoyErrorHandler:
+class PronounSvoyErrorHandler(MorphAnalyzerMixin):
     """свой -> personal possessive confusion (Rozental §168.2, RLC Ref).
 
     The textbook L2 error: a reflexive possessive whose referent is the
@@ -613,17 +511,6 @@ class PronounSvoyErrorHandler:
     subtypes = ["pronoun_svoy"]
     category = "OTHER"
     changes_length = False
-
-    def __init__(self):
-        self.__morph = None
-
-    @property
-    def _morph(self):
-        if self.__morph is None:
-            from synterr.languages.russian.resources import get_morph_analyzer
-
-            self.__morph = get_morph_analyzer()
-        return self.__morph
 
     def _apro_parse(self, lemma: str):
         """First pymorphy parse that is a declinable pronoun-adjective.
@@ -693,7 +580,7 @@ class PronounSvoyErrorHandler:
             "plur" in grammemes or {"masc", "sing"} <= grammemes
         )
         if is_animacy_ambiguous_acc and noun is not None:
-            animacy = _UD_TO_PYMORPHY_ANIMACY.get(noun.get_feature("Animacy"))
+            animacy = UD_TO_PYMORPHY_ANIMACY.get(noun.get_feature("Animacy"))
             if animacy:
                 grammemes.add(animacy)
         parse = self._apro_parse(target_lemma)
@@ -854,7 +741,7 @@ def _sebya_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken |
     return None
 
 
-class PronounSebyaErrorHandler:
+class PronounSebyaErrorHandler(MorphAnalyzerMixin):
     """Reflexive себя/себе/собой -> personal pronoun confusion (§168, RLC Ref).
 
     The textbook L2 error: a reflexive pronoun coreferent with the clause
@@ -876,17 +763,6 @@ class PronounSebyaErrorHandler:
     subtypes = ["pronoun_sebya"]
     category = "OTHER"
     changes_length = False
-
-    def __init__(self):
-        self.__morph = None
-
-    @property
-    def _morph(self):
-        if self.__morph is None:
-            from synterr.languages.russian.resources import get_morph_analyzer
-
-            self.__morph = get_morph_analyzer()
-        return self.__morph
 
     def _npro_parse(self, lemma: str):
         for parse in self._morph.parse(lemma):
@@ -1270,8 +1146,8 @@ class PronounNFormErrorHandler:
         if bare is not None:
             # Loc cells (о ней, о них) have no bare counterpart in the
             # paradigm — dropping н there lands in a different case
-            # (audit, 2026-07-07; the class docstring always promised this
-            # guard). UD Case first, Loc-only prepositions as fallback.
+            # (audit, 2026-07-07). UD Case first, Loc-only prepositions as
+            # fallback.
             if token.get_feature("Case") == "Loc":
                 return None
             governor = _n_form_case_governor(tokens, idx)

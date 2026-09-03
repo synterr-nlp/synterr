@@ -16,6 +16,7 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import WeightedSubtypeMixin
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -339,7 +340,7 @@ _PODRYAD_GOVERNORS: frozenset[str] = frozenset(
 )
 
 
-class AdverbSpellingHandler:
+class AdverbSpellingHandler(WeightedSubtypeMixin):
     """Corrupt adverb spelling: solid↔separate, hyphen↔separate.
 
     Subtypes:
@@ -365,29 +366,6 @@ class AdverbSpellingHandler:
         "adverb_hyphen_to_separate": 20,
         "adverb_separate_to_hyphen": 20,
     }
-
-    def __init__(self) -> None:
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
-
-        When set, apply() returns None if the weighted choice falls outside
-        the enabled set — letting the pipeline try another position instead
-        of emitting a mislabeled error.
-        """
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     @staticmethod
     def _next_nominal_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:

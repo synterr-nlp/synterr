@@ -4,21 +4,11 @@ from random import Random
 
 import pytest
 
-from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.function_spelling import (
     FunctionSpellingHandler,
 )
 
-
-def _tok(text, pos="NOUN", lemma=None, idx=0, features=None, **kw):
-    return AnalyzedToken(
-        text=text,
-        lemma=lemma or text.lower(),
-        pos=pos,
-        features=features or {},
-        idx=idx,
-        **kw,
-    )
+from .helpers import make_token as _tok
 
 
 def _neg_pronoun_handler():

@@ -4,21 +4,12 @@ from random import Random
 
 import pytest
 
-from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.compound_spelling import (
     CompoundSpellingHandler,
     _is_pol_compound,
 )
 
-
-def _tok(text, pos="NOUN", lemma=None, idx=0):
-    return AnalyzedToken(
-        text=text,
-        lemma=lemma or text.lower(),
-        pos=pos,
-        features={},
-        idx=idx,
-    )
+from .helpers import make_token as _tok
 
 
 class TestProtocol:

@@ -20,9 +20,8 @@ POS, or conjugation class — distinct from the phonetic spelling handler.
   duplicated here — vowel_after_sibilant's existing stress-aware root
   branch already produces it; see handler docstring note below.)
 - adj_ending_vowel: -ем/-им confusion in Ins/Loc singular soft-stem
-  adjectives (§39 per task spec; see final report for a paragraph-mapping
-  caveat — the located §39 text covers -ый/-ий adjective selection, not
-  this case-ending pair)
+  adjectives (§39 per task spec — paragraph-mapping caveat: the located §39
+  text covers -ый/-ий adjective selection, not this case-ending pair)
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ import re
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import WeightedSubtypeMixin
 from synterr.languages.russian.resources import get_morpheme_analyzer
 
 if TYPE_CHECKING:
@@ -129,8 +129,6 @@ _TS_VOWEL_SWAPS = {
 # Vowels after sibilants (ш, щ, ж, ч)
 # =============================================================================
 
-_SIBILANTS = set("шщжчШЩЖЧ")
-
 _SIBILANT_VOWEL_SWAPS = {
     "ё": "о",
     "о": "ё",
@@ -205,9 +203,6 @@ _NN_RE = re.compile(r"нн")
 # -ан-/-ян-/-ин- suffixes that should have 1н (error = adding 2нн)
 _SINGLE_N_SUFFIX_RE = re.compile(r"(ан|ян|ин)([а-яё]*[ыоеи]й|[а-яё]*[аяое][яе]?)$")
 
-# Exception words that have НН despite -ян- suffix
-_NN_EXCEPTIONS = {"деревянный", "оловянный", "стеклянный"}
-
 # Words that must keep single н (exception to general rules)
 _SINGLE_N_EXCEPTIONS = {
     "багряный",
@@ -224,7 +219,7 @@ _SINGLE_N_EXCEPTIONS = {
 }
 
 
-class OrthographicSpellingHandler:
+class OrthographicSpellingHandler(WeightedSubtypeMixin):
     """Morpheme-level spelling errors: suffixes, prefixes, post-sibilant vowels.
 
     Unlike the phonetic SpellingErrorHandler, these errors depend on
@@ -264,35 +259,15 @@ class OrthographicSpellingHandler:
         "adj_ending_vowel": 7,
     }
 
-    def __init__(self):
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
+    def __init__(self) -> None:
+        super().__init__()
         self._analyzer = None
-        self._enabled_subtypes: set[str] | None = None
 
     @property
     def analyzer(self):
         if self._analyzer is None:
             self._analyzer = get_morpheme_analyzer()
         return self._analyzer
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
-
-        When set, apply() returns None if the weighted choice falls outside
-        the enabled set — letting the pipeline try another position instead
-        of emitting a mislabeled error.
-        """
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         token = tokens[idx]

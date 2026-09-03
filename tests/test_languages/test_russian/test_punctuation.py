@@ -1,6 +1,5 @@
 import pytest
 
-from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.punctuation import (
     CommaDeleteHandler,
     CommaPairDeleteHandler,
@@ -13,20 +12,7 @@ from synterr.languages.russian.errors.punctuation import (
     _is_split_conjunction_comma,
 )
 
-# ── Helper to build tokens quickly ──────────────────────────────────────────
-
-
-def _tok(text, pos, lemma=None, idx=0, dep_rel=None, head_idx=None, features=None):
-    return AnalyzedToken(
-        text=text,
-        lemma=lemma or text.lower(),
-        pos=pos,
-        features=features or {},
-        idx=idx,
-        dep_rel=dep_rel,
-        head_idx=head_idx,
-    )
-
+from .helpers import make_token as _tok
 
 # ── CommaDeleteHandler ─────────────────────────────────────────────────────
 

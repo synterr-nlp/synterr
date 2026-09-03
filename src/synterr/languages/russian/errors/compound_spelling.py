@@ -15,6 +15,7 @@ import re
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import WeightedSubtypeMixin
 from synterr.languages.russian.resources import get_morpheme_analyzer
 
 if TYPE_CHECKING:
@@ -266,7 +267,7 @@ def _is_pol_compound(text_lower: str) -> bool:
     return False
 
 
-class CompoundSpellingHandler:
+class CompoundSpellingHandler(WeightedSubtypeMixin):
     """Corrupt compound word spelling: dashes, пол-, compound adjectives.
 
     Subtypes:
@@ -289,29 +290,6 @@ class CompoundSpellingHandler:
         "pol_spelling": 40,
         "compound_adj": 25,
     }
-
-    def __init__(self):
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict to specific subtypes (used by targeted SFT / CLI :subtype).
-
-        When set, apply() returns None if the weighted choice falls outside
-        the enabled set — letting the pipeline try another position instead
-        of emitting a mislabeled error.
-        """
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         text = tokens[idx].text

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import WeightedSubtypeMixin
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -680,13 +681,6 @@ def _validate_root_alternations() -> None:
 _validate_root_alternations()
 
 
-# Surface-aligned morpheme offsets (audit fix S1) now live at the source:
-# MorphemeAnalyzer.surface_morpheme_spans in resources.py strips annotation
-# characters ('-', 'j', parentheses) per morpheme and verifies the result
-# against the surface word before any offset is trusted. root_alternating
-# and the root_unchecked lexicon validator both consume it from there.
-
-
 def _lemma_denied(lookup_lemma: str, denied_lemmas: frozenset[str]) -> bool:
     """Check a lemma against a denylist mixing exact and family-prefix entries.
 
@@ -774,7 +768,7 @@ def _root_unchecked_lexicon() -> dict[str, tuple[int, str, str]]:
     return _ROOT_UNCHECKED_LEXICON
 
 
-class SpellingErrorHandler:
+class SpellingErrorHandler(WeightedSubtypeMixin):
     """Russian spelling error handler using phonetic rules.
 
     Implements realistic Russian spelling errors based on actual phonetic
@@ -814,43 +808,15 @@ class SpellingErrorHandler:
         "root_unchecked": 5,
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         self._stress_dict: dict[str, int] | None = None
         self._keyboard_upper: dict[str, list[str]] | None = None
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None  # None = all subtypes
 
     @property
     def weights(self) -> dict[str, float]:
         """Get current subtype weights."""
         return self._weights
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        """Set custom subtype weights from config.
-
-        Args:
-            weights: Dict mapping subtype names to weights.
-                     Missing subtypes keep their default weights.
-        """
-        # Start with defaults, then override with provided weights
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        """Restrict handler to only use specific subtypes.
-
-        Args:
-            subtypes: Set of subtype names to enable, or None for all.
-                      Example: {"vowel_reduction", "devoicing"}
-        """
-        if subtypes is not None:
-            # Validate subtypes
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
 
     @property
     def enabled_subtypes(self) -> set[str]:

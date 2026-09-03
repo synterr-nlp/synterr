@@ -42,6 +42,7 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import WeightedSubtypeMixin
 from synterr.languages.russian.errors.punctuation import _get_subtree_span
 
 if TYPE_CHECKING:
@@ -927,7 +928,7 @@ def _can_insert_x_ne_x(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     return first.pos != "PUNCT" and first.pos == second.pos
 
 
-class CommaInsertHandler:
+class CommaInsertHandler(WeightedSubtypeMixin):
     """Insert spurious commas — creates extra-comma errors.
 
     Subtypes:
@@ -980,23 +981,6 @@ class CommaInsertHandler:
         "comma_compound_conj_split": 8,
         "comma_x_ne_x": 5,
     }
-
-    def __init__(self):
-        self._weights: dict[str, float] = self.DEFAULT_WEIGHTS.copy()
-        self._enabled_subtypes: set[str] | None = None
-
-    def set_enabled_subtypes(self, subtypes: set[str] | None) -> None:
-        if subtypes is not None:
-            invalid = subtypes - set(self.subtypes)
-            if invalid:
-                raise ValueError(f"Unknown subtypes: {invalid}. Valid: {self.subtypes}")
-        self._enabled_subtypes = subtypes
-
-    def set_subtype_weights(self, weights: dict[str, float]) -> None:
-        self._weights = self.DEFAULT_WEIGHTS.copy()
-        for subtype, weight in weights.items():
-            if subtype in self._weights:
-                self._weights[subtype] = weight
 
     def _detect_subtypes(self, tokens: Sequence[AnalyzedToken], idx: int) -> list[str]:
         """All subtypes whose trigger fires at `idx`.

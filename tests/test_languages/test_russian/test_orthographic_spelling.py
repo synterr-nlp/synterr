@@ -4,20 +4,11 @@ from random import Random
 
 import pytest
 
-from synterr.core.protocol import AnalyzedToken
 from synterr.languages.russian.errors.orthographic_spelling import (
     OrthographicSpellingHandler,
 )
 
-
-def _tok(text, pos="NOUN", lemma=None, idx=0, features=None):
-    return AnalyzedToken(
-        text=text,
-        lemma=lemma or text.lower(),
-        pos=pos,
-        features=features or {},
-        idx=idx,
-    )
+from .helpers import make_token as _tok
 
 
 def _force_subtype(subtype: str) -> OrthographicSpellingHandler:

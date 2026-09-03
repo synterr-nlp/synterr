@@ -35,6 +35,10 @@ import random as random_module
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import (
+    _get_pymorphy_parse,
+    _is_predicate_token,
+)
 from synterr.languages.russian.inflector import (
     GENDERS,
     UD_TO_PYMORPHY_GENDER,
@@ -54,33 +58,8 @@ if TYPE_CHECKING:
 # Shared machinery
 # =============================================================================
 
-# Finite predicate POS (mirrors punctuation.py's FINITE_POS). Short-form
-# participle predicates ("приглашено", "убеждён") are VERB/VerbForm=Part in
-# stanza's SynTagRus tagset, so they fall out of _is_predicate_token too.
-_FINITE_POS = frozenset({"VERB", "AUX"})
-
 # Subject dep_rels (shared with morphological.py's convention).
 _SUBJECT_DEPRELS = frozenset({"nsubj", "nsubj:pass"})
-
-
-def _get_pymorphy_parse(token: AnalyzedToken):
-    """Get pymorphy parse object from token."""
-    return token.extra.get("pymorphy_parse")
-
-
-def _is_predicate_token(token: AnalyzedToken) -> bool:
-    """A token that anchors a clause as its predicate: a finite verb/aux, or
-    a short participle ("расположены", "убеждён") — the predicative forms.
-
-    Duplicated locally from ``punctuation.py`` per the file-lane rule (this
-    module owns no cross-file imports of another handler file's helpers).
-    """
-    if token.pos not in _FINITE_POS:
-        return False
-    verb_form = token.get_feature("VerbForm")
-    if verb_form in (None, "Fin"):
-        return True
-    return verb_form == "Part" and token.get_feature("Variant") == "Short"
 
 
 def _has_dep_info(token: AnalyzedToken) -> bool:
@@ -191,20 +170,6 @@ def _corrupt_predicate_number(
 # dominate in text and a lemma test cannot separate them from the §183
 # quantifier reading (audit finding, 2026-07-07).
 _COLLECTIVE_LEMMAS = frozenset({"большинство", "множество", "меньшинство"})
-
-
-def _has_gen_plural_dependent(tokens: Sequence[AnalyzedToken], head_idx: int) -> bool:
-    """A Gen-plural nmod-family dependent of ``head_idx`` ("большинство
-    студентОВ")."""
-    for t in tokens:
-        if (
-            t.head_idx == head_idx
-            and (t.dep_rel or "").startswith("nmod")
-            and t.get_feature("Case") == "Gen"
-            and t.get_feature("Number") == "Plur"
-        ):
-            return True
-    return False
 
 
 class AgrSvCollectiveErrorHandler:

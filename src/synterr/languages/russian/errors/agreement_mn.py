@@ -35,10 +35,14 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from synterr.core.protocol import ErrorResult
+from synterr.languages.russian.errors._common import (
+    DATA_DIR,
+    _get_pymorphy_parse,
+    _get_token_safe,
+)
 from synterr.languages.russian.inflector import inflect_word
 from synterr.languages.russian.resources import get_morpheme_analyzer
 
@@ -47,24 +51,6 @@ if TYPE_CHECKING:
     from random import Random
 
     from synterr.core.protocol import AnalyzedToken
-
-
-# =============================================================================
-# Shared helpers (duplicated from morphological.py by design — one-agent-one-
-# -file-lane; see MEDIUM_WAVE_SPEC.md §0).
-# =============================================================================
-
-
-def _get_pymorphy_parse(token: AnalyzedToken):
-    """Get pymorphy parse object from token."""
-    return token.extra.get("pymorphy_parse")
-
-
-def _get_token_safe(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken | None:
-    """Safely get token by index, returning None if out of bounds."""
-    if 0 <= idx < len(tokens):
-        return tokens[idx]
-    return None
 
 
 def _has_any_dependent(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
@@ -85,11 +71,6 @@ def _has_any_dependent(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
 # this file (a broader set than morphological.py's numeral-declension helper,
 # which excludes Acc for reasons specific to that handler).
 _OBLIQUE_CASES = {"Gen", "Dat", "Acc", "Ins", "Loc"}
-
-# Bundled lexicon directory, alongside the other language resources
-# (paronyms, collocations, ...). Kept local to this file (not imported from
-# morphological.py) by the one-agent-one-file-lane convention noted above.
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "russian"
 
 
 def _normalize_lemma(lemma: str) -> str:
@@ -117,7 +98,7 @@ def _hyphen_compound_lexicon() -> frozenset[tuple[str, str]]:
     ``_normalize_lemma``. Missing file yields an empty lexicon rather than
     raising, matching this module's skip-over-crash precision stance.
     """
-    path = _DATA_DIR / "hyphen_compounds.json"
+    path = DATA_DIR / "hyphen_compounds.json"
     if not path.exists():
         return frozenset()
     with path.open(encoding="utf-8") as f:
