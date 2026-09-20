@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Orient before acting: nks_orient realm=synterr (focus: realm root; slug unverified — validate on first NKS-connected session), latest synterr-internal/journal entry, git log -10 both repos, and git rev-parse --abbrev-ref HEAD (shared-checkout rule).\"}}'"
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Read the iskron door skill, section «Старт», before acting. This repo: realm @aleph/synterr (r70); focus holon #4 «Контур генерации ошибок (synterr)»; agent karta #7 «Агент линии хендлеров»; owner karta #6 «Владелец-исследователь GEC». Standing (iskron_stand) only on watch: the word «вахта», start, an invitation line or a frame.\"}}'"
           }
         ]
       }
@@ -16,7 +16,36 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command // \"\"' | grep -q 'git push' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Post-push ritual: append a synterr-internal/journal entry (what+why, no SHAs); update NKS when connected (close resolved vimarshas); after a green push re-read your diff for bugs/fragile guards/missing tests and fix in the same branch or state nothing surfaced.\"}}' || true"
+            "command": "jq -r '.tool_input.command // \"\"' | grep -Eq '(^|[;&|(] *)(env +)?([A-Za-z_]+=[^ ]+ +)*git( -C [^ ]+)* push([ ;&|)]|$)' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Push is not shipping: self-check the branch diff, vocabulary pass over the PR text, cold stage review by the reviewer sub-agent (AGENTS.md → Холодное ревью этапа); shipping is the merge.\"}}' || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // \"\"' | grep -Eq '(^|[;&|(] *)gh pr merge|(checkout|switch) (main|master)[^;|]*&& *git( -C [^ ]+)* pull([ ;&|)]|$)' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Merge: the four acts of AGENTS.md → Жизненный цикл сессии (weave what shipped, switch modes across the contour, close along the axis, reconcile), then the feedback reflection.\"}}' || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // \"\"' | grep -qE '(^|/)specs/[^/]+\\.md$|(^|/)docs/.*design[^/]*\\.md$' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"A design draft was written; per AGENTS.md this file is a draft view — the graph is the design record. Intake it (intake skill, then design skill) in this session — do not defer to a push.\"}}' || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // \"\"' | grep -Eq '\\.claude/projects/.*/memory/' && { echo 'BLOCKED: local agent memory is forbidden entirely, not by category (AGENTS.md, Persistence rules). Route the fact: repo conventions / code facts → AGENTS.md; project state, this repo'\"'\"'s servers and dated duties → the project realm @aleph/synterr; a user-scoped fact no project owns → the personal realm @aleph/mind (minding skill). This dir stays frozen at its prohibition stub.' >&2; exit 2; } || exit 0"
           }
         ]
       }
@@ -24,17 +53,21 @@
   },
   "permissions": {
     "allow": [
-      "Bash(uv run pytest:*)",
-      "Bash(uv run ruff:*)",
-      "Bash(uv run mypy:*)",
-      "Bash(uv run synterr:*)",
-      "Bash(uv run mkdocs build:*)",
-      "Bash(git status:*)",
-      "Bash(git log:*)",
+      "Bash(gh run list:*)",
       "Bash(git diff:*)",
+      "Bash(git log:*)",
       "Bash(git rev-parse:*)",
       "Bash(git stash list)",
-      "Bash(gh run list:*)"
+      "Bash(git status:*)",
+      "Bash(make check:*)",
+      "Bash(make docs:*)",
+      "Bash(make lint:*)",
+      "Bash(make test:*)",
+      "Bash(uv run mkdocs build:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run synterr:*)"
     ]
   }
 }

@@ -92,3 +92,7 @@ docs/presentation.tex
 docs/presentation.pdf
 docs/synterr_presentation.pptx
 docs/references.bib
+
+# iskronify: role agents and hooks are shared rituals — tracked
+!.claude/agents/
+!.claude/agents/*.md

@@ -1,81 +1,182 @@
-# synterr
-Rule-based synthetic error generator for Russian GEC: corrupts clean text into §-labeled errors (GECToR / seq2seq / minimal-pair benchmark data).
+# `synterr`
+`Rule-based synthetic error generator for Russian GEC: corrupts clean text into §-labeled errors — training data (GECToR / seq2seq / SFT) and, next, the RozentalBench minimal-pair benchmark.`
 
-## What this project is
-- **Nature**: production. Public pip-installable releases (v1.x = BEA 2026 release), cited, and the planned RozentalBench generator — wrong output becomes wrong training data and wrong benchmark items downstream.
-- **NKS realm**: `synterr` (r70, verified 2026-07-12) — every session starts with `nks_orient` here. Realm is near-empty: structure bootstrap pending; the open fix-queue lives as vimarsha #1.
-- **Focus holon**: focus: realm root.
-- **Stack**: Python 3.11+ / uv; stanza (parses) + pymorphy3 (inflection); ruff + scoped mypy; mkdocs-material site.
-- **Production statement**: ships as a PyPI-style package and a public docs site; consumed by GEC researchers for training data and (planned) model benchmarking. Cost of breakage: silently invalid corruptions poison training corpora and benchmark validity — precision beats recall everywhere.
+## Обложка
+Ответы стоят таблицей, не прозой: слот, значение, источник. Источник — `выведено` (из репо, скриптом или чтением), `согласовано: <кто>` (человек или агент, чьё слово) либо узел согласования. Обложку пишет такт 1 iskronify, дополняет старт двери `iskron` по узлу согласования, перепроецирует полная дуга.
 
-## Persistence rules
-State lives in the **repo**, in **synterr-internal** (private repo: journal, specs, annotations), or in **NKS** — nowhere else. Local agent memory, conversation summaries, `/tmp`, machine-local files are **forbidden for project state**.
-- **Repo**: code, configs, conventions, code-level gotchas — the artifact itself.
-- **synterr-internal**: lab journal (`journal/` — append an entry every work session), research specs, annotation data, anything referencing the copyrighted Rozental raw text.
-- **NKS**: design decisions, open questions, plans (once the realm is live).
-- **Fetch state; never reconstruct it from memory.**
-- Global *user* preferences (language, working style, mascot lore) are agent-scoped and persist separately — this rule is about *project* state.
+| Слот | Значение | Источник |
+|---|---|---|
+| Nature | `production` — pip-пакет (v1.x = BEA 2026 release), цитируется, генератор планируемого RozentalBench; ни один принцип не ослаблен | согласовано: Aleph |
+| Граф | `@aleph/synterr` (r70) — каждая сессия начинается здесь; один граф на пять репо проекта | выведено |
+| Фокус-контур | #4 «🧬 Контур генерации ошибок (synterr)»; соседи того же проекта: #5 схема Розенталя (repo `rozental`), #51 лаборатория (`synterr-internal`), #52 сайт, #15/#16/#17 — линия обучения и оценки (`gec-eval`) | выведено |
+| Репозиторий | `github.com/synterr-nlp/synterr` — атрибут `repository` контура #4, из origin | выведено |
+| Роль агента | #7 «🛠 Агент линии хендлеров» — adhikarin, стюард #4; инбокс `iskron_orient(focus="7")` | выведено |
+| Роль владельца | #6 «👤 Владелец-исследователь GEC» — svatantra, адрес `posed_to` вне мандата | выведено |
+| Стек | Python ≥3.11 / uv; stanza (parses) + pymorphy3 (inflection); ruff + scoped mypy; pytest with `slow` marker; mkdocs-material | выведено |
+| Гейт | `make check` (ruff check + format --check + mypy + fast pytest); `make check-full` добавляет slow-тесты и `mkdocs --strict`; CI зовёт те же таргеты | согласовано: Aleph |
+| Потребители | GEC-исследователи через pip и сайт; линия обучения/оценки (`gec-eval`) — корпуса `src/tgt/rule`; аннотатор-носитель (#8) — бандлы ревью; RozentalBench — планируемый. О поломке узнают: CI, журнал лаборатории, раунд аннотации | согласовано: Aleph |
+| Цена поломки | Невалидная порча тихо отравляет обучающие корпуса и валидность бенчмарка ниже по течению; точность важнее полноты — пропуск лучше неверной метки | согласовано: Aleph |
+| Reality | таблица в разделе «Reality» | согласовано: Aleph |
+| Кросс-проектная память | личный граф `@aleph/mind` — у каждого, без вопроса; глобального файла инструкций нет; никогда директория памяти | выведено |
+| Фидбэк-рефлексия | да | согласовано: Aleph |
+| Interop с workflow-набором | full (superpowers 6.3.0) | согласовано: Aleph |
+| Согласование | #50 — все слоты согласованы; узел закрывается на первом старте, читающем эту обложку | выведено |
 
-## Session lifecycle
-- **Start of session:** orient — `git log --oneline -15` on both repos, latest `synterr-internal/journal/` entry, NKS realm when connected.
-- **Before every write phase:** `git rev-parse --abbrev-ref HEAD` + `git status --short`. Parallel sessions may share this checkout; unexplained files or a changed branch = stop and investigate. Prefer one `git worktree` per session lane.
-- **Every push:** update the journal (what + why, not SHAs); update NKS when connected; after a green push re-read your diff for bugs, fragile guards, missing tests — fix in the same branch or state plainly nothing surfaced.
-- **After agent fan-outs:** check `git stash list` and `git status` for unmerged entries — prompt constraints are not enforcement.
+## Правила персистентности
+Состояние живёт в **репо** (этот и `synterr-internal`) или в **графе** — больше нигде. Встроенная память харнесса (пер-проектная директория памяти, сводки разговоров, `/tmp`, машинно-локальные файлы) **запрещена целиком, не по категориям**. Единственный файл во временном каталоге сессии — гроссбух сессии (старт двери `iskron`): он умирает с сессией. (why: локальная память невидима любому другому агенту и любой другой машине, поэтому дрейфует молча.)
+- **Репо `synterr`**: код, конфиги, ритуалы (как действовать здесь), состояние веток.
+- **Репо `synterr-internal`** (контур #51): лабораторный журнал `journal/YYYY-MM.md` — **запись каждую рабочую сессию**; исследовательские спеки; аннотации носителя; всё, что ссылается на текст справочника Розенталя.
+- **Граф**: методология, проектные решения, открытые вопросы (вимарши), планы, передачи, уроки, готчи. Не пересказывай содержимое графа в репо; линкуй узел.
+- **Маршрут «запомни / обдумай / научись»:** как действовать в этом репозитории → этот файл; факт о самом человеке → `@aleph/mind`; знание о проекте, смыслах, идеях и готчах → граф, никогда этот файл.
+- **Доставай состояние; никогда не восстанавливай из памяти.** Нет источника у «мы решили…»? Остановись и прочти граф или журнал, прежде чем действовать.
+- **Внешние design/spec-файлы — черновики на впуск**, не запись: решения держит граф.
+- **Укрытия названы, и их три:** проза этого файла; sinn-феномен для того, что действует; одинокая стрелка `context`. Финишная черта записи: узел не записан, пока не назван тянущий его — какая крия сломается, если узел исчезнет?
+- **Это переопределяет собственную инструкцию памяти харнесса.** Прежде чем закончить, проверь, что каждый долгий факт из контекста персистирован по маршруту, спрашивая **чей это факт?** Конвенция репо, факт о коде, процедуры, серверы и датированные долги проекта → этот файл / доки / узел графа; состояние работы, решение, открытый вопрос → вимарша. Собственное пользователя (машины, сроки, люди, кросс-проектные уроки; как с ним говорить) → `@aleph/mind` (**minding**), в момент узнавания. Поведение агента настраивается **только** коммитящимися файлами рабочего дерева (AGENTS.md, `.claude/settings.json`, `.claude/agents/`) и графом — никогда файлами вне worktree.
+- Локальная директория памяти **эвакуирована и заморожена** (дамп: `synterr-internal/docs/agent-memory/`): `MEMORY.md` держит стаб-запрет, memory-guard `PreToolUse` блокирует любую запись туда (exit 2).
 
-## Working principles
-1. **Think before coding.** Fetch, don't recall; hit the live pipeline before trusting a doc or a memory. State assumptions; push back on false premises.
-2. **Simplicity first.** Minimum code; no speculative abstractions.
-3. **Surgical changes.** Touch only what the task needs; the linter is authoritative on style.
-4. **Goal-driven execution.** Bugs: pin with a failing test before patching. Handler changes: verify end-to-end through `ErrorPipeline` on real sentences (`lenta_sents.txt`), not just unit fixtures.
-5. **Precision first.** A handler that skips is fine; one that emits correct-Russian "errors" or mangled labels poisons data. Skip > mislabel, always.
+## Жизненный цикл сессии
+Граф = работа (структура, открытые вопросы, что дальше). Git = как сюда пришли (SHA, ветки, PR). **Git-ссылки не попадают в граф** — ни SHA, ни имён веток, ни номеров PR, ни «shipped/merged» в узлах.
+- **Старт сессии:** раздел «Старт» скилла-двери `iskron` — граф и роль названы, стояние занято одним вызовом `iskron_stand` только на вахту (слово «вахта», `start`, строка приглашения, кадр). Адреса — из обложки. Затем **перед каждой фазой записи**: `git rev-parse --abbrev-ref HEAD` + `git status --short` — параллельные сессии могут делить этот чекаут; необъяснённые файлы или чужая ветка = стоп и разбор; предпочитай один `git worktree` на полосу (`../synterr-wt-<имя>`).
+- **Начало работы: сперва граф, потом проект, потом код.** (1) разведка графа — `entry`: что записано о месте изменения, открытые вимарши, внешние поверхности; (2) поле интеграции — от #4 и #7 через `integrity`: потребители, эффекты, соседние контуры (#5, #16) и их делатели; эстафеты `lens="trace"` (корпус #11 идёт в обучение #25); (3) проектирование (`design`) — и только потом код. Исключение явное: человек сказал «работай сразу»; молчание — не «работай сразу».
+- **Решение записывается в момент принятия**, где бы оно ни пришло (чат, кадр другой сессии, договорённость агентов): узел с честными модусами (epistemic ≤ `anumita`, ontic `anagata`), кто решил и что считается исполнением. Изменилась ситуация — граф отражает её сразу.
+- **Каждая задача описана прежде, чем начата:** разовое деяние — anga-вимаршей на превращении, которое оно двигает (карта: `iskron_orient(lens="bianhua")` — сейчас #47 → #48 → #49 и #30); **крией — только повторяемый переход**. На **мерже** модусы переключаются на то, что мерж сделал истинным; затем **reality-audit** против носителя из «Reality».
+- **Каждый мерж → обнови граф.** Пуш лишь обновил PR. На мерже обязательны: сверить с реальностью (что позиционирует изменение: хендлеры, схема, форматы выхода — не локфайлы и переезды файлов); продвинуть карту (anga к превращению; семя `genre=hint` — одно на превращение); закрыть по оси (`addressed_by`, отдельно `visarjana` — когда узел стоит, репо показывает, реальность показывает или владелец сказал); промести отгруженный контур (anagata→vartamana, kalpita→pratyakshita по всему спроектированному); отработать инбокс #7; **reconcile** — узлы области против кода, смысл из комментариев → граф, в коде референс `(граф @aleph/synterr, #N)`.
+  - **Фидбэк-рефлексия** — на мерже и на закрытии сессии без мержа: опыт *о самом методе* (скилл, правило, поверхность подвели или удивили); проверить на уже сказанное; записать только случай — скиллом `feedback`, якорем на узел инструмента, адресом его стюарду. **Пустая рефлексия — валидный исход.**
+  - **Словарный проход.** Перечитай приземляемое на заимствованные слова управления работой (ticket, backlog, sprint, epic, story, done, blocker); сам не подменяй — назови пользователю и спроси, как это зовётся в проекте.
+- **Журнал каждую сессию.** Пуш в `synterr` или `synterr-internal` → запись в `synterr-internal/journal/YYYY-MM.md`: что и почему, без SHA. Хук пуша напоминает.
+- **Критерий завершённости дизайна:** дизайн не готов, пока его решения, риски и жизненный цикл не в графе. Spec-файл другого набора — черновой вид: впусти в той же сессии.
+- **Наборы исполнения ведут исполнение** (superpowers: планирование, TDD, отладка, верификация, ревью); решения и риски из исполнения всё равно ложатся в граф до конца сессии.
+- **Утверждение, которое ты сделал, — не утверждение, которое ты принимаешь.** Поведенческие утверждения («хендлер порождает верную порчу», «выход не изменился», «сайт обновился») закрываются вердиктом холодного `verifier` (`.claude/agents/verifier.md`) с носителем и фальсификатором из «Reality»; дождись вердикта.
+- **Мерж хуков.** Записи разных наборов в `.claude/settings.json` сосуществуют — добавляй рядом, никогда не перезаписывай чужие.
+- Напоминания автоматизированы в `.claude/settings.json`: `SessionStart` (адреса), `PostToolUse` пуш, `PostToolUse` мерж, `PreToolUse` memory-guard, `PostToolUse` spec-write (interop full) — проверь, что прошиты все пять, одной строкой каждый.
+- **Держи этот файл честным.** Он сгенерирован `iskronify` и проштампован внизу контрактом. Число установленного контракта — первое слово описания скилла `iskronify`; сравни со штампом без единого вызова. Расходится, или источники (`pyproject.toml`, `Makefile`, `.github/workflows/`, `src/synterr/`) сдвинулись после даты штампа — предложить прогон iskronify есть первый ход сессии.
+- **Держи свой тулчейн свежим.** Обновления включены по умолчанию; не пинь.
 
-## Commands
-| task | command |
+### Самопроверка этапа
+Гейт зелёный и связный этап закончен (открыт/обновлён PR или собираешься тронуть узлы за пределами начальных) — перечитай дифф ветки против `master` на: баги, хрупкие гарды, слабую обработку ошибок, дубли, недостающие или бесполезные тесты, файлы за 150 строк и бог-модули. Чини в **той же ветке** — или прямо скажи, что ничего не всплыло. По этапу, не только в конце.
+
+### Холодное ревью этапа
+Самопроверка не заменяет холодного ревью. После самопроверки открытого PR или завершённого крупного этапа открой ревью суб-агентом `reviewer` (`.claude/agents/reviewer.md`) **в отдельном worktree** (`isolation` у тула порождения): рабочая копия одна на машине. Поле ревьюера — дифф ветки против транка, сам репозиторий, фокус-контур #4 со стюардом #7, референсы на узлы графа, входящие в дифф (не пересказ). Reviewer прогоняет `integrity` read-only и возвращает отчёт интеграции; `NEEDS_CONTEXT` — дефект графа: допроектируй, доткни, повтори. Вернувшееся чини в той же ветке; несогласие — записанным «почему». **Сторож есть только у пуша**: этап без пуша ревьюится тобой одним — признанный зазор.
+
+### Дисциплина веток
+Одна ветка до своего мержа. После мержа: `git checkout master && git pull`; удалить смерженную ветку и её worktree (`git worktree remove`); обновить граф (`weaving`); подтвердить уборку до следующей задачи. Прямые пуши в `master` допустимы при зелёном `make check` — но параллельная работа и всё рискованное идёт веткой в **собственном worktree**.
+
+### Workflow-suite interop (superpowers)
+Superpowers сам ратифицирует этот контракт: "user instructions always take
+precedence", с "User's explicit instructions (CLAUDE.md, GEMINI.md,
+AGENTS.md, direct requests)" в высшем приоритете (using-superpowers,
+Instruction Priority); "(User preferences for spec location override this
+default)" (brainstorming). AGENTS.md — это инструкции пользователя: всё ниже
+живёт внутри собственных правил superpowers, не исключением из них.
+- **Гоняй brainstorming для творческой работы** — его сократическая
+  элиситация желанна. Спека, которую он пишет (например, под
+  `docs/superpowers/specs/`), — черновой вид; запись дизайна — граф.
+- **Сохранение решений в граф — работа памяти, не имплементация** —
+  brainstorming-овский HARD-GATE ("Do NOT … take any implementation action")
+  до неё не дотягивается, по собственной формулировке. Дизайн не готов, пока
+  его решения, риски и жизненный цикл не в графе.
+- **Пост-brainstorming передача в силе**: сначала впусти спеку в граф, в той
+  же сессии (инструкции пользователя идут первыми по клаузе приоритета), затем
+  передай в writing-plans ровно так, как велит brainstorming.
+- **Плоскость исполнения уступлена**: планирование, TDD, отладка, верификация,
+  ревью и их родня — что бы ни поставлял установленный набор — ведут
+  исполнение. Решения, рождённые посреди имплементации, всё равно ложатся
+  узлами графа до конца сессии — никогда не откладываются до будущего пуша.
+
+*(interop: full — verified against superpowers@6.3.0 — re-check on suite upgrade)*
+
+## Рабочие принципы
+1. **Думай до кода.** Называй допущения; спрашивай при неуверенности — называя, *что именно* неясно. **Вопрос человеку задаётся текстом**, не меню опций. Проверь репо + граф до письма; доставай, не вспоминай. Тронь живой пайплайн (`uv run synterr corrupt --depparse …` на реальном предложении), прежде чем верить доке или памяти. Вопросы за границей мандата → вимарши `posed_to` #6.
+2. **Сначала простота.** Минимум кода под задачу; без спекулятивных абстракций.
+3. **Оставайся в границе репо.** Изменение другого контура (`synterr-internal`, `gec-eval`, `rozental`) — вимаршей на узле того контура, не правкой через границу; журнал — единственное, что пишется в соседний репо рутинно.
+4. **Вторая имплементация — событие для доклада.** Дубль хендлерной логики (пять источников инвентаря — известный долг, #37) сначала выведи через `integrity`, потом предложи воссоединение или именованную развилку.
+5. **Хирургические изменения.** Только нужное задаче; линтер авторитетен. Удаляй только мёртвый код, порождённый твоим изменением.
+6. **Исполнение от цели.** Баги: пришпиль падающим тестом до патча. Хендлеры: проверяй сквозь `ErrorPipeline` на реальных предложениях (`lenta_sents.txt`), не только на fake-token фикстурах; назови фальсификатор до взгляда.
+7. **Точность важнее полноты.** Хендлер, который пропускает, — норма; хендлер, эмитящий правильный русский как «ошибку» или смятую метку, отравляет данные. Пропуск > неверная метка, всегда. Нормативность — прескриптивная рамка (Розенталь/ЕГЭ); «маркированный вариант ≠ ошибка» (граф, #57).
+8. **Прочти, прежде чем отвечать на открытый вопрос** — из графа, скиллом `entry`, несколькими способами.
+9. **Думай в графе, говори на языке проекта.** Словарь графа — для рассуждения; пользователю — слова проекта: хендлер, подтип, §, корпус, бандл, превращение.
+
+## Поле интеграции — только из графа
+Фокус-контур #4 и стюард #7 — единственный постоянный корень обхода. Список потребителей и зависимостей здесь не ведётся. Для каждого изменения назови узлы графа, чьё воплощение входит в дифф, и прогони `integrity`: феномен — `lens="trace"` в обе стороны (корпус #11 → обучение #25; пары #39 → пилот #44); крия — `next`-нить и эстафеты; выход в другой контур ведёт к его стюарду (#16 → #18). Не найденная обходом зависимость — дефект модели: допроектируй и доткни (`weaving`).
+
+## Внешние поверхности — то, чем пользуешься и чем не владеешь
+stanza (UD-парсы), pymorphy3 (словарь + предсказание), Zaliznyak/Tikhonov/Morphberta словари, LoRuGEC (внешний xlsx, читается `lorugec.py` с тихим fallback — #37). Прежде работы зафиксируй трогаемую часть поверхности узлом в графе с версией; наблюдение своими руками старше доков, память — не источник; узел — `upadhi` к крие; расхождение правь тем же ходом; исходник, работающий с поверхностью, несёт `(граф, #N)` — и ты этот узел **читаешь перед работой**.
+
+## Reality — против чего проверяется заявка
+| Класс заявки | Канонический носитель | Как наблюдать | Кто может |
+|---|---|---|---|
+| Хендлер порождает верную порчу / пропускает верно | живой пайплайн на реальном предложении | `uv run synterr corrupt -l ru --depparse -e <handler[:subtype]> "…"`; для пула — `uv run python scripts/generate_review.py -e <handler[:subtype]> -i <файл> -o tools/review/` и чтение выхода | agent |
+| Выход генерации не изменился (рефактор) | JSONL фикс-сидного прогона | `uv run synterr generate -l ru --preset rulec --schema rozental -i lenta_sents.txt -n 300 --seed 42 -f jsonl -o <out>` до/после; `md5 -q` равны | agent |
+| Гейт зелёный | `make check` (и `make check-full` перед релизом) | код выхода 0; CI: `gh run list --limit 1` → `gh run watch <id> --exit-status` | agent |
+| Сайт документации обновился | живой `https://synterr-nlp.github.io` после `Deploy docs` | `gh run list --workflow "Deploy docs"`; `curl -s <url>` на изменённую страницу | agent |
+| Пакет собирается и ставится | собранный wheel в чистом окружении | `uv build`; `uv venv /tmp/synterr-clean && uv pip install --python /tmp/synterr-clean dist/*.whl` и `synterr --version` | agent |
+| Порча — настоящая ошибка для носителя русского | аннотация носителя (раунд #8) | бандл ревью → вердикты в `synterr-internal/docs/research/annotations/` | user |
+
+**Ceiling**: валидность порчи как *русского* агентом не наблюдается — только аннотация носителя; нормативность спорной пары — слово владельца (#6) по справочнику; поведение обученных моделей — контур #16, не этот репо.
+
+**Таблица растёт использованием.** Носитель, который сессия открыла или закрыла, пишется сюда в той же сессии.
+
+## Граф ↔ репо: где что живёт
+| Забота | Репо | Граф |
+|---|---|---|
+| Код, конфиги, локфайлы, лексиконы | ✓ | |
+| Команды, конвенции, ритуалы | ✓ (AGENTS.md) | |
+| Состояние ветки, что в полёте | git + тело PR | ✓ (`genre=hint` — семя превращения) |
+| Лабораторная история, спеки, аннотации | ✓ (`synterr-internal`) | |
+| Готчи, инварианты, проектные решения, открытые вопросы | референс `(граф, #N)` | ✓ |
+| Планы, направление | | ✓ (превращения #47/#48/#49, #30) |
+| История коммитов, PR, SHA | git | (никогда в графе) |
+
+**`HANDOVER.md` не заводится — это решение, а не упущение.** Ветка и что в полёте — `git branch`/`log` и открытый PR; чем проверяется заявка — «Reality»; почему так решено — граф; работа, которая идёт, — модусы её узлов и семя превращения. История проекта живёт в `synterr-internal/journal/` и `docs/history/`, не в корне этого репо.
+
+## Команды
+| задача | команда |
 |---|---|
-| tests (fast) | `uv run pytest -q` |
-| tests (+slow stanza) | `uv run pytest -q -m ""` |
-| lint / format | `uv run ruff check src tests` / `uv run ruff format src tests` |
-| types (scoped) | `uv run mypy` (core + schemas only; see gate note) |
-| docs | `uv run mkdocs build --strict` |
-| corrupt one sentence | `uv run synterr corrupt -l ru -e <handler[:subtype]> "…"` |
-| generate corpus | `uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits` |
+| **гейт (один вызов)** | `make check` · полный: `make check-full` · части: `make lint` / `make test` / `make test-slow` / `make docs` / `make format` |
+| corrupt one sentence | `uv run synterr corrupt -l ru --depparse -e <handler[:subtype]> "…"` (без `--depparse` dep-гейтные хендлеры молча отказывают) |
+| generate corpus | `uv run synterr generate -l ru --preset rulec -i in.txt -o out.edits` (`-f gector\|tsv\|jsonl\|chat\|sft`) |
+| targeted SFT | `uv run synterr generate-targeted -i corpus.txt -o train.jsonl [--targets targets.json]` |
 | minimal pairs | `uv run synterr minimal-pairs -l ru -i sents.txt -o pairs.jsonl` |
-| coverage / inventory | `uv run synterr coverage --lang ru --schema rlc` / `uv run synterr list-errors -l ru` |
+| discovery loop | `uv run synterr survey -l ru -i corpus.txt` → `uv run synterr mine-pools -s <src>… -o data/pools` |
+| inventory | `uv run synterr list-errors -l ru` (авторитетный инвентарь) · `uv run synterr coverage --lang ru --schema rozental` |
+| review bundle | `uv run python scripts/generate_review.py -e <handler[:subtype]> -i lenta_sents.txt -o tools/review/` |
+| docs reference | `uv run python scripts/build_docs_reference.py` после изменения CLI/хендлеров/схем |
 Pipe pytest through `tail` only with `set -o pipefail` — a pipe swallows the exit code.
 
-## Project structure
+## Структура проекта
 - `src/synterr/core/` — pipeline, protocol, registry (language-agnostic)
-- `src/synterr/schemas/` — taxonomies: rlc (35 tags), rozental (8 L0 / 29 L1 / 103 L2 + `l2_applicability` speaker annotation), errant
-- `src/synterr/configs/russian/` — presets (weights + subtype_weights); rulec = default distribution
-- `src/synterr/languages/russian/` — backends (stanza default), `errors/` handlers, `inflector.py`, `data/` lexicons
-- `src/synterr/languages/french/` — 5-handler PoC (fr_sequoia)
-- `tools/`, `docs/site/`, `scripts/` — viewer, mkdocs content, join/build utilities
-- Handler inventory: `synterr list-errors -l ru` is authoritative (46 handlers / 106 subtypes at bootstrap); per-handler table lives in docs, not here.
+- `src/synterr/schemas/` — taxonomies: rlc, rozental (8 L0 / 29 L1 / 103 L2, v1.1, + `l2_applicability`), errant; loader
+- `src/synterr/configs/russian/` — presets (weights + subtype_weights); `rulec` = default, `lorugec` = benchmark-targeted
+- `src/synterr/languages/russian/` — backends (stanza default), `errors/` handlers (+ `_common.py` shared helpers/mixins), `inflector.py`, `resources.py`, `data/` lexicons + `unified_dict.json`
+- `src/synterr/languages/french/` — 5-handler PoC
+- `src/synterr/{discovery,sft,lorugec,cli}.py` — data-discovery loop, targeted SFT engine, benchmark rule map, CLI
+- `tests/` — `test_core/` (fake tokens), `test_languages/test_russian/` (fake tokens + `@slow` real backend), `helpers.py`
+- `scripts/` — corpus builds, review bundles, docs reference; thin compat wrappers for old script names
+- `docs/site/` — mkdocs content (reference pages autogenerated); `tools/` — review viewer
+- Gitignored, regenerable: `lenta_sents.txt`, `data/pools/`, `data/*.txt` corpora, `tools/review/`; никогда не трекать
 
-## Code conventions
-- Handler protocol: `name, subtypes, category, changes_length, can_apply(), apply()`; new handlers register in `errors/__init__.py`, map in `schemas/data/*.yaml`, weight in `configs/russian/rulec.yaml`.
-- **Test discipline**: unit (fake-token fixtures) + real-backend integration (`@pytest.mark.slow`); every audit/annotation finding becomes a regression test; full fast suite green before push.
-- **Commit style**: imperative summary, describes end-state (never what was scrubbed); explicit paths only — **never `git add -A`** (untracked corpora/secrets in tree); end with the `Co-Authored-By` trailer per user rule.
-- **Copyright rule**: Rozental § numbers are facts and fine; the raw text (at `../rozental/data/raw/`) must never be quoted in code, docs, or public commits. Anything referencing the dump lives in synterr-internal.
-- **Gotchas** (each has bitten us):
-  - Inflection: always `inflect_word(parse, grammemes, original)` — transfers capitalization and е/ё; single capitals titlecase (not ALL-CAPS); full-caps sources must uppercase every produced segment of splits/merges.
-  - pymorphy *prediction* parses garbage: gate remainders/candidates with `word_is_known`; the stored parse is UD-disambiguated at the backend — don't re-pick `parse[0]`.
-  - stanza UD features lie: Case on OOV proper nouns, participles as VERB+Tense, no Gender on plural adjectives — verify with pymorphy round-trips; pin non-target features in inflect targets.
-  - Config binding: subtype weights are enable gates; unlisted subtypes inherit handler `DEFAULT_WEIGHTS` — explicitly zero non-benchmark subtypes in `lorugec.yaml`. Handlers absent from a preset's `weights:` never fire; explicit `-e` on a zero-weight handler falls back to uniform (fixed 2026-07-12).
-  - Lexicon entries need normative provenance: "marked variant" ≠ error (gramota-check each pair); loader assertions guard positions.
-  - Morpheme offsets are surface-aligned in `resources.py` (`surface_morpheme_spans`, span-verified, fixed 2026-07-12); dict entries may carry trailing junk from other inflections — spans truncate at first divergence, so an uncovered tail means unknown, not ROOT.
-  - Corpora (`lenta_sents.txt`, pools) and `tools/review/` are gitignored — regenerable; don't track.
-  - Stress dict required for vowel_reduction; morpheme data from `unified_dict.json`.
-- **Quality gate** (measured 2026-07-12): ruff `E,F,I,N,UP,B,SIM,RUF` (E501/RUF001-Cyrillic ignores are deliberate); mypy scoped to core+schemas — `--strict` there costs 11 errors, full-src costs 114; tightening is a decided follow-up branch, not ambient drift.
+## Конвенции кода
+- **Смысл живёт в графе, код референсирует.** Обоснование решения, отброшенные альтернативы, поле интеграции — узел графа; в коде референс `(граф @aleph/synterr, #N)`. Механика шага — словами в комментарии. Читатели кода — агенты с доступом к графу; публичные контрибьюторы без доступа — референс всё равно оставляй, он не мешает.
+- **Handler protocol**: `name, subtypes, category, changes_length, can_apply(), apply()`; новый хендлер: регистрация в `errors/__init__.py`, маппинг в `schemas/data/*.yaml` (v1.1 — только `mappings`, теги и §§ не трогать без прохода владельца), вес в `configs/russian/rulec.yaml`; мешаны из `errors/_common.py` для boilerplate.
+- **Инварианты, которых не выразит линтер** — правила в графе, читай перед работой над хендлером: инфлекция #53; pymorphy-предсказания #54; признаки stanza #55; веса-ворота #56; лексиконный провенанс #57; морфемные спаны #58.
+- **Тестовая дисциплина**: unit на fake-token фикстурах + `@pytest.mark.slow` с реальным stanza; каждая находка аудита/аннотации становится регрессионным тестом; оракул рефактора — фикс-сидный JSONL byte-identical.
+- **Копирайт**: § номера Розенталя — факты, можно; сырой текст (`../rozental/data/raw/`) никогда не цитируется в коде, доках, публичных коммитах — всё, что ссылается на дамп, живёт в `synterr-internal`. Бандлы для аннотатора (с текстом §§) — только лично.
+- **Нормативность**: каждая лексиконная пара — с провенансом справочника/грамоты (#57).
+- **mypy** scoped на `core` + `schemas`; ужесточение (`--strict` = 11 ошибок там, 114 по всему src) — отдельная ветка по слову владельца, не ambient drift.
 
-## What to update when
-- `AGENTS.md` — commands, structure, conventions, gate, or gotchas change.
-- `synterr-internal/journal/YYYY-MM.md` — every work session (append-only).
-- `CHANGELOG.md` — user-visible changes, under `[Unreleased]` until a tag.
-- NKS — every push, once the realm is connected.
+## Что обновлять когда
+- `AGENTS.md` — по перевёрнутому умолчанию: если это можно узнать, прочитав узел графа, здесь этого нет; обновляется при смене команд, стека, конвенций, достижимости носителя. Вычистка прозы — reconcile-такт с переносом в узлы.
+- `synterr-internal/journal/YYYY-MM.md` — каждая рабочая сессия (append-only).
+- `CHANGELOG.md` — пользовательские изменения под `[Unreleased]` до тега.
+- `docs/site/reference/*` — `scripts/build_docs_reference.py` после изменения CLI/инвентаря/схем.
+- Граф проекта — каждый мерж (см. «Жизненный цикл сессии»).
 
-## Git workflow
-- Direct pushes to `master` with the full fast suite green locally; CI (lint+format+mypy+tests) must stay green — check `gh run list` after push.
-- Risky/parallel work: separate branch in its **own worktree**; one branch through to merge.
-- **Definition of done**: pushed to `origin/master`, CI green, journal entry written, regression tests cover the change.
+## Git-воркфлоу
+- Форжа — GitHub, CLI `gh` (аутентифицирован); наблюдение CI: `gh run list --limit 3`, `gh run watch <id> --exit-status`.
+- **Commit style**: imperative summary, describes end-state (never what was scrubbed); **explicit paths only — never `git add -A` / `commit -a`** (untracked corpora in tree); end with the `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` + `Claude-Session` trailers (user rule).
+- **Локальный гейт — один вызов**: `make check` (CI зовёт `make lint` + `make test` + `make test-slow`, тот же Makefile). Полный перед релизом: `make check-full`.
+- **Definition of done**: pushed to `origin/master`, CI green (`gh run watch … --exit-status` = 0), journal entry written, regression tests cover the change, graph reflects the merge.
 - **Never** `--no-verify`, `--force`, `git reset --hard`, or stash pops in shared checkouts without explicit user instruction.
+- После agent fan-outs: `git stash list` + `git status` — prompt constraints are not enforcement.
+
+*(iskronify: контракт `11`, штамп `2026-09-21` — предложи перезапуск, когда описание установленного iskronify называет контракт выше или когда источники, из которых выведен этот файл, сдвинулись после этой даты.)*

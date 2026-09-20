@@ -16,12 +16,8 @@ jobs:
           version: "latest"
       - name: Install dependencies
         run: uv sync --extra dev
-      - name: Run ruff check
-        run: uv run ruff check src tests
-      - name: Run ruff format check
-        run: uv run ruff format --check src tests
-      - name: Run mypy
-        run: uv run mypy
+      - name: Lint, format, types (make lint — same call as local gate)
+        run: make lint
 
   test:
     runs-on: ubuntu-latest
@@ -37,10 +33,10 @@ jobs:
         with:
           path: ~/stanza_resources
           key: stanza-ru-${{ runner.os }}-v1
-      - name: Run fast tests (mocked / hand-built tokens)
-        run: uv run pytest --cov-report=xml -m "not slow"
-      - name: Run slow integration tests (real stanza backend)
-        run: uv run pytest --no-cov -m "slow"
+      - name: Fast tests (make test — same call as local gate)
+        run: make test PYTEST_ADDOPTS="--cov-report=xml"
+      - name: Slow integration tests (real stanza backend)
+        run: make test-slow
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
