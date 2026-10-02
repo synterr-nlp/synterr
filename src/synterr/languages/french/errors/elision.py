@@ -29,20 +29,14 @@ fixtures, themselves cross-checked against a real
   separate from the following pronoun token (``-il``) — see
   ``tokens_t_il_inversion``. ``euphonic_t_drop`` deletes that whole token, so
   it IS length-changing.
-- Because ``ErrorHandler.changes_length`` is one bool per *handler*, not per
-  subtype (see ``FunctionSpellingHandler`` in the Russian tree for the same
-  pattern with split/merge subtypes that don't all change length), this
-  handler declares ``changes_length = True`` overall: the pipeline defers it
-  to the single length-changing slot per sentence, which is always safe
-  (applying an in-place ``elision_omit`` replace after other handlers
-  corrupts no index — only ``euphonic_t_drop`` actually shifts indices). The
-  cost is that ``elision_omit`` competes with ``euphonic_t_drop`` (and any
-  other length-changing handler) for that one per-sentence slot; acceptable
-  for a PoC.
-- Joined-sentence rendering quirk (pre-existing, not introduced here): the
-  pipeline reconstructs surface text via ``" ".join(sentence)``
-  (``core/pipeline.py``), so a hyphen-leading token like ``-il`` renders with
-  a literal space before its hyphen (e.g. "Aime -il ...") rather than true
+- ``ErrorHandler.changes_length`` is one bool per *handler* (same pattern
+  as ``FunctionSpellingHandler`` in the Russian tree), so this handler
+  declares ``True``: the pipeline defers it to the single length-changing
+  slot per sentence, which is also safe for the in-place ``elision_omit``.
+  The cost is that ``elision_omit`` competes for that one slot.
+- Joined-sentence rendering quirk: the pipeline reconstructs surface text
+  via ``" ".join(sentence)`` (``core/pipeline.py``), so a hyphen-leading
+  token like ``-il`` renders with a literal space before its hyphen (e.g. "Aime -il ...") rather than true
   French "Aime-il". This is a property of how fr_sequoia's hyphenated
   inversion tail is tokenized generally, not specific to this handler.
 """

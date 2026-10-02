@@ -4,8 +4,9 @@ Two entry points:
 
 * :func:`classify_jsonl` — count examples by rule (or by edit type if no
   rule labels are present). Output for human reports.
-* :func:`audit_jsonl` — flag low-quality examples: no-op corruptions,
-  src=tgt records, and corrupted tokens that aren't valid Russian words.
+* :func:`audit_jsonl` — flag low-quality examples: no-op records
+  (src == tgt) and single-token replacements whose corrupted token isn't
+  a known Russian word.
 
 Both consume any GEC-style SFT JSONL with at minimum ``src`` and ``tgt``
 fields. Synterr's own output adds a ``rule`` field; without it,
@@ -77,8 +78,8 @@ def classify_jsonl(path: Path | str) -> dict:
         path: Path to a JSONL file with ``src``/``tgt`` per record.
 
     Returns:
-        Dict with ``total``, ``has_rule_labels``, ``counts`` (Counter
-        with rules or edit-type buckets), and ``unique_keys``.
+        Dict with ``total``, ``has_rule_labels``, ``counts`` (dict of
+        rule or edit-type bucket → count), and ``unique_keys``.
     """
     path = Path(path)
     counts: Counter[str] = Counter()

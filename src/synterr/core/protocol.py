@@ -60,19 +60,23 @@ class ErrorResult:
     """Result of applying an error to a token or span.
 
     Attributes:
-        error_type: Specific error identifier (e.g., "noun_case", "spelling_vowel")
+        error_type: Specific error identifier (e.g., "adj_case",
+            "spelling_vowel_reduction")
         category: Detection category (SPELL, MORPH, PUNCT, OTHER)
         start_idx: Start token index (inclusive)
-        end_idx: End token index (exclusive). For single-token errors, end_idx = start_idx + 1.
-            Multi-token spans are reserved for future M2 format support.
+        end_idx: End token index (exclusive). Usually start_idx + 1; some
+            handlers emit two-token spans, and deletions (``$APPEND_x`` on
+            the preceding token) may set end_idx == start_idx.
         original: Original text
         corrupted: Corrupted text
         fix_tag: GECToR correction tag (e.g., "$REPLACE_word", "$TRANSFORM_CASE_Nom")
+        schema_tag: Primary schema tag, set by the pipeline when a schema is loaded
+        schema_l2_tag: L2 fine-grained tag (hierarchical schemas only)
+        schema_l2_applicability: The L2 tag's l2_applicability value
 
     Note:
-        Currently _format_output() only uses start_idx for GECToR output (token-by-token format).
-        Handlers should still set end_idx correctly for future span-aware output formats (M2).
-        For multi-token errors, GECToR output decomposes the span into per-token tags.
+        GECToR output (_format_output()) emits one tag per error, at
+        start_idx only; end_idx is carried for span-aware formats (jsonl).
     """
 
     error_type: str
@@ -110,8 +114,8 @@ class ErrorHandler(Protocol):
         """Fine-grained error subtypes this handler can produce.
 
         Examples:
-            - SpellingHandler: ['vowel_reduction', 'keyboard', 'tsa_confusion', ...]
-            - NounNumberHandler: ['noun_number']  # single subtype = handler name
+            - SpellingErrorHandler: ['vowel_reduction', 'keyboard', 'tsa_confusion', ...]
+            - NounNumberErrorHandler: ['noun_number']  # single subtype = handler name
 
         These subtypes are mapped to schema tags in the schema YAML.
         """

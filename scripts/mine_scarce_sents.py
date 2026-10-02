@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Mine ALL sentences containing scarce morphological/spelling forms.
+"""Mine sentences containing scarce morphological/spelling forms.
 
-Exhaustive grep across all available sources. No cap — keeps every match.
-Deduplicates across sources, records provenance per sentence.
-
-Sources:
-  - RuBLiMP pool (rublimp_pool_sents.txt)
-  - Taiga Fontanka/Interfax/Lenta (full archives via corus)
-  - Wiki dump (ruwiki XML bz2)
+Greps plain-text inputs (one sentence per line) for the scarce-form patterns
+below, deduplicates across inputs, and records provenance (the file stem of
+the first input that matched). Over-represented categories (insk_ensk,
+its_ets, conjunctions_solid, compound_adj) are capped at --cap sentences each
+(default 5000, 0 = no cap). Writes the shuffled sentences plus a .meta.json
+sidecar with per-source and per-pattern counts.
 
 Usage:
     uv run python scripts/mine_scarce_sents.py \
-        --rublimp-pool data/rublimp_pool_sents.txt \
-        --taiga-fontanka data/taiga/Fontanka.tar.gz \
-        --taiga-interfax data/taiga/Interfax.tar.gz \
-        --taiga-lenta data/taiga/Lenta.tar.gz \
-        --wiki ~/Projects/research/gector/data/ruwiki-latest-pages-articles.xml.bz2 \
+        data/rublimp_pool_sents.txt \
+        data/taiga/taiga_fontanka.txt data/taiga/taiga_interfax.txt \
+        data/taiga/taiga_lenta.txt data/wiki_200k.txt \
         -o data/scarce_sents_v4.txt \
         --seed 42
 """

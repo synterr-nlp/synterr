@@ -172,7 +172,7 @@ class DistributionStats:
         """Get error type distribution.
 
         Args:
-            normalize: If True, return percentages (sum to 1.0)
+            normalize: If True, return fractions (sum to 1.0)
 
         Returns:
             Dict mapping error types to counts or percentages
@@ -203,7 +203,9 @@ class DistributionStats:
         Maps benchmark error types to synterr handler names.
 
         Args:
-            include_unimplemented: Include handlers not yet in synterr (for planning)
+            include_unimplemented: Also map the remaining categories to
+                planning names; of these only "preposition" and
+                "conjunction" are real handler names
         """
         # Mapping from mapped category to synterr handler name
         handler_mapping = {
@@ -268,11 +270,9 @@ def analyze_m2_file(path: str | Path) -> DistributionStats:
             line = line.strip()
 
             if line.startswith("S "):
-                # Source sentence
                 stats.total_sentences += 1
 
             elif line.startswith("A "):
-                # Annotation line
                 match = M2_ANNOTATION_PATTERN.match(line)
                 if match:
                     error_type = match.group(3).strip()
@@ -284,7 +284,6 @@ def analyze_m2_file(path: str | Path) -> DistributionStats:
                     stats.total_errors += 1
                     stats.error_counts[error_type] += 1
 
-                    # Map to category
                     category = ERROR_TYPE_TO_CATEGORY.get(error_type)
                     if category:
                         stats.category_counts[category] += 1

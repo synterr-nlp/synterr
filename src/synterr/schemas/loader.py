@@ -3,7 +3,8 @@
 Supports compositional schemas like RLC where:
 - 35 primary tags define error types
 - 3 modifiers (Miss, Extra, Transfer) combine with primary tags
-- Combined tags like "Ref+Miss" or "Hyphen+Del" are generated
+- SubtypeMapping.get_full_tag() composes tags like "Ref+Miss" (modifier
+  aliases such as Del/Ins are loaded but never resolved)
 """
 
 from __future__ import annotations
@@ -73,7 +74,7 @@ class SubtypeMapping:
 class Schema:
     """Loaded schema definition.
 
-    A schema defines a linguistic error taxonomy (e.g., RLC, RuBLiMP)
+    A schema defines a linguistic error taxonomy (e.g., RLC, Rozental)
     and maps handler subtypes to schema tags.
 
     Supports compositional schemas with primary tags and modifiers.

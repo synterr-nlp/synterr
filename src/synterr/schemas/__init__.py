@@ -1,12 +1,12 @@
 """Linguistic schema support for synterr.
 
-Schemas define error taxonomies (RLC, RuBLiMP, Rozental, etc.)
+Schemas define error taxonomies (built-in: synterr, rlc, errant, rozental)
 and map handler subtypes to schema-specific tags.
 
 Supports compositional schemas like RLC where:
 - 35 primary tags define error types
 - 3 modifiers (Miss, Extra, Transfer) combine with primary tags
-- Combined tags like "Ref+Miss" are generated
+- SubtypeMapping.get_full_tag() composes tags like "Ref+Miss"
 """
 
 from synterr.schemas.loader import (

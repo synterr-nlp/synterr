@@ -97,7 +97,10 @@ class StanzaFrBackend:
         if not non_empty_texts:
             return results
 
-        # Join non-empty texts with double newline (stanza sentence boundary)
+        # Join with blank lines: stanza always breaks a sentence there, but
+        # it may also split a line into several sentences, which shifts every
+        # later line in the 1:1 mapping below (input must be one sentence
+        # per line).
         batch_text = "\n\n".join(non_empty_texts)
         doc = self.nlp(batch_text)
 

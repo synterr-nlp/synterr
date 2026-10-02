@@ -1,7 +1,8 @@
 """LoRuGEC rule mapping — shared between CLI and scripts.
 
 Maps each of the 48 LoRuGEC benchmark rules to a synterr handler + subtype,
-with optional word filters for conjunction-specific rules.
+with optional word filters for conjunction-specific rules. Bidirectional
+rules get one entry per direction (63 entries in all).
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from pathlib import Path
 # LoRuGEC rule name → (handler_name, subtype) or (handler_name, subtype, word_filter)
 # word_filter: only accept results where original or corrupted contains this word
 LORUGEC_RULES: dict[str, tuple[str, ...]] = {
-    # === Spelling (24 rules) ===
+    # === Spelling (25 rules) ===
     #
     # BIDIRECTIONAL rules: LoRuGEC tests BOTH directions for all split/merge rules.
     # [split] = handler splits solid→separate, src has separate form, model learns to merge
@@ -117,7 +118,7 @@ LORUGEC_RULES: dict[str, tuple[str, ...]] = {
     # === Semantics (2 rules) ===
     "Плеоназмы": ("pleonasm", "pleonasm"),
     "Лексическая сочетаемость слов": ("collocation", "collocation"),
-    # === Punctuation (18 rules) ===
+    # === Punctuation (17 rules) ===
     "Запятая внутри выражений фразеологического характера": (
         "comma_insert",
         "comma_in_set_phrase",
@@ -200,7 +201,7 @@ def extract_subtype(error_type: str, handler_name: str) -> str | None:
 
 
 def get_lorugec_distribution() -> dict[str, int]:
-    """Read LoRuGEC rule counts from the Excel file, with fallback."""
+    """Read LoRuGEC rule counts from the Excel file, else uniform 20 per rule."""
     try:
         from collections import Counter
 

@@ -91,7 +91,8 @@ Usage: synterr synterr classify-jsonl [OPTIONS] PATH
   Distribution-by-rule report for a GEC SFT JSONL.
 
   If records contain a `rule` field, counts by rule.
-  Otherwise, buckets by edit type (replace / insert / delete / multi).
+  Otherwise, buckets by edit type (no_op / replace / insert / delete /
+  multi_edit).
 
   Useful for auditing third-party GEC datasets — see what's actually in there
   before training on it.
@@ -114,7 +115,8 @@ Usage: synterr synterr corrupt [OPTIONS] TEXT
 
       spelling              - any spelling error (all subtypes)
       spelling:vowel_reduction - only vowel_reduction subtype
-      Ortho --schema rlc    - all subtypes mapped to Ortho tag
+      Ortho --schema rlc    - schema tag: the first registered handler with
+                              subtypes mapped to Ortho, limited to those
 
   Examples:
 
@@ -127,7 +129,7 @@ Usage: synterr synterr corrupt [OPTIONS] TEXT
       # Only typos (keyboard errors)
       synterr corrupt -l ru -e spelling:keyboard "Привет мир."
 
-      # All Ortho-mapped subtypes (phonetic errors, no typos)
+      # spelling's Ortho-mapped subtypes (phonetic errors, no typos)
       synterr corrupt -l ru -e Ortho --schema rlc "Молоко стоит на столе."
 
       # Schema tag for case errors
@@ -140,8 +142,9 @@ Options:
   -p, --position INTEGER  Token position (0-indexed, random if omitted)
   -b, --backend TEXT      NLP backend (stanza, natasha, spacy)
   -s, --schema TEXT       Schema for tag lookup (e.g., rlc)
-  --depparse              Enable dependency parsing (required for noun_case,
-                          adj_case, verb_person_number — slower)
+  --depparse              Enable dependency parsing (required by parse-gated
+                          handlers such as noun_case and verb_person_number —
+                          slower)
   --seed INTEGER          Random seed
   --help                  Show this message and exit.
 ```
@@ -173,7 +176,8 @@ Usage: synterr synterr generate [OPTIONS]
   Generate synthetic errors from corpus.
 
   Configuration priority:
-    --config > --preset > --weights > language default
+    --config > --preset > language default; --weights, --error-prob
+    and an explicit --depparse/--no-depparse override the chosen source
 
   Examples:
     synterr generate -l ru --preset rulec -i corpus.txt -o out.edits
@@ -223,8 +227,10 @@ Usage: synterr synterr generate-targeted [OPTIONS]
   {"src": corrupted, "tgt": clean, "rule": rule_name} JSONL and a
   .dist.json sidecar with per-rule got/want counts.
 
-  The default target set ships with synterr (48 Rozental-derived
-  rules, empirically weighted). Supply your own with --targets:
+  The default target set ships with synterr (the 48 LoRuGEC rules as
+  63 entries with directional variants; weighted by item counts from a
+  local LORuGEC.xlsx if one is found, else uniform). Supply your own
+  with --targets:
     {"rules": {"my rule": {"handler": "spelling",
                            "subtype": "vowel_reduction",
                            "weight": 10}}}

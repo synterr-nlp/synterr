@@ -33,9 +33,9 @@ from synterr.lorugec import LORUGEC_RULES, extract_subtype, get_lorugec_distribu
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# Rule pairs whose larger direction gets capped to match the smaller — only
-# applies when both directions reach BALANCE_FLOOR. Prevents the model from
-# learning split/merge as bidirectionally interchangeable.
+# Direction balancing caps each side of a paired rule at
+# max(smaller side, _BALANCE_FLOOR), so neither direction dominates the
+# training mix (a one-sided skew suppresses the other direction).
 _BALANCE_FLOOR = 50
 
 
@@ -188,18 +188,19 @@ def generate_targeted(
             alongside.
         total: Target total examples (rule counts scaled to this).
         seed: Random seed; same seed reproduces the same dataset.
-        depparse: Enable dependency parsing (required for noun_case,
-            adj_case, and other arc-aware handlers).
+        depparse: Enable dependency parsing (required by parse-gated
+            handlers such as noun_case and verb_person_number).
         max_input: Maximum input sentences to read.
         batch_size: Stanza analysis batch size.
-        balance_directions: Cap split/merge pairs to min(split, merge),
-            preventing bidirectional learning.
+        balance_directions: Cap each [split]/[merge] and [delete]/[insert]
+            pair at max(smaller side, _BALANCE_FLOOR).
         lang: Language code (currently only "ru" supported).
         rules: Target set — rule name → ``(handler, subtype[, word_filter])``.
             Defaults to the built-in lorugec set (see ``load_target_set``
             for supplying your own).
-        rule_weights: Relative share per rule name; defaults to the
-            built-in set's empirical distribution.
+        rule_weights: Relative share per rule name; defaults to
+            ``get_lorugec_distribution()`` (item counts from a local
+            LORuGEC.xlsx if found, else uniform).
 
     Returns:
         The distribution dict written to the sidecar.

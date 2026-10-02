@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Evaluate punctuation handlers on Lenta news data.
 
-Reads plain text (one sentence per line), runs comma_delete and dash_delete
-handlers via stanza, groups results by L2 subtype, and outputs examples.
+Reads plain text (one sentence per line), runs the comma_delete,
+comma_pair_delete and dash_delete handlers at every position via stanza
+(depparse), groups results by handler subtype (error_type), and outputs
+examples.
 
 Usage:
     uv run python scripts/eval_punct_lenta.py --input lenta.txt [--limit 5000] [--per-tag 5]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Single source of truth joining the four representations of each LORuGEC rule.
 
-For years these lived in separate files with drifting names and no shared key:
+These live in separate files with drifting names and no shared key:
   - LORuGEC benchmark      → canonical names + defs + §§   (data/lorugec_rule_map.json,
                                                             vendored from rozental)
   - SyntErr generation map → handler / subtype / direction (synterr.lorugec)
