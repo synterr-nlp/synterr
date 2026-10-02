@@ -8,20 +8,21 @@ POS, or conjugation class — distinct from the phonetic spelling handler.
 - y_i_after_prefix: ы/и after consonant-ending prefix (§34)
 - suffix_enk_onk: -еньк/-оньк in nouns (§38)
 - suffix_insk_ensk: -инск/-енск in adjectives (§40)
-- suffix_its_ets: -иц/-ец in neuter nouns (§38)
+- suffix_its_ets: -иц/-ец in nouns (§38)
 - suffix_ek_ik: -ек/-ик in nouns (§38)
 - participle_suffix: conjugation-dependent participle suffixes (§51)
 - vowel_after_ts: vowels after ц (§35, suffix/ending position)
-- vowel_after_sibilant: ё/о/ю after ш,щ,ж,ч (§35, suffix/ending position)
-- nn_suffix: н/нн in adjective/participle suffixes (§39–40)
+- vowel_after_sibilant: ё/о after ш,щ,ж,ч (§35; root position only when the
+  vowel is stressed or stress is unknown)
+- nn_suffix: н/нн in adjective/participle suffixes (§40)
 - root_vowel_after_sibilant: и/ы after ц in ROOTS (§7) — the root-position
   complement of vowel_after_ts, which explicitly skips root position.
-  (Sibling rule §4, ё/о after ш,ж,ч,щ in roots, is intentionally NOT
-  duplicated here — vowel_after_sibilant's existing stress-aware root
-  branch already produces it; see handler docstring note below.)
+  (Sibling rule §4, ё/о after ш,ж,ч,щ in roots, is not duplicated here —
+  vowel_after_sibilant's stress-aware root branch already produces it; see
+  the comment above ``_ROOT_TS_VOWEL_SWAPS``.)
 - adj_ending_vowel: -ем/-им confusion in Ins/Loc singular soft-stem
-  adjectives (§39 per task spec — paragraph-mapping caveat: the located §39
-  text covers -ый/-ий adjective selection, not this case-ending pair)
+  adjectives (§39; attribution approximate — §39 covers -ый/-ий adjective
+  selection, not this case-ending pair)
 """
 
 from __future__ import annotations
@@ -107,7 +108,7 @@ _PARTICIPLE_SWAPS = [
     # Passive present: 1st conj ↔ 2nd conj (both directions)
     ("ем", "им"),
     ("им", "ем"),
-    # Past passive: swap vowel before нн/н (both directions)
+    # Past passive: swap vowel before нн (енн↔янн; анн→енн only)
     ("енн", "янн"),
     ("янн", "енн"),
     ("анн", "енн"),
@@ -145,13 +146,11 @@ _SIBILANT_VOWEL_SWAPS = {
 # Exception family (цыган, цыплёнок, цыпочки, цыц, цыкать + derivatives):
 # ы is correct — error introduces и.
 #
-# Note: the parallel root rule for sibilants (§4: ё/о after ш,ж,ч,щ, e.g.
-# чёрный/шёпот vs. шов/крыжовник) is deliberately NOT implemented as part
-# of this subtype — vowel_after_sibilant's existing stress-aware root
-# branch already produces these exact corrections (verified empirically:
-# шов→шёв, крыжовник→крыжёвник, капюшон→капюшён, чёрный→чорный all already
-# fire under that subtype). Duplicating it here would create two subtypes
-# racing to label the same corruption. See final report for details.
+# The parallel root rule for sibilants (§4: ё/о after ш,ж,ч,щ, e.g.
+# чёрный/шёпот vs. шов/крыжовник) is deliberately NOT implemented here —
+# vowel_after_sibilant's stress-aware root branch already produces these
+# corruptions (шов→шёв, чёрный→чорный); a second subtype would race to
+# label the same corruption.
 # =============================================================================
 
 _ROOT_TS_VOWEL_SWAPS = {"и": "ы", "ы": "и"}
@@ -171,7 +170,7 @@ _ROOT_TS_EXCEPTION_STEMS = (
 
 # =============================================================================
 # -ем/-им ending confusion in Ins/Loc singular soft-stem adjectives (§39,
-# see report caveat on paragraph attribution)
+# attribution approximate — see module docstring)
 # =============================================================================
 
 # ADPs whose object is unambiguously Loc / Ins (used to confirm the
@@ -199,8 +198,7 @@ _ADJ_ENDING_INS_PREPS = {
 # Regex to find нн in word (candidate for нн→н reduction)
 _NN_RE = re.compile(r"нн")
 
-# Regex to find suffix patterns where single н may need doubling
-# -ан-/-ян-/-ин- suffixes that should have 1н (error = adding 2нн)
+# -ан-/-ян-/-ин- suffixes written with one н (error = doubling it)
 _SINGLE_N_SUFFIX_RE = re.compile(r"(ан|ян|ин)([а-яё]*[ыоеи]й|[а-яё]*[аяое][яе]?)$")
 
 # Words that must keep single н (exception to general rules)
@@ -496,8 +494,7 @@ def _is_suffix_boundary(
     (surface first, lemma fallback, mirroring ``_swap_pre_pri``'s pattern).
 
     Unverifiable positions (no morpheme data via either surface or lemma)
-    return False: precision-first, skip > wrong edit. This is what makes
-    the old "unknown word — allow" bypass into a skip.
+    return False: precision-first, skip > wrong edit.
 
     Callers with a multi-char match span (participle suffixes, нн/ан/ян/ин)
     should pass the position of the *last* character of that span, not the
@@ -646,11 +643,9 @@ def _swap_yi_prefix(word: str, text_lower: str, lemma: str | None = None) -> str
     lemma fallback for inflected surfaces (mirrors ``_swap_pre_pri``).
 
     Requires ``has_prefix`` to resolve True on the surface or, failing
-    that, the lemma — anything else (False, or still unverified/None on
-    both) is skipped. Previously, an unverified ("None") result was only
-    rejected for prefixes of 2 chars or less, letting longer "prefixes"
-    through unchecked (политическому → политыческому, where "полит" is
-    actually the ROOT of "политический", not a prefix at all).
+    that, the lemma — anything else (False, or None on both) is skipped,
+    so a root lookalike is never edited (политическому: "полит" is the
+    root, not a prefix).
     """
     analyzer = get_morpheme_analyzer()
     lemma_lower = lemma.lower() if lemma else None
@@ -678,7 +673,7 @@ def _swap_yi_prefix(word: str, text_lower: str, lemma: str | None = None) -> str
 def _swap_enk_onk(word: str, text_lower: str) -> str | None:
     """Swap vowel before -ньк- in noun diminutives: е↔о, и→е.
 
-    LoRuGEC examples: душенька↔душонька, Петенька↔Петинька, заинька↔заенька.
+    LoRuGEC-attested: душенька↔душонька, заинька→заенька.
     Primary confusion is е↔о; и→е is secondary.
     """
     # Primary swap: е↔о
@@ -710,7 +705,8 @@ def _swap_insk_ensk(word: str, text_lower: str) -> str | None:
 
 
 def _swap_its_ets(word: str, text_lower: str) -> str | None:
-    """Swap vowel before ц in suffix patterns: -ице↔-ецо, -ица↔-еца, -ьице↔-ьеце."""
+    """Swap и↔е before the first и/е+ц of a word whose dict suffixes include
+    иц/ец: -ице↔-еце, -ица↔-еца, -ецо↔-ицо."""
     # Verify suffix contains иц/ец via morpheme dict
     analyzer = get_morpheme_analyzer()
     suffixes = analyzer.get_suffixes(text_lower)
@@ -767,14 +763,11 @@ def _swap_participle(
 ) -> str | None:
     """Swap conjugation-dependent participle suffix vowels.
 
-    Locates the suffix via the anchored terminal regex (``_participle_match``)
-    rather than a blind ``str.find`` — that was the bug: find() returns the
-    *first* textual occurrence, which can be root-internal (Ущемляющий →
-    Ащемляющий edited the root-initial "ущ", not the real "ющ" suffix near
-    the end; приемлемый → приимлемый edited the root-final "ем" instead of
-    the suffix "ем"). The matched span is then confirmed via the morpheme
-    dict (surface first, lemma fallback) to not be root/prefix-internal
-    before editing exactly that span.
+    Locates the suffix via the anchored terminal regex (``_participle_match``),
+    not ``str.find``, whose first textual occurrence can be root-internal
+    (the "ущ" of Ущемляющий, the root "ем" of приемлемый). The matched span
+    is then confirmed via the morpheme dict (surface first, lemma fallback)
+    to not be root/prefix-internal before editing exactly that span.
     """
     match = _participle_match(text_lower)
     if match is None:
@@ -849,7 +842,7 @@ def _swap_sibilant_vowel(
     - suffix/ending: о under stress (девчонка, горячо)
     - root: ё (шёпот, жёлтый) — but learners confuse freely
     Skip when both sibilant and vowel are in the root AND the vowel is
-    unstressed (no real confusion — e.g., "шоколад" is just the root).
+    known to be unstressed (no real confusion — e.g., "шоколад").
     Allow when sibilant is in root but vowel crosses into suffix/ending.
     """
     for i, c in enumerate(text_lower):
@@ -857,9 +850,8 @@ def _swap_sibilant_vowel(
             next_c = text_lower[i + 1]
             if next_c in _SIBILANT_VOWEL_SWAPS:
                 pos = i + 1
-                # Skip if both sibilant and vowel are deep in the root
-                # (шоколад, жокей — no ё/о confusion)
-                # But allow root-boundary cases (шёпот — ё in root IS confused)
+                # Both in root: skip unless the vowel is stressed (шоколад,
+                # жокей skipped; stressed шёпот↔шопот is a real confusion)
                 if analyzer is not None:
                     sib_in_root = analyzer.char_in_morpheme_type(
                         text_lower, i, "ROOT", lemma
@@ -905,8 +897,9 @@ def _can_nn_swap(text_lower: str, lemma: str | None = None) -> bool:
 def _swap_nn(word: str, text_lower: str, lemma: str | None = None) -> str | None:
     """Swap н↔нн in adjective suffix.
 
-    Direction 1 (67%): нн→н (государственный → государственый)
-    Direction 2 (33%): н→нн (кожаный → кожанный)
+    Tries нн→н first (государственный → государственый); only if no
+    boundary-confirmed нн exists, falls back to н→нн on an -ан-/-ян-/-ин-
+    suffix (кожаный → кожанный).
 
     Each candidate position is confirmed via the morpheme dict (surface
     first, lemma fallback) to sit at a suffix/root or suffix/suffix
@@ -915,10 +908,7 @@ def _swap_nn(word: str, text_lower: str, lemma: str | None = None) -> str | None
     ан/ян/ин (алюминиевый → алюминниевый doubled inside the root "алюмин").
     """
     # Direction 1: reduce нн→н — first boundary-confirmed occurrence.
-    # Boundary check uses the *last* н of the pair — root-final-consonant +
-    # single-consonant-suffix words (данный = да-ROOT + нн-SUFF; чугунный =
-    # чугун-ROOT + н-SUFF) place the first н on the root side even though
-    # the pair as a whole is a legitimate suffix target.
+    # Boundary check uses the *last* н of the pair (see _is_suffix_boundary).
     for m in _NN_RE.finditer(text_lower):
         pos = m.start()
         if not _is_suffix_boundary(text_lower, m.end() - 1, lemma):

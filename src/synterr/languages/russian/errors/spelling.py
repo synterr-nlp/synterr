@@ -1,17 +1,16 @@
 """Russian spelling error handler using phonetic rules.
 
-Ported from gector/code/synthetic_dataset_generation/phonetic_errors.py
-
 Error types:
 1. Vowel reduction (аканье/иканье) - unstressed vowel confusion (requires stress_dict)
-2. Consonant devoicing - voiced/voiceless confusion at word boundaries
-3. тся/ться confusion - most common Russian spelling error
-4. Consonant cluster simplification - сч→щ, стн→сн, etc.
-5. Double consonant errors
-6. Soft sign errors - deletion, ъ→ь confusion
-7. Keyboard typos - ЙЦУКЕН layout adjacency
-8. Alternating root vowels (Rozental §3) - гар/гор, кас/кос, бер/бир, etc.
-9. Unchecked root vowels (Rozental §2) - curated dictionary-word lexicon
+2. Consonant devoicing - word-final voiced consonant written voiceless
+3. Prefix voicing - из-/ис-, раз-/рас-, без-/бес- confusion (Rozental §31)
+4. тся/ться confusion - most common Russian spelling error
+5. Consonant cluster simplification - сч→щ, стн→сн, etc.
+6. Double consonant reduction
+7. Soft sign errors - deletion, ъ→ь confusion
+8. Keyboard typos - ЙЦУКЕН layout adjacency
+9. Alternating root vowels (Rozental §3) - гар/гор, кас/кос, бер/бир, etc.
+10. Unchecked root vowels (Rozental §2) - curated dictionary-word lexicon
 """
 
 from __future__ import annotations
@@ -158,7 +157,7 @@ CLUSTER_CONFUSIONS = {
 # Learners often use the wrong form.
 # =============================================================================
 
-# Voiced prefix → voiceless prefix (used before voiceless consonants)
+# Voiced prefix → wrong voiceless form (swapped before a voiced consonant)
 PREFIX_VOICED_TO_VOICELESS = {
     "из": "ис",
     "раз": "рас",
@@ -169,7 +168,7 @@ PREFIX_VOICED_TO_VOICELESS = {
     "чрез": "черес",
 }
 
-# Voiceless prefix → voiced prefix (used before voiceless consonants).
+# Voiceless prefix → wrong voiced form (swapped before a voiceless consonant).
 # Not a mechanical inversion: черес- maps to modern через- (черезчур is the
 # attested learner error), not archaic чрез- (§31).
 PREFIX_VOICELESS_TO_VOICED = {
@@ -261,12 +260,9 @@ KEYBOARD_ADJACENT = {
 #
 # denied_lemmas: the morpheme dict tags ROOT purely by surface spelling, so
 # it doesn't distinguish these alternating roots from unrelated lexemes that
-# happen to share the identical root string (e.g. "гора" tags as ROOT "гор",
-# same as "загорать" — but "гора" has nothing to do with §3). These are
-# curated denylists (by lemma) for the homograph families found to collide,
-# discovered via corpus testing — most damagingly "читать" (read), which
-# shares "чит" with the счет/считать (count) alternation and would otherwise
-# fire on nearly every occurrence of that extremely common verb.
+# share the root string (e.g. "гора" tags as ROOT "гор", same as "загорать",
+# but has nothing to do with §3; "читать" shares "чит" with счет/считать).
+# Curated denylists by lemma; a trailing '*' denies a whole family stem.
 # =============================================================================
 
 # клан/клон: "клонировать" (to clone, modern loanword from English "clone")
@@ -288,9 +284,7 @@ _GOR_DENY = frozenset(
         "горкомовский",
         "гористый",
         "горка",
-        # Family-prefix entry (audit fix S3): "высокогорный" (mountain-range
-        # adjective, from "гора") shares ROOT "гор" with the burn (гореть)
-        # alternation and would otherwise leak — deny the whole family.
+        # "высокогорный" (from "гора") — audit S3
         "высокогор*",
     }
 )
@@ -375,13 +369,9 @@ _KOS_DENY = frozenset(
         "дискос",
         "икос",
         "компрачикос",
-        # Family-prefix entry (audit fix S3): "косолапый" (bear-footed,
-        # from "коса"/"косой" 'slanted') leaked as чит-style confusion —
-        # covers косолапый, косолапость, косолапо, etc.
+        # "косолапый" (from "косой" 'slanted') — audit S3
         "косолап*",
-        # Supplementary 1500-sentence leak-pass finding: "косовский"
-        # (adjective from the placename "Косово"/Kosovo) — a proper-noun
-        # derivation, unrelated to косить/косой.
+        # "косовский" (from the placename Косово), unrelated to косить/косой
         "косовск*",
     }
 )
@@ -407,9 +397,8 @@ _ROS_DENY = frozenset(
 # пловец/пловчиха (the genuine lexicalized exception) are NOT denied
 _PLOV_DENY = frozenset({"плов", "сопловой"})
 
-# мер/мир: "мир" (peace/world) family, unrelated to the мереть (die) /
-# мерить (measure) alternation; "номер" (compound "но"+"мер", a loanword
-# for room/issue number, unrelated to measure)
+# мер/мир: "мир" (peace/world) family, unrelated to the умереть/умирать (die)
+# alternation; "номер" (a loanword segmented with ROOT "мер")
 _MIR_DENY = frozenset(
     {
         "мировой",
@@ -440,39 +429,25 @@ _MIR_DENY = frozenset(
         "всемирный",
         "всемирно",
         "номер",
-        # Family-prefix entry (audit fix S3): "умиротворить" (pacify, у +
-        # мир 'peace' + творить) leaked — covers умиротворить,
-        # умиротворение, умиротворять, умиротворённый, etc.
+        # "умиротворить" (from мир 'peace') — audit S3
         "умиротвор*",
-        # 500-sentence leak-pass findings (audit fix S3): "мер" as in "мера"
-        # (measure) is a THIRD homograph collision, distinct from both the
-        # мереть(die)/мирать alternation this family targets and the "мир"
-        # (peace) denial above — "измерять/примерный/размер" never
-        # genuinely alternate to an "-мир-" spelling. "смерть"/"смертельно"
-        # (death) are etymologically related to мереть but are bare
-        # noun/adverb forms with no following -а- suffix, so no genuine
-        # confusion context exists either ("смирть" is not plausible).
+        # "мера" (measure) family never alternates to "-мир-" (измерять,
+        # размер); "смерть" has no following -а- suffix, so no confusion
+        # context ("смирть" is not plausible) — audit S3
         "смерт*",
         "мера*",
         "мерить",
         "измер*",
         "пример*",
         "размер*",
-        # "фермер"/"таймер" (loanwords "farmer"/"timer") happen to segment
-        # with ROOT "мер" — unrelated to either мереть(die) or мерить
-        # (measure).
+        # loanwords "фермер"/"таймер" segment with ROOT "мер"
         "фермер*",
         "таймер*",
     }
 )
 
-# бер/бир: no natural homograph collisions found in the audited alternation
-# families, but the 500-sentence leak-pass surfaced "бернский" (adjective
-# from the placename "Берн"/Bern) — a proper-noun derivation, not the
-# брать/собирать (gather/take) verb family this alternation targets. (The
-# bare placename itself, e.g. "Берлина", is caught by the PROPN POS skip —
-# see audit fix S5(b) — but a derived adjective like "бернский" is tagged
-# ADJ, not PROPN, so it needs its own denial here.)
+# бер/бир: "бернский" (from the placename Берн) is tagged ADJ, so the PROPN
+# skip in _root_alternating (audit S5(b)) does not catch it.
 _BER_DENY = frozenset({"бернский*"})
 
 # пер/пир: "пир" (feast) family, греч. "пиро-" (fire) borrowings, and "перо"
@@ -507,17 +482,10 @@ _PIR_DENY = frozenset(
         "оперяться",
         "неоперившийся",
         "красноперка",
-        # Family-prefix entry (audit fix S3): "оперативник"/"оперативный"
-        # (loanword "операция" family) leaked — unrelated to переть.
+        # loanwords segmented with ROOT "пер", unrelated to переть:
+        # оперативный (audit S3), супер- (суперкомпьютер), перрон, период
         "оператив*",
-        # 500-sentence leak-pass finding: "супер-" (loanword prefix
-        # "super", e.g. суперкомпьютер, супергерой) always segments with
-        # ROOT "пер" per the morpheme dict, coincidentally colliding with
-        # this family — none of it relates to переть.
         "супер*",
-        # Supplementary 1500-sentence leak-pass findings: "перрон" (loanword
-        # 'platform') and "период" (Greek loanword 'period') both happen to
-        # segment with ROOT "пер" — neither relates to переть.
         "перрон*",
         "период*",
     }
@@ -540,11 +508,7 @@ _TER_DENY = frozenset(
         "растерянность",
         "теряться",
         "теряющий",
-        # Supplementary 1500-sentence leak-pass finding: "террор"-family
-        # loanwords (террорист, терроризм) segment with ROOT "террор", not
-        # "тер" — no collision there — but "контртеррористический" has an
-        # inconsistent dict segmentation that splits it into ROOT "тер" +
-        # ROOT "рор", spuriously matching this alternation.
+        # "контртеррористический" mis-segments as ROOT "тер" + ROOT "рор"
         "террор*",
         "контртеррор*",
     }
@@ -616,18 +580,13 @@ _CHIT_DENY = frozenset(
         "неудобочитаемый",
         "непрочитанный",
         "начетверо",
-        # Family-prefix entries (audit fix S3): "читатель" (reader, noun
-        # derived from читать) and "вчетвером"/"четверо" (numeral "четыре"
-        # 'four' family — четверть, четвертак, четвертьфинал, четверик,
-        # вчетвером, ... all share the "четвер" stem) leaked as чет/чит
-        # confusions; unrelated to считать/счёт.
+        # "читатель" and the numeral "четвер-" stem (четверть, вчетвером),
+        # unrelated to считать/счёт — audit S3
         "читатель*",
         "вчетвер*",
         "четвер*",
-        # 500-sentence leak-pass finding: "четкий" (clear/precise) is a
-        # frozen adjectival derivation, not part of the считать/счёт verb
-        # paradigm this alternation targets — "читкий" is not a plausible
-        # misspelling.
+        # "четкий" is outside the считать/счёт paradigm; "читкий" is not a
+        # plausible misspelling
         "четкий*",
     }
 )
@@ -656,11 +615,9 @@ ROOT_ALTERNATIONS: tuple[tuple[str, str, int, bool, frozenset[str]], ...] = (
 
 
 def _validate_root_alternations() -> None:
-    """Audit fix S2: vowel_idx must index a VOWEL that differs between the
-    two variants. клан/клон and твар/твор used to index 1 (the consonant
-    л/в) instead of 2 (the alternating vowel а/о) — corrupting the wrong
-    character entirely. Runs once at import time so a future bad entry
-    fails loudly instead of silently editing consonants.
+    """Assert each vowel_idx indexes a VOWEL that differs between the two
+    variants (audit S2). Runs once at import time so a bad entry fails
+    loudly instead of silently editing consonants.
     """
     for variant_a, variant_b, vowel_idx, _stress_checked, _denied in ROOT_ALTERNATIONS:
         assert 0 <= vowel_idx < len(variant_a) and 0 <= vowel_idx < len(variant_b), (
@@ -684,12 +641,9 @@ _validate_root_alternations()
 def _lemma_denied(lookup_lemma: str, denied_lemmas: frozenset[str]) -> bool:
     """Check a lemma against a denylist mixing exact and family-prefix entries.
 
-    Audit fix S3: exact-lemma denylists leaked whole derivational families
-    (читатель, читательница, ... от читать share nothing with the entry
-    "читать" under exact match). Entries ending in '*' are FAMILY prefixes —
-    any lemma starting with that stem is denied, catching the whole
-    derivational family in one entry. Plain entries (no trailing '*') still
-    match exactly only, preserving existing narrowly-scoped denials (e.g.
+    Entries ending in '*' are FAMILY prefixes — any lemma starting with that
+    stem is denied, so one entry covers a derivational family (audit S3).
+    Plain entries match exactly only, keeping narrow denials narrow (e.g.
     _PLOV_DENY's "плов" must NOT also deny "пловец", the lexicalized
     exception that should still fire).
     """
@@ -730,15 +684,11 @@ def _load_root_unchecked_lexicon() -> dict[str, tuple[int, str, str]]:
 def _validate_root_unchecked_lexicon(
     lexicon: dict[str, tuple[int, str, str]],
 ) -> None:
-    """Audit fix S4: assert every entry's vowel position falls in a ROOT
-    morpheme, when the word has dict segmentation available.
+    """Assert every entry's vowel position falls in a ROOT morpheme, when
+    the word has dict segmentation available (audit S4).
 
-    root_unchecked.json used to have 5 entries targeting non-ROOT positions
-    (LINK vowels in compound words like винегрет, велосипед, гардероб,
-    калейдоскоп; a SUFF interfix in космонавт) — the "unchecked root vowel"
-    story only makes sense for a vowel actually inside the root. Words
-    absent from unified_dict (no segmentation) are skipped — nothing to
-    verify against.
+    A LINK vowel in a compound or an interfix is not an unchecked root
+    vowel. Words absent from unified_dict (no segmentation) are skipped.
     """
     from synterr.languages.russian.resources import get_morpheme_analyzer
 
@@ -769,11 +719,11 @@ def _root_unchecked_lexicon() -> dict[str, tuple[int, str, str]]:
 
 
 class SpellingErrorHandler(WeightedSubtypeMixin):
-    """Russian spelling error handler using phonetic rules.
+    """Phonetic and root spelling errors: vowel reduction, devoicing, prefixes, -тся/-ться, ь/ъ.
 
-    Implements realistic Russian spelling errors based on actual phonetic
-    and orthographic patterns. Requires stress dictionary for accurate
-    vowel reduction.
+    Also covers consonant clusters, double consonants, alternating and
+    unchecked root vowels, and keyboard typos. Vowel reduction requires
+    the stress dictionary.
     """
 
     name = "spelling"
@@ -849,11 +799,10 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
     def can_apply(self, tokens: Sequence[AnalyzedToken], idx: int) -> bool:
         """Check if spelling error can be applied at token index.
 
-        Audit fix S5(a): ALL-CAPS tokens of length >= 2 (МВД, США, ...) are
-        skipped for every spelling subtype. Abbreviations/acronyms aren't
-        subject to the phonetic/orthographic confusions this handler models,
-        and partial-string edits elsewhere in this handler (e.g.
-        prefix_voicing) can otherwise destroy the all-caps casing (§S7).
+        ALL-CAPS tokens of length >= 2 (МВД, США, ...) are skipped for every
+        subtype (audit S5(a)): abbreviations aren't subject to these
+        confusions, and partial-string edits (e.g. prefix_voicing) can
+        destroy all-caps casing (see _restore_allcaps).
         """
         token = tokens[idx]
         if token.text.isupper() and len(token.text) >= 2:
@@ -882,7 +831,7 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
             error_type=f"spelling_{result.error_subtype}",
             category=self.category,
             start_idx=idx,
-            end_idx=idx + 1,  # Fixed: was idx, should be idx+1 for consistency
+            end_idx=idx + 1,
             original=word,
             corrupted=result.corrupted,
             fix_tag=f"$REPLACE_{word}",
@@ -1005,10 +954,8 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
         replacement = rng.choice(vowel_map[char])
         corrupted = word[:pos] + replacement + word[pos + 1 :]
 
-        # Audit fix S6: reject results that are themselves known words —
-        # "бывший" (former) with и->е reduced at this position yields
-        # "бывшей" (a real inflected form of "бывшая"), a grammatical
-        # sentence, not an error.
+        # Reject results that are themselves known words (audit S6):
+        # "бывший" → "бывшей" is a real form, not an error.
         if self._is_known_word(corrupted):
             return None
 
@@ -1019,10 +966,10 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
 
         Simulates the common spelling error where word-final voiced consonants
         are written as voiceless (as they are pronounced). E.g., город → *горот.
-        Only applies to words ending in voiced consonants.
+        Applies to a word-final voiced consonant, or one before a final ь/ъ.
 
-        Note (audit S6 scope): unlike vowel_reduction/double_consonant/cluster,
-        this subtype deliberately does NOT reject known-word results. The
+        Unlike vowel_reduction/double_consonant/cluster, this subtype
+        deliberately does NOT reject known-word results (audit S6). The
         §8 phenomenon this subtype models IS the devoiced homophone landing
         on another real word (плод 'fruit' → плот 'raft') — that collision
         is the error, not a reason to skip it. Same for tsa_confusion
@@ -1094,7 +1041,7 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
         """
         word_lower = word.lower()
 
-        # Try voiced prefixes (из-, раз-, etc.) - should be voiceless before voiceless
+        # Voiced prefix (из-, раз-, ...) before a voiced consonant → voiceless form
         for voiced_prefix, voiceless_prefix in PREFIX_VOICED_TO_VOICELESS.items():
             if word_lower.startswith(voiced_prefix.lower()):
                 prefix_len = len(voiced_prefix)
@@ -1128,7 +1075,7 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
                     corrupted = self._restore_allcaps(word, corrupted)
                     return PhoneticError(word, corrupted, "prefix_voicing", 0)
 
-        # Try voiceless prefixes (ис-, рас-, etc.) - should be voiced before voiced
+        # Voiceless prefix (ис-, рас-, ...) before a voiceless consonant → voiced form
         for voiceless_prefix, voiced_prefix in PREFIX_VOICELESS_TO_VOICED.items():
             if word_lower.startswith(voiceless_prefix.lower()):
                 prefix_len = len(voiceless_prefix)
@@ -1162,17 +1109,12 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
 
     @staticmethod
     def _restore_allcaps(source: str, corrupted: str) -> str:
-        """Audit fix S7: re-uppercase the whole result if the source token
-        was ALL-CAPS.
+        """Re-uppercase the whole result if the source token was ALL-CAPS
+        (audit S7).
 
-        Partial-string edits (e.g. prefix_voicing's per-prefix case-match
-        branches) fall back to a lowercase replacement when the source
-        prefix's case doesn't match a plain or Capitalized pattern — for an
-        ALL-CAPS source like "РАЗБИТЬ" this produced "расБИТЬ", destroying
-        the casing on everything before the edit. can_apply's ALL-CAPS skip
-        (§S5) already keeps this from firing through the normal pipeline,
-        but the private methods are also called directly (incl. in tests),
-        so this is a defensive belt-and-braces normalization.
+        prefix_voicing's case match falls back to a lowercase prefix, which
+        would turn "РАЗБИТЬ" into "расБИТЬ". can_apply already skips ALL-CAPS
+        tokens; this guards direct calls to the private methods.
         """
         if source.isupper() and len(source) > 1:
             return corrupted.upper()
@@ -1245,15 +1187,13 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
         Adding doubles to words that don't have them produces gibberish
         (парки→паррки) and is not a real error pattern.
 
-        нн is reduced only when root-internal (масса→маса, §9). Suffix нн
+        нн is reduced only when root-internal (§9). Suffix нн
         (сделанная, длинный) is the §52 participle/adjective rule, owned by
         orthographic_spelling:nn_suffix — reducing it here would mislabel the
         error (this subtype maps to root doubles).
 
-        Audit fix S6: results that are themselves known dictionary words are
-        rejected — "тонна" (ton) → "тона" is real (nominative plural of
-        "тон" 'shade'), and "ванна" (bathtub) → "вана" is real (genitive of
-        the geographic name "Ван"/Lake Van) — both grammatical, not errors.
+        Results that are themselves known words are rejected (audit S6):
+        "тонна" → "тона" (plural of "тон") is grammatical, not an error.
         """
         word_lower = word.lower()
 
@@ -1265,10 +1205,6 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
                 # Preserve case of retained character
                 retained_char = single.upper() if word[pos].isupper() else single
                 corrupted = word[:pos] + retained_char + word[pos + 2 :]
-                # Audit fix S6: reject results that are themselves known
-                # words — "тонна" (ton) reduced to "тона" (a real word,
-                # nominative plural of "тон" 'shade/tone') would be a
-                # grammatical substitution, not a misspelling.
                 if self._is_known_word(corrupted):
                     continue
                 return PhoneticError(word, corrupted, "double_consonant", pos)
@@ -1364,8 +1300,8 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
         """Swap an alternating-root vowel to the wrong alternant (§3).
 
         Confirms via the morpheme dict that the word actually has one of the
-        alternating roots (ROOT type, exact text match) — same helper
-        vowel_after_ts uses (orthographic_spelling.py). The corruption swaps
+        alternating roots (ROOT type, exact text match; lemma fallback when
+        the surface is unsegmented). The corruption swaps
         ONLY the single vowel at the alternation's position (e.g. лаг/лож
         differ in both vowel AND final consonant, but the learner error is
         just the vowel: предлагать → предлогать, not → предложать) — a
@@ -1385,18 +1321,13 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
         rejected if it happens to be a real word (e.g. мер, genitive plural
         of мера) — the swap must produce a genuine non-word.
 
-        Audit fix S1: morpheme offsets come from the analyzer's
-        surface_morpheme_spans (annotation characters like the '-' in
-        SUFF "о-" stripped before summing, stripped concatenation verified
-        against the surface word), and the resulting span's actual text is
-        re-verified against the expected root string before any edit — a
-        mismatch (e.g. a corrupted/garbage dict entry) skips that
-        candidate instead of editing blind. An assertion also guards that
-        the edit position never lands outside the verified root span.
+        Offsets come from surface_morpheme_spans, and the span's text is
+        re-verified against the expected root before any edit; a mismatch
+        skips the candidate, and an assertion keeps the edit inside the
+        verified root span (audit S1).
 
-        Audit fix S5(b): PROPN tokens are skipped — "Берлина" (city name,
-        genitive) segments with ROOT "бер", colliding with the бер/бир
-        alternation, but proper nouns aren't subject to §3 at all.
+        PROPN tokens are skipped (audit S5(b)): "Берлина" segments with ROOT
+        "бер", but proper nouns aren't subject to §3.
         """
         if pos == "PROPN":
             return None
@@ -1478,8 +1409,8 @@ class SpellingErrorHandler(WeightedSubtypeMixin):
                     if stress_pos == vowel_pos:
                         continue  # stressed here — this IS the correct alternant
 
-                # Assertion guard (audit fix S1 acceptance criterion): the
-                # edit must never land outside the verified root span.
+                # Audit S1: the edit must never land outside the verified
+                # root span.
                 assert start <= vowel_pos < start + len(root_text), (
                     f"root_alternating: vowel_pos {vowel_pos} outside "
                     f"verified root span [{start}, {start + len(root_text)}) "

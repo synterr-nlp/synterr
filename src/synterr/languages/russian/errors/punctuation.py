@@ -1,4 +1,4 @@
-"""Russian punctuation error handlers — comma and dash deletion."""
+"""Russian punctuation error handlers — comma/dash deletion and comma↔dash swaps."""
 
 from __future__ import annotations
 
@@ -47,11 +47,10 @@ PARENTHETICAL_WORDS = frozenset(
         "скажем",
     }
 )
-# "наконец", "действительно", "правда", "значит" REMOVED (audit A15): each
-# is a dual-function lexeme whose adverbial reading (§99 пп.5–12) needs no
-# comma at all — this closed list is for words that are ALWAYS вводные, and
-# the dep-tree parenthetical detection above already catches their genuine
-# вводное uses via parataxis/discourse arcs.
+# Not listed (audit A15): "наконец", "действительно", "правда", "значит" are
+# dual-function — their adverbial reading (§99 пп.5–12) takes no comma. This
+# closed list is for words that are ALWAYS вводные; their genuine вводное uses
+# are caught by _classify_comma's dep-tree parataxis/discourse checks.
 
 # §103 — affirmative / negative / response words; comma typically follows
 # when they open a turn or response.
@@ -73,7 +72,8 @@ _QUOTE_CHARS = frozenset({"«", "»", '"', "„", "“"})
 ISOLATION_DEPRELS = frozenset({"acl", "acl:relcl", "advcl"})
 CLAUSE_DEPRELS = frozenset({"ccomp", "advcl", "csubj", "csubj:pass"})
 
-# Dep relations that form isolation constructions (Rozental §92–§103).
+# Dep relations that form paired-comma constructions (Rozental §92–103;
+# relative clauses §107–113).
 # `amod` covers adjectival isolation — stanza tags isolated adjectives as amod
 # rather than acl when they aren't morphologically participles.
 PAIR_DEPRELS = {
@@ -198,15 +198,10 @@ def _is_asyndetic_parataxis(
     # «..., сообщает РИА «Новости»...» / «..., мать говорила...» — a speech
     # verb head is a вводное предложение-атрибуция when it PRECEDES its own
     # subject (attribution word order); when the subject precedes the verb,
-    # it is a genuine §116 БСП clause regardless of span length. Replaces
-    # the old span-based ≤5-token cutoff (audit A8), which misfired on
-    # short-subject БСП clauses like «мать говорила».
-    #
-    # Widened (July 2026 review P2): a speech verb with NO nsubj/nsubj:pass
-    # child at all is a subjectless/impersonal attribution («..., сообщается
-    # в прогнозе»; «..., говорилось в сводке» — reflexive-passive forms
-    # stanza lemmatizes to the base speech-verb lemma) — also attribution,
-    # not a §116 clause, regardless of word order.
+    # it is a genuine §116 БСП clause regardless of span length (audit A8).
+    # A speech verb with NO nsubj/nsubj:pass child is a subjectless
+    # attribution («..., сообщается в прогнозе» — stanza lemmatizes the
+    # reflexive-passive to the base speech-verb lemma), also not §116.
     if comma_head.lemma in SPEECH_VERB_LEMMAS:
         subj = next(
             (
@@ -256,9 +251,7 @@ def _route_isolation_or_subordinate(
     fronted subordinate clause. Finite relative/complement clauses parsed as
     acl/acl:relcl are СПП (§107-110), not обособление. Shared by the
     head-based branch and both POS/lemma fallback branches of
-    _classify_comma so all three agree (audit A6) — previously only the
-    head-based branch applied this routing, so the fallback paths mislabeled
-    finite relative/adverbial clauses as comma_isolation.
+    _classify_comma so all three agree (audit A6).
     """
     if candidate.dep_rel == "advcl" and candidate.get_feature("VerbForm") != "Conv":
         return "comma_subordinate"
@@ -330,14 +323,11 @@ def _is_split_conjunction_comma(tokens: Sequence[AnalyzedToken], idx: int) -> bo
     standalone comma_delete error, nor treated as a paired-isolation
     boundary (audit A16).
 
-    Narrowed (July 2026 review P1): the surface лемма-only check also
-    caught CORRELATIVE constructions where a demonstrative is a bare
-    argument of the main-clause verb («гордился тем, что выиграл», «дело в
-    том, что…») — there the comma is OBLIGATORY and deleting it is a
-    genuine, frequent error, not a splittable junction. A genuine compound
-    conjunction is ADP-led: the demonstrative sits within an ADP's
-    prepositional phrase (после/до/для/из-за/ввиду/несмотря на + того/то),
-    so require an ADP within 2 tokens to the left of the demonstrative.
+    A genuine compound conjunction is ADP-led (после/до/для/из-за/ввиду/
+    несмотря на + того/то), so an ADP must sit within 2 tokens left of the
+    demonstrative. Without one it is a CORRELATIVE construction («гордился
+    тем, что выиграл»), where the comma is obligatory and deleting it is a
+    genuine error.
     """
     n = len(tokens)
     right = tokens[idx + 1] if idx + 1 < n else None
@@ -375,7 +365,7 @@ def _find_comma_partner(
 
     n = len(tokens)
 
-    # «после того, как…» / «до тех пор, пока…»: the comma splits a compound
+    # «после того, как…» / «для того, чтобы…»: the comma splits a compound
     # subordinating conjunction — a §108 junction, never a paired isolation.
     if _is_split_conjunction_comma(tokens, idx):
         return None
@@ -762,8 +752,9 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
         if neighbor.get_feature("VerbForm") in ("Part", "Conv"):
             return "comma_isolation"
 
-    # Isolation: closing comma — scan left for a participle whose subtree
-    # ends just before this comma (allow a gap of 1-2 PUNCT-only tokens)
+    # Isolation: closing comma — scan left for an acl/acl:relcl/advcl node
+    # whose subtree ends just before this comma (allow a gap of 1-2
+    # PUNCT-only tokens)
     if right is not None:
         for i in range(max(0, idx - 15), idx):
             t = tokens[i]
@@ -775,8 +766,8 @@ def _classify_comma(tokens: Sequence[AnalyzedToken], idx: int) -> str:
                 ):
                     return _route_isolation_or_subordinate(tokens, t)
 
-    # Parenthetical: closing comma — symmetric to opening-comma detection
-    # in section 1, scan left for a parataxis/discourse subtree ending just
+    # Parenthetical: closing comma — symmetric to the opening-comma scan
+    # above, scan left for a parataxis/discourse subtree ending just
     # before this comma. Catches the closing `,` of "..., по существу, ..."
     # where the comma's own head_idx points at the next content token (not
     # the parataxis), defeating the section-1 head-based check.
@@ -885,9 +876,9 @@ def _is_connective_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """§82 соединительное тире: routes/matches (PROPN—PROPN), ranges
     (NUM—NUM), and temporal-endpoint spans (NOUN—NOUN months/seasons/
     weekdays/day-parts, e.g. "период январь — март"), e.g. "поезд Москва —
-    Иркутск". Deleting it is still an error, but it is NOT a §93 apposition
-    and a comma there turns a route/range into a list — so it must be
-    excluded from dash_apposition / dash_to_comma.
+    Иркутск". It is NOT a §93 apposition and a comma there turns a
+    route/range into a list, so _classify_dash skips it (no dash_delete)
+    and _appositional_dash_arcs excludes it (no dash_to_comma).
     """
     left = tokens[idx - 1] if idx > 0 else None
     right = tokens[idx + 1] if idx + 1 < len(tokens) else None
@@ -933,11 +924,11 @@ _ESTO_CONNECTOR_LEMMAS = frozenset({"это", "вот"})
 
 
 def _is_esto_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-    """§79: «Тире ставится перед словами это, это есть, вот, вот значит,
-    это значит, присоединяющими сказуемое к подлежащему» — the connector
-    configuration is the canonical OBLIGATORY subj-pred dash. All five
-    connector variants begin with «это» or «вот», so the first token right
-    of the dash decides (bare «значит» is not in the §79 list).
+    """§79: a predicate joined to its subject by the connectors это, это
+    есть, вот, вот значит, это значит is the canonical OBLIGATORY subj-pred
+    dash. All five connector variants begin with «это» or «вот», so the
+    first token right of the dash decides (bare «значит» is handled
+    separately in _classify_dash).
 
     Guard: the left context must be a subject phrase, not a finite clause —
     in «Дверь открылась — это пришёл отец» the dash joins two clauses
@@ -1085,9 +1076,10 @@ def _is_optional_subj_pred_dash(tokens: Sequence[AnalyzedToken], idx: int) -> bo
 
 
 def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
-    """Classify a dash by context. Returns subtype name, or None when the
-    dash is not a §79–96 punctuation-rule dash (ranges, direct speech,
-    authorial/intonational dashes) so deletion must not be generated."""
+    """Classify a dash by context. Returns subtype name, or None when
+    deleting the dash must not be generated (ranges and routes, direct
+    speech, quotation-internal, paired apposition, authorial/intonational
+    dashes)."""
     n = len(tokens)
     left = tokens[idx - 1] if idx > 0 else None
     right = tokens[idx + 1] if idx + 1 < n else None
@@ -1127,9 +1119,8 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     # отдыхать 35 суток, а обычные госслужащие — 30 суток»; «..., а на 90
     # строчке — в самом низу»). A clause opened by a subordinator is СПП
     # («…, что пострадавший — безработный»), not an ellipsis. Must run
-    # BEFORE the ADP-adjunct guard below (July 2026 review P4): an ellipsis
-    # remainder led by a preposition («в самом низу») was otherwise killed
-    # by that guard before ever reaching this check.
+    # BEFORE the ADP-adjunct guard below, which would otherwise swallow an
+    # ellipsis remainder led by a preposition («в самом низу»).
     clause_lo = _clause_start(tokens, idx)
     left_clause_pred = _segment_has_predicate(tokens, clause_lo, idx)
     right_any_pred = _segment_has_predicate(tokens, idx + 1, n)
@@ -1145,12 +1136,9 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
 
     # Authorial adjunct dash before a prepositional phrase with no
     # following predicate («письмо — без лишних слов») — deletion is
-    # normative, not an error (audit A11). The numeric-range guards above
-    # must run first so genuine ranges ("вверх — до 35,75 — 42,75 рубля")
-    # are still covered before this broader ADP check, and the ellipsis
-    # check above must ALSO run first so it can still claim ellipsis sites
-    # with a preposition-led remainder («в самом низу») — this guard keeps
-    # protecting the non-ellipsis case («clause_lo == 0»).
+    # normative, not an error (audit A11). The numeric-range guards and the
+    # ellipsis check above must run first so they still claim their
+    # ADP-led sites.
     if right.pos == "ADP" and not _segment_has_predicate(tokens, idx + 1, n):
         return None
 
@@ -1201,10 +1189,8 @@ def _classify_dash(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
     if _is_optional_subj_pred_dash(tokens, idx):
         return None
 
-    # right_end/right_main_pred/left_any_pred feed only the branches below
-    # (subj-pred, asyndetic); clause_lo/left_clause_pred/right_any_pred were
-    # already computed above for the §80 ellipsis check (P4) and are reused
-    # here as-is.
+    # right_main_pred stops at the next comma/dash; left_clause_pred and
+    # right_any_pred are reused from the §80 ellipsis check above.
     right_end = next(
         (
             t.idx
@@ -1373,7 +1359,8 @@ class DashDeleteHandler(WeightedSubtypeMixin):
             return False
         if tokens[idx].pos != "PUNCT" or tokens[idx].text not in DASH_CHARS:
             return False
-        # None = §79 optional/authorial dash; deletion would be a non-error.
+        # None = deletion would be a non-error or mangle the construction
+        # (see _classify_dash).
         return _classify_dash(tokens, idx) is not None
 
     def apply(
@@ -1484,13 +1471,13 @@ def _appositional_dash_arcs(
 
 
 class DashToCommaHandler(SubtypeGateMixin):
-    """Replace dash with comma — Rozental §93 apposition L1 error pattern.
+    """Replace a sentence-final apposition dash with a comma (Rozental §93).
 
-    Many L1 errors substitute a comma for the required dash around an
-    apposition (e.g., "Самой глубокой является пещера Соляник —
-    государственный памятник природы" → "...Соляник, государственный...").
-    This handler produces that error by detecting appositional dashes via
-    the `appos` dep arc and substituting them with commas.
+    Learners substitute a comma for the required dash before a
+    sentence-final apposition (e.g., "Самой глубокой является пещера
+    Соляник — государственный памятник природы" → "...Соляник,
+    государственный..."). The dash is found via an appos/parataxis arc
+    (``_appositional_dash_arcs``) whose right side runs to the sentence end.
     """
 
     name = "dash_to_comma"
@@ -1579,8 +1566,8 @@ _BSP_COGNITION_LEMMAS = frozenset(
         "помнить",
         "вспомнить",
         "знать",
-        # attribution verbs common in news prose (SPEECH_VERB_LEMMAS misses
-        # these; first review pass leaked «указал»/«полагают» junctions)
+        # attribution verbs common in news prose (some also in
+        # SPEECH_VERB_LEMMAS)
         "указывать",
         "указать",
         "подчеркивать",
@@ -1601,8 +1588,8 @@ _BSP_COGNITION_LEMMAS = frozenset(
 _BSP_CLOSING_QUOTES = frozenset({"»", '"', "'", "“", "”", "„"})
 
 # §118 п.8 / п.3: a second clause opening with a connective pronoun
-# (присоединительное) or a consequence connective (следствие) is exactly
-# where the dash IS correct or defensible. «при этом» is caught as a
+# (присоединительное), a consequence connective (следствие) or a contrast
+# connective (однако, зато) is where the dash IS correct or defensible. «при этом» is caught as a
 # bigram in can_apply.
 _BSP_CLAUSE2_OPENER_SKIP = frozenset(
     {
@@ -1626,8 +1613,8 @@ _BSP_CLAUSE2_OPENER_SKIP = frozenset(
 class CommaToDashHandler(SubtypeGateMixin):
     """Replace the §116 asyndetic comma with a spurious dash.
 
-    Insert-direction mirror of ``dash_delete:dash_asyndetic`` (v5
-    bidirectional design): the delete side trains the model to ADD a
+    Insert-direction mirror of ``dash_delete:dash_asyndetic``: the delete
+    side trains the model to ADD a
     §118 dash; this side trains it to REMOVE a dash from a junction
     where §116 wants a comma («День был серый — небо висело низко»).
 
@@ -1643,13 +1630,16 @@ class CommaToDashHandler(SubtypeGateMixin):
     - both clauses need overt subjects — subjectless first clauses are
       the condition/time/comparison shapes of §118 п.4–6 («Победим —…»,
       «Молвит слово —…»);
-    - a speech/perception/cognition first predicate is §117 п.2/§118 п.7
-      territory (colon/dash licensed) — skipped;
-    - a second clause carrying negation is the §118 п.2 contrast shape
-      («шныряли по лесу — нет зверя») — skipped on any не/нет in the
-      clause (accepted risk: overbroad, drops some valid §116 sites —
-      skip > mislabel);
-    - a second clause opening with это/так/таков is §118 п.8 — skipped.
+    - a speech/perception/cognition verb anywhere before the junction, or
+      as the second predicate, is §117 п.2/§118 п.7 territory (colon/dash
+      licensed) — skipped;
+    - negation is the §118 п.2 contrast shape («шныряли по лесу — нет
+      зверя») — skipped on any не/нет in the sentence (accepted risk:
+      overbroad, drops some valid §116 sites — skip > mislabel);
+    - a second clause opening with это/так/таков (§118 п.8), a
+      consequence/contrast connective or «при этом» — skipped;
+    - a comma right after a closing quote (direct-speech attribution) —
+      skipped.
 
     What survives is the §116 descriptive core: two stative clauses in
     tight semantic linkage, where the dash is a clean intonation error.
@@ -1771,9 +1761,10 @@ class CommaToDashHandler(SubtypeGateMixin):
 class CommaPairDeleteHandler(SubtypeGateMixin):
     """Delete both commas of a paired construction (обособление).
 
-    Detects constructions where two commas share the same dep-tree head:
-    причастный оборот (acl), деепричастный оборот (advcl+Conv),
-    relative clause (acl:relcl), parenthetical (parataxis), apposition (appos).
+    Detects constructions whose dep subtree is bounded by a comma on each
+    side: причастный оборот (acl, or isolated amod), деепричастный оборот
+    (advcl+Conv), relative clause (acl:relcl), parenthetical (parataxis),
+    apposition (appos).
 
     Only triggers on the FIRST comma of a pair to avoid double processing.
     """
