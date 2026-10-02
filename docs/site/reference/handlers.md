@@ -93,13 +93,13 @@ Change adjective/participle number.
 
 ### `adj_possessive_form` (1 subtype)
 
-Corrupt possessive-adjective oblique declension (Rozental §162):
+Corrupt an -ин possessive's full oblique ending to the short one (Rozental §162).
 
 - `adj_possessive_form:adj_possessive_form`
 
 ### `adj_short_en_enen` (1 subtype)
 
-Corrupt the masc short-form -ен/-енен variant (Rozental §160):
+Corrupt a masc short adjective -ен into the marked -енен (Rozental §160).
 
 - `adj_short_en_enen:adj_short_en_enen`
 
@@ -135,7 +135,7 @@ Corrupt subject-verb number agreement with a bare collective subject.
 
 ### `agr_sv_compound` (1 subtype)
 
-Corrupt subject-verb agreement for three §186-189 special-subject
+Corrupt subject-verb agreement with a кто or acronym subject (§186-189).
 
 - `agr_sv_compound:agr_sv_compound`
 
@@ -204,7 +204,7 @@ Corrupt numeral declension.
 
 ### `verb_iterative_suffix` (1 subtype)
 
-Corrupt the о/а alternation in iterative-suffix imperfective verbs
+Corrupt the о/а root vowel of -ивать/-ывать imperfectives (Rozental §172.2).
 
 - `verb_iterative_suffix:verb_iterative_suffix`
 
@@ -243,13 +243,13 @@ Mix a причастный оборот into a который-coordination (§21
 
 ### `paronym` (1 subtype)
 
-Replace word from paronyms list to one from its paronyms
+Replace a word with one of its paronyms, inflected to the original's form.
 
 - `paronym:paronym`
 
 ### `pleonasm` (1 subtype)
 
-Insert redundant words to create pleonasm errors.
+Insert a redundant word next to its core word to create a pleonasm.
 
 - `pleonasm:pleonasm`
 
@@ -267,13 +267,13 @@ Replace preposition with an attested confusion from the same group.
 
 ### `pronoun_n_form` (1 subtype)
 
-3rd-person pronoun н-augment confusion after prepositions (§169-170,
+3rd-person pronoun н-augment confusion after prepositions (§167, RLC Ref).
 
 - `pronoun_n_form:pronoun_n_form`
 
 ### `pronoun_sebya` (1 subtype)
 
-Reflexive себя/себе/собой -> personal pronoun confusion (§168, RLC Ref).
+Reflexive себя/себе/собой -> personal pronoun confusion (§168.1, RLC Ref).
 
 - `pronoun_sebya:pronoun_sebya`
 
@@ -358,7 +358,7 @@ Delete a dash (em/en) with L2 subtype classification.
 
 ### `dash_to_comma` (1 subtype)
 
-Replace dash with comma — Rozental §93 apposition L1 error pattern.
+Replace a sentence-final apposition dash with a comma (Rozental §93).
 
 - `dash_to_comma:dash_to_comma_apposition`
 
@@ -412,7 +412,7 @@ Morpheme-level spelling errors: suffixes, prefixes, post-sibilant vowels.
 
 ### `spelling` (10 subtypes)
 
-Russian spelling error handler using phonetic rules.
+Phonetic and root spelling errors: vowel reduction, devoicing, prefixes, -тся/-ться, ь/ъ.
 
 - `spelling:vowel_reduction`
 - `spelling:devoicing`

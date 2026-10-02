@@ -353,7 +353,7 @@ def cmd_corrupt(
 
       \b
       # Schema tag for case errors
-      synterr corrupt -l ru -e Gov --schema rlc "Мама мыла раму."
+      synterr corrupt -l ru --depparse -e Gov --schema rlc "Мама мыла раму."
     """
     try:
         language = get_language(lang)

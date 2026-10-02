@@ -147,7 +147,8 @@ Pipe pytest through `tail` only with `set -o pipefail` — a pipe swallows the e
 - `src/synterr/core/` — pipeline, protocol, registry (language-agnostic)
 - `src/synterr/schemas/` — taxonomies: rlc, rozental (8 L0 / 29 L1 / 103 L2, v1.1, + `l2_applicability`), errant; loader
 - `src/synterr/configs/russian/` — presets (weights + subtype_weights); `rulec` = default, `lorugec` = benchmark-targeted
-- `src/synterr/languages/russian/` — backends (stanza default), `errors/` handlers (+ `_common.py` shared helpers/mixins), `inflector.py`, `resources.py`, `data/` lexicons + `unified_dict.json`
+- `src/synterr/languages/russian/` — backends (stanza default), `errors/` handlers (+ `_common.py` shared helpers/mixins), `inflector.py`, `resources.py`
+- `src/synterr/data/russian/` — lexicons (JSON) + `unified_dict.json` (stress + morphemes)
 - `src/synterr/languages/french/` — 5-handler PoC
 - `src/synterr/{discovery,sft,lorugec,cli}.py` — data-discovery loop, targeted SFT engine, benchmark rule map, CLI
 - `tests/` — `test_core/` (fake tokens), `test_languages/test_russian/` (fake tokens + `@slow` real backend), `helpers.py`
