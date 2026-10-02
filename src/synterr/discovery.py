@@ -56,9 +56,11 @@ def survey(
 ) -> dict:
     """Measure per-subtype fire rates for all handlers over sentences.
 
-    Returns a JSON-serializable report dict (see keys below). ``tries``
-    controls apply() attempts per applicable index — multi-subtype
-    handlers pick a random subtype per attempt.
+    Returns a JSON-serializable report dict (n_sentences, emissions,
+    per_1k, handler_sentence_coverage, handler_success_rate, starving,
+    never_fired, examples, plus the run parameters). ``tries`` controls
+    apply() attempts per applicable index — multi-subtype handlers pick a
+    random subtype per attempt.
     """
     from synterr.core.registry import get_language
 
@@ -268,11 +270,11 @@ def build_class_patterns() -> dict[str, re.Pattern]:
         "noun_case_prep_e_u": rf"\b(?:в|на)\s+(?:{'|'.join(loc2)})\b",
         "numeral_poltora": r"\b(?:полтора|полторы|полутора|полтораста)\b",
         # cardinal numerals in oblique cases — hosts for numeral_declension
-        # (the rule has ~8 training examples total; Nom/Acc citation forms
-        # are everywhere but oblique hosts are scarce). Genitive/dative/
-        # locative -и forms, instrumental -ью/-мя forms, and the oblique
-        # tens/hundreds. Recall-oriented: «сорока» the bird and «ста» false
-        # hits are filtered by the handler's can_apply.
+        # (Nom/Acc citation forms are everywhere but oblique hosts are
+        # scarce). Genitive/dative/locative -и forms, instrumental -ью/-мя
+        # forms, and the oblique tens/hundreds. Recall-oriented: «сорока»
+        # the bird and «ста» false hits are filtered by the handler's
+        # can_apply.
         "numeral_declension": (
             r"\b(?:двух|тр[её]х|четыр[её]х|пяти|шести|семи|восьми|девяти|"
             r"десяти|(?:один|две|три|четыр|пят|шест|сем|восем|девят)надцати|"
@@ -286,7 +288,7 @@ def build_class_patterns() -> dict[str, re.Pattern]:
             r"тремястами|четырьмястами|пятьюстами|шестьюстами|семьюстами|"
             r"восемьюстами|девятьюстами|стами?)\b"
         ),
-        # night-wave agreement/morph classes (2026-07: scarce on news corpora)
+        # agreement/morph classes scarce on news corpora
         "agr_sv_collective": rf"\b(?:{collective_stems})[а-яё]{{0,2}}\b(?!\s+{gen_tail})",
         "agr_mn_apposition": rf"\b(?:{geo_stems})[а-яё]{{0,2}}\s+[«\"]?[А-ЯЁ]",
         "agr_mn_compound_term": rf"\b(?:{compound_terms})",
@@ -380,10 +382,10 @@ def _merge_class_provenance(
 ) -> dict[str, dict]:
     """Per-class provenance that survives targeted re-runs.
 
-    A run over a pattern subset used to overwrite pools.meta.json wholesale,
-    orphaning every other pool file in the directory. Instead, classes not
-    touched by this run keep their previous record (migrated from the old
-    flat shape if needed); touched classes get this run's parameters.
+    Classes not touched by this run keep their previous record (migrated
+    from the old flat shape if needed), so a run over a pattern subset
+    does not orphan the other pool files in the directory; touched classes
+    get this run's parameters.
     """
     classes: dict[str, dict] = {}
     if meta_path.exists():

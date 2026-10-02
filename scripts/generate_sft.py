@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Rule-targeted SFT generator — thin CLI wrapper.
 
-The implementation now lives in ``synterr.sft.generate_targeted``. This
-script is preserved for backwards-compat with users / docs that invoke
-it directly. New code should prefer ``synterr generate-targeted`` (or
+The implementation lives in ``synterr.sft.generate_targeted``. This
+script is kept for backwards compatibility with callers that invoke it
+directly. New code should prefer ``synterr generate-targeted`` (or
 import :func:`synterr.sft.generate_targeted` for programmatic use).
 
-Usage (unchanged):
+Usage:
     uv run python scripts/generate_sft.py \\
         -n 50000 --depparse \\
         -i lenta_50k.txt -o data/qwen_sft_50k.jsonl

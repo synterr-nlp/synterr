@@ -306,8 +306,8 @@ def cmd_analyze(lang: str, backend: str | None, depparse: bool, text: str) -> No
     "--depparse",
     is_flag=True,
     default=False,
-    help="Enable dependency parsing (required for noun_case, adj_case, "
-    "verb_person_number — slower)",
+    help="Enable dependency parsing (required by parse-gated handlers such as "
+    "noun_case and verb_person_number — slower)",
 )
 @click.option("--seed", type=int, default=42, help="Random seed")
 @click.argument("text")
@@ -330,7 +330,8 @@ def cmd_corrupt(
       \b
       spelling              - any spelling error (all subtypes)
       spelling:vowel_reduction - only vowel_reduction subtype
-      Ortho --schema rlc    - all subtypes mapped to Ortho tag
+      Ortho --schema rlc    - schema tag: the first registered handler with
+                              subtypes mapped to Ortho, limited to those
 
     Examples:
 
@@ -347,7 +348,7 @@ def cmd_corrupt(
       synterr corrupt -l ru -e spelling:keyboard "Привет мир."
 
       \b
-      # All Ortho-mapped subtypes (phonetic errors, no typos)
+      # spelling's Ortho-mapped subtypes (phonetic errors, no typos)
       synterr corrupt -l ru -e Ortho --schema rlc "Молоко стоит на столе."
 
       \b
@@ -464,7 +465,8 @@ def cmd_generate(
 
     \b
     Configuration priority:
-      --config > --preset > --weights > language default
+      --config > --preset > language default; --weights, --error-prob
+      and an explicit --depparse/--no-depparse override the chosen source
 
     \b
     Examples:
@@ -686,8 +688,10 @@ def cmd_generate_sft(
     .dist.json sidecar with per-rule got/want counts.
 
     \b
-    The default target set ships with synterr (48 Rozental-derived
-    rules, empirically weighted). Supply your own with --targets:
+    The default target set ships with synterr (the 48 LoRuGEC rules as
+    63 entries with directional variants; weighted by item counts from a
+    local LORuGEC.xlsx if one is found, else uniform). Supply your own
+    with --targets:
       {"rules": {"my rule": {"handler": "spelling",
                              "subtype": "vowel_reduction",
                              "weight": 10}}}
@@ -848,7 +852,8 @@ def cmd_classify_jsonl(path: str, top: int) -> None:
 
     \b
     If records contain a `rule` field, counts by rule.
-    Otherwise, buckets by edit type (replace / insert / delete / multi).
+    Otherwise, buckets by edit type (no_op / replace / insert / delete /
+    multi_edit).
 
     Useful for auditing third-party GEC datasets — see what's actually
     in there before training on it.

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Regenerate the reference section of the MkDocs site from code.
 
-Outputs four pages under docs/site/reference/:
+Outputs five pages under docs/site/reference/:
 
+  index.md         — section landing page
   cli.md           — every CLI command with its help text
   handlers.md      — handler/subtype inventory grouped by category
   schemas.md       — schema list with tag counts and subtype mappings

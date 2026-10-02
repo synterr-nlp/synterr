@@ -58,7 +58,9 @@ def sample_confused_grammeme(
         rng: Random number generator (random.Random instance or random module)
 
     Returns:
-        Target UD value different from current, or None if not in matrix
+        Target UD value sampled from current_ud's row (can equal
+        current_ud only if the row has a diagonal entry), or None if
+        current_ud has no row
     """
     row = matrix.get(current_ud)
     if not row:

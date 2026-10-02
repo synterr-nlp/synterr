@@ -65,6 +65,8 @@ class GenerationConfig:
             Example: {"spelling": {"vowel_reduction": 30, "tsa_confusion": 25}}
         backend: NLP backend to use (None = language default)
         schema: Linguistic schema name or path (e.g., 'synterr', 'rlc')
+        confusion_matrices: Empirical grammeme confusion matrices, passed
+            to every handler that has ``set_confusion_matrix``
     """
 
     seed: int = 42
@@ -551,9 +553,8 @@ class ErrorPipeline:
     def _extract_subtype(self, error_type: str) -> str:
         """Extract handler subtype from error_type string.
 
-        Handlers encode error_type as "{handler_name}_{subtype}" for multi-subtype
-        handlers, or just "{subtype}" for single-subtype handlers. This reverses
-        that to find the schema mapping key.
+        Handlers emit error_type either as "{handler_name}_{subtype}" or as
+        the bare subtype. This reverses that to find the schema mapping key.
 
         Args:
             error_type: Error type from ErrorResult (e.g., "spelling_vowel_reduction")
@@ -574,7 +575,7 @@ class ErrorPipeline:
         return error_type
 
     def _enrich_error_with_schema(self, error: ErrorResult) -> None:
-        """Set schema_tag and schema_l2_tag on an ErrorResult."""
+        """Set schema_tag, schema_l2_tag and schema_l2_applicability."""
         if self.schema is None:
             return
 
@@ -637,9 +638,11 @@ class ErrorPipeline:
         """Resolve error specifier to handler and optional subtype filter.
 
         Supports:
-            - "spelling" → (SpellingHandler, None) - all subtypes
-            - "spelling:vowel_reduction" → (SpellingHandler, {"vowel_reduction"})
-            - "Ortho" with schema → (SpellingHandler, {"vowel_reduction", "devoicing", ...})
+            - "spelling" → (SpellingErrorHandler, None) - all subtypes
+            - "spelling:vowel_reduction" → (SpellingErrorHandler, {"vowel_reduction"})
+            - "Ortho" with schema → (SpellingErrorHandler, {"vowel_reduction", "devoicing", ...}):
+              the first handler (registration order) with subtypes mapped to
+              the tag, limited to those subtypes; later handlers are ignored
 
         Args:
             spec: Error specifier string
@@ -690,7 +693,8 @@ class ErrorPipeline:
         Supports multiple specifier formats:
             - "spelling" → any spelling error
             - "spelling:vowel_reduction" → only vowel_reduction subtype
-            - "Ortho" (with --schema rlc) → subtypes mapped to Ortho tag
+            - "Ortho" (with --schema rlc) → Ortho-mapped subtypes of the first
+              handler that has any (see resolve_error_spec)
 
         Args:
             text: Input sentence text

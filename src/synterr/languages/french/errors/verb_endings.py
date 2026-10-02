@@ -71,7 +71,7 @@ def _data_path() -> Path:
 def _load_verb_slots() -> dict[str, Any]:
     """Load the 1st-group verb ending-cluster whitelist (cached).
 
-    Returns an empty dict (handler becomes inert, never `{}`-KeyErrors) if
+    Returns an empty dict (handler becomes inert, never KeyErrors) if
     the data file is missing rather than raising - consistent with how
     Russian resource loaders degrade (see
     ``languages/russian/resources.py:get_paronyms``).
@@ -109,7 +109,7 @@ def _match_capitalization(original: str, new: str) -> str:
     """Match the capitalization pattern of ``original`` onto ``new``.
 
     Mirrors ``languages.russian.inflector.match_capitalization`` (not
-    imported - this handler owns exactly two files and no shared French
+    imported: French must not depend on the Russian package, and no shared
     inflector module exists yet per FRENCH_DESIGN.md section 4).
     """
     if not original or not new:

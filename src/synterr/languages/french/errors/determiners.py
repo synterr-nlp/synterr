@@ -17,60 +17,29 @@ du-is-ambiguous distinction) lives in ``data/french/contractions.json``, not
 hardcoded, so the linguistic facts stay separately auditable from the
 syntactic gate.
 
-Tokenizer reality this handler is built against (cross-checked against a real
-``StanzaFrBackend(use_depparse=True)`` parse — see
-``tests/test_languages/test_french/conftest.py``'s ``tokens_au_contraction``
-and ``tokens_du_contraction`` fixtures and their docstrings):
-
-- fr_sequoia treats "au"/"aux"/"du" as multi-word tokens (MWT) and *always*
-  expands them into two syntactic words before any handler ever sees them:
-  an ADP ("à"/"de") immediately followed by a DET ("le"/"les"), both attached
-  to the same head noun (``dep_rel="case"`` / ``dep_rel="det"``,
-  matching ``head_idx``). This is true regardless of whether the underlying
-  clean sentence spelled the word "au" (correct) — the analyzed token stream
-  can never contain a literal fused "au" token, because ``_word_to_token``
-  (``backends/stanza_fr.py``) iterates ``sent.words``, which is already
-  MWT-expanded.
-- Because ``sentence`` is built as ``[t.text for t in tokens]``
-  (``core/pipeline.py``), this means the *un-contracted* two-word spelling —
-  "à le" / "à les" / "de le" — is already what sits in ``sentence`` at these
-  two adjacent positions before this handler ever runs. There is no fused
-  "au" token anywhere in the mutable token array for this handler to split;
-  the split has, in effect, already happened upstream in tokenization.
-- Consequently ``apply()`` does not insert or delete anything: given a clean
-  corpus sentence (the only kind this pipeline corrupts), a matched
-  ADP+DET pair at this gate is *by construction* the analysis of a genuine
-  "au"/"aux"/"du" in the source text, so the handler's job reduces to (a)
-  precisely gating *where* that is true (the du gate is the whole point —
-  see below) and (b) reporting the correct/corrupted pair as an
-  ``ErrorResult`` — ``original`` reconstructs the fused spelling (never
-  materialized in the token array), ``corrupted`` is the two-word span
-  already present in ``sentence``. This mirrors ``elision_apostrophe``'s
-  documented tokenizer quirks (``errors/elision.py``) and is the same kind of
-  "known PoC cut corner" as the rest of the French scaffold — it is not
-  introduced by this handler, only worked around within it.
-- ``changes_length = True`` is declared at the class level per the
-  ``ErrorHandler`` protocol (one bool per *handler*), matching the same
-  reasoning ``ElisionApostropheHandler`` documents for its own split/merge
-  subtypes: the *semantic* operation ("au" is one word, "à le" is two) is a
-  length change even though this particular tokenizer already presents the
-  span pre-split, so no array mutation is actually required to realize it.
-  Declaring it True keeps the handler correctly deferred to the single
-  per-sentence length-changing slot rather than competing on index-stability
-  assumptions with in-place handlers.
+Tokenizer reality (cross-checked against a real
+``StanzaFrBackend(use_depparse=True)`` parse — see the ``tokens_au_contraction``
+and ``tokens_du_contraction`` fixtures in
+``tests/test_languages/test_french/conftest.py``): fr_sequoia always expands
+"au"/"aux"/"du" as multi-word tokens into an ADP ("à"/"de") followed by a DET
+("le"/"les"), both attached to the same head noun (``case`` / ``det``), and
+``_word_to_token`` iterates the already-expanded ``sent.words``. So the
+two-word spelling is already what sits in ``sentence``: ``apply()`` mutates
+nothing. On clean input a matching ADP+DET pair can only come from a fused
+form, so the handler only gates where that holds (the du gate) and reports
+``original`` = the fused spelling (never in the token array), ``corrupted`` =
+the two-word span. ``changes_length = True`` anyway, because the semantic
+operation is a length change (one word → two); it keeps the handler in the
+pipeline's single length-changing slot.
 
 The ``du`` gate (per ``contractions.json``'s ``du`` entry and the BDL source
-cited there): ``du`` is only split when it is unambiguously the contracted
-definite article — i.e. it introduces an ``nmod``/``obl``-family dependent of
-a definite, uniquely-referring NOUN (``la porte du garage``, ``le plat du
-jour``). It must never be split when it is the homographic *partitive*
-determiner marking an indeterminate quantity as a verb's (in)direct object
-(``boire du café``, ``avoir du courage``) — that reading has no de+le
-paraphrase at all. Per this project's ``can_apply`` precision principle
-("a corruption that lands accidentally correct is worse than no corruption"),
-the gate requires the head to be POS=NOUN with a dep_rel in the nmod/obl
-family, and explicitly refuses obj/iobj/subject dep_rels (the partitive
-signature) rather than trying to guess semantics from features alone.
+cited there): ``du`` is split only when its head is a NOUN whose dep_rel is in
+the nmod/obl family (``la porte du garage``, ``le plat du jour``), and never
+when the head is a verb's object or subject (obj/iobj/nsubj/csubj, incl.
+``:pass``) — the signature of the homographic *partitive* determiner
+(``boire du café``, ``avoir du courage``), which has no de+le paraphrase.
+Definiteness itself is not checked; the deprel gate stands in for it, and any
+ambiguity refuses (precision over recall).
 """
 
 from __future__ import annotations
@@ -204,11 +173,9 @@ class ArticleContractionHandler:
         return None
 
     def _du_gate_ok(self, tokens: Sequence[AnalyzedToken], head_idx: int) -> bool:
-        """``du`` may only split when its head is a definite/unique-referent
-        NOUN reached via an nmod/obl dependent — never a verb's (in)direct
-        object or subject (the partitive signature). Conservative by
-        design: any ambiguity refuses, per this project's ``can_apply``
-        precision principle."""
+        """``du`` may only split when its head is a NOUN whose dep_rel is in
+        the nmod/obl family — never a verb's (in)direct object or subject
+        (the partitive signature). Any ambiguity refuses."""
         if head_idx < 0 or head_idx >= len(tokens):
             return False
         head = tokens[head_idx]
