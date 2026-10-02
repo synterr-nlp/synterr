@@ -19,8 +19,8 @@ Configs ───── how often each error fires
 
 This separation is the most important thing to internalize. The same
 **handler** (e.g. `NounCaseErrorHandler`) can be tagged differently
-under different **schemas** (RLC's `Gov`, ERRANT's `NOUN:CASE:R`,
-Rozental's `mo_noun_case_other`), and weighted differently under
+under different **schemas** (RLC's `Gov`, ERRANT's `NOUN:CASE`,
+Rozental's `gv_government`), and weighted differently under
 different **configs** (`rulec`, `gera`, `balanced`).
 
 You add new error logic in handlers. You change the taxonomy in
@@ -75,13 +75,16 @@ A distinguishing design choice: handlers that generate **agreement**,
 **government**, and **punctuation** errors use dependency-tree
 heuristics rather than position heuristics.
 
-- Agreement handlers (`adj_*`) traverse the `amod` arc to the head
-  noun and use the head's features as the reference for confusion-matrix
-  lookup.
-- `VerbPersonNumberHandler` finds the `nsubj` dependent and uses the
-  subject's number as reference.
-- `NounCaseErrorHandler` only fires on governed positions
-  (`obl`, `nmod`, `iobj`, `obj`) — true government errors.
+- Agreement handlers (`adj_*`) follow the modifier arc (`amod`, `acl`)
+  to the head noun and use the head's features as the reference for
+  confusion-matrix lookup.
+- `VerbPersonNumberErrorHandler` requires an overt `nsubj` controller
+  (Russian pro-drop makes subjectless flips unrecoverable) and skips
+  collective/quantified subjects where both numbers are normative.
+- `NounCaseErrorHandler` classifies each noun by its own arc into
+  subtypes — `noun_case_governed` (`obl`, `nmod`, `iobj`, `obj`: true
+  government errors), `noun_case_subject` (`nsubj`), `noun_case_other`
+  (any other arc) — so each is labeled and weighted separately.
 - The punctuation classifier inspects the head's `dep_rel` to
   distinguish subordinate / compound / parenthetical / isolation /
   homogeneous comma contexts.
@@ -102,10 +105,14 @@ Synterr ships four schemas:
 
 | Schema | Granularity | Use case |
 |--------|-------------|----------|
-| `synterr` (default) | Native handler subtype tags | Direct rule tracing in your own pipeline |
-| `rlc` | 35 tags | Russian Learner Corpus annotation alignment |
+| `synterr` | 14 coarse tags (`spelling`, `noun_case`, …) | GECToR-style training labels |
+| `rlc` | 35 tags + 3 modifiers | Russian Learner Corpus annotation alignment |
 | `rozental` | 8 / 29 / 103 tags (L0 / L1 / L2 hierarchy) | Rule-grounded error tracing |
-| `errant` | ERRANT-style POS:operation tags | Cross-lingual GEC eval alignment |
+| `errant` | 32 ERRANT-style POS tags (`NOUN:CASE`, …) | Cross-lingual GEC eval alignment |
+
+`synterr list-schemas` marks `synterr` as the default schema, but
+`generate` applies no schema unless you pass `--schema` (see
+[Pipeline](pipeline.md#who-owns-which-tag-and-what-happens-without-schema)).
 
 When generating data, the same corruption gets the right tag for
 whichever schema you ask for. This is what makes synterr's output

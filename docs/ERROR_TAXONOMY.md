@@ -1,4 +1,9 @@
-Good question — you want taxonomies grounded in actual linguistic research, not vibes. Let me find you proper sources.PubMed's not the right place for this. Let me search for computational linguistics resources.Let me fetch the most detailed paper with the actual error taxonomy:Excellent. Here are the key **referenced resources** for Russian grammatical error taxonomies:
+# Russian GEC error taxonomies: sources
+
+Background note on the published Russian error taxonomies that synterr's
+schemas draw on. The schemas synterr actually ships (`rozental`, `rlc`,
+`errant`, `synterr`) are listed by `synterr list-schemas`; their tag
+inventories are in the [schema reference](https://synterr-nlp.github.io/synterr/reference/schemas/).
 
 ---
 
@@ -66,4 +71,6 @@ Good question — you want taxonomies grounded in actual linguistic research, no
 | **Lexis/Semantics** | `Lex`, `Ref` (pronouns), `Aux`, `Prep`, `Conj`, `Idiom`, `Constr`, `CS` (code-switching) |
 | **Secondary** | `Miss`, `Extra`, `Transfer` |
 
-For your synthetic error generator, the **RLC taxonomy** is probably your best bet since it's the most linguistically motivated and captures the *causes* of errors (agreement violations, government violations, aspectual confusion, etc.) rather than just surface-level categories.
+synterr's `rlc` schema implements this taxonomy (35 primary tags + 3
+modifiers = the 38 tags above); the `rozental` schema is synterr's own
+§-grounded hierarchy.

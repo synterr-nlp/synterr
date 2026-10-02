@@ -4,10 +4,11 @@
 
 ```bash
 pip install hyperfine  # or: brew install hyperfine / cargo install hyperfine
-cd ~/Projects/research/synterr
+# run from the repository root
 
 # Prepare input samples at different sizes
 head -500 data/mixed_sources_v4.txt > /tmp/bench_500.txt
+head -1000 data/mixed_sources_v4.txt > /tmp/bench_1000.txt
 head -2000 data/mixed_sources_v4.txt > /tmp/bench_2000.txt
 head -10000 data/mixed_sources_v4.txt > /tmp/bench_10000.txt
 head -50000 data/mixed_sources_v4.txt > /tmp/bench_50000.txt
@@ -25,22 +26,22 @@ Use `-n` to control input size, not the input file.
 
 ```bash
 # Stanza GPU, with depparse
-hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 500,1000,2000,10000 \
   'uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
    -n {size} -i /tmp/bench_10000.txt -o /dev/null'
 
 # Stanza CPU, with depparse
-hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 500,1000,2000,10000 \
   'CUDA_VISIBLE_DEVICES="" uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
    -n {size} -i /tmp/bench_10000.txt -o /dev/null'
 
 # Stanza GPU, WITHOUT depparse
-hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000 \
+hyperfine --warmup 1 --runs 3 --parameter-list size 500,1000,2000,10000 \
   'uv run synterr generate -l ru --preset balanced --backend stanza \
    -n {size} -i /tmp/bench_10000.txt -o /dev/null'
 
-# Natasha (CPU only, no depparse support)
-hyperfine --warmup 1 --runs 3 --parameter-list size 100,500,2000,10000,50000 \
+# Natasha (CPU only; benchmarked here without depparse)
+hyperfine --warmup 1 --runs 3 --parameter-list size 500,1000,2000,10000,50000 \
   'uv run synterr generate -l ru --preset balanced --backend natasha \
    -n {size} -i /tmp/bench_50000.txt -o /dev/null'
 ```
@@ -75,7 +76,7 @@ Preset: lorugec.
 ```bash
 hyperfine --warmup 1 --runs 3 --parameter-list bs 32,64,128,256,512 \
   'uv run synterr generate -l ru --preset balanced --depparse --backend stanza \
-   --batch-size {bs} -n 1 -i /tmp/bench_2000.txt -o /dev/null'
+   --batch-size {bs} -i /tmp/bench_2000.txt -o /dev/null'
 ```
 
 Fill in:
@@ -130,11 +131,11 @@ Fill in:
 | profile_structural | 19.548 s ±  0.130 s | 102 | ___% | insert/delete tokens |
 | balanced (full) | 20.404 s ±  0.727 s | 98 | ___% | reference |
 
-### D. Force-apply mode (generate-bea-paper)
+### D. Force-apply mode (generate-targeted)
 
 ```bash
-hyperfine --warmup 1 --runs 1 --parameter-list size 2000,10000 \
-  'uv run synterr generate-bea-paper \
+hyperfine --warmup 1 --runs 1 --parameter-list size 500,1000,2000,10000 \
+  'uv run synterr generate-targeted \
    -i /tmp/bench_{size}.txt -o /dev/null -n 5000 --max-input {size}'
 ```
 

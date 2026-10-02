@@ -37,7 +37,7 @@ class MyHandler:
 the simplest non-trivial example. `morphological.py` shows confusion-matrix
 + dep-tree integration. `comma_insert.py` shows length-changing handlers.
 
-**Where the contract lives:** [`CLAUDE.md`](https://github.com/synterr-nlp/synterr/blob/master/CLAUDE.md#adding-a-handler).
+**Where the contract lives:** `src/synterr/core/protocol.py` (`ErrorHandler`); summary in [Architecture](architecture.md#handler-protocol).
 
 **Step-by-step (with worked example, in Russian):**
 [`docs/CONTRIBUTING.ru.md` §"Как добавить новый тип ошибки"](https://github.com/synterr-nlp/synterr/blob/master/docs/CONTRIBUTING.ru.md#как-добавить-новый-тип-ошибки).
@@ -45,7 +45,7 @@ the simplest non-trivial example. `morphological.py` shows confusion-matrix
 **Don't forget:**
 - Register in `src/synterr/languages/russian/errors/__init__.py`
 - Default weight in `src/synterr/configs/russian/rulec.yaml`
-- Schema mapping in `src/synterr/schemas/data/rlc.yaml` (and `rozental.yaml` if applicable)
+- Schema mappings for your subtypes in `src/synterr/schemas/data/` (`rozental.yaml`, `rlc.yaml`, `errant.yaml`); `synterr coverage` shows what is still unmapped
 - Tests under `tests/test_languages/test_russian/`
 
 ---
@@ -147,8 +147,9 @@ The translation work is: for every token, populate `text`, `lemma`, `pos`
 (UD), `features` dict (UD-style), and optionally `dep_rel` + `head_idx`.
 Whatever your toolkit calls things, normalize to UD tags here.
 
-**Register your backend:** add to `src/synterr/languages/russian/backends/__init__.py`
-and the dispatch in `LanguageModule.get_analyzer()`.
+**Register your backend:** add it to the `BACKENDS` map in
+`src/synterr/languages/russian/backends/__init__.py`; `--backend <name>`
+resolves through that map.
 
 ---
 

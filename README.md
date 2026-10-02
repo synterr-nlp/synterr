@@ -74,8 +74,7 @@ error is *recoverable* — and plain news text simply lacks many trigger
 contexts. `synterr survey` measures per-subtype fire rates on your
 corpus; `synterr mine-pools` sweeps large sources for candidate
 sentences per starving class (patterns derive from the live handler
-lexicons, so they can't drift). Measured effect: `verb_tense` fires at
-10/1k sentences on raw news vs ~1700/1k on its mined pool.
+lexicons, so they can't drift).
 
 Full contract — every stage, every output field:
 **[docs → Pipeline](https://synterr-nlp.github.io/synterr/pipeline/)**.
@@ -97,16 +96,17 @@ relabel a corpus under another taxonomy without regenerating it.
 
 ## What it generates
 
-46 handlers / 106 subtypes across five categories
-(`synterr list-errors -l ru` is authoritative):
+49 handlers / 110 subtypes, grouped here by kind
+(`synterr list-errors -l ru` is authoritative; per-handler detail in
+[docs → Error types](https://synterr-nlp.github.io/synterr/error-types/)):
 
 | Category | Examples |
 |----------|----------|
 | Spelling | *молоко → малако*, *учится ↔ учиться*, не/ни, adverb & compound spelling |
 | Morphology | case government (*ждали автобуса → автобусу*), agreement, second locative (*в лесу → в лесе*), short/full adjectives, numeral declension |
-| Punctuation | dep-tree-classified comma deletion/insertion/pairing (10+11+5 subtypes incl. asyndetic §116 and vocative §101), dash rules (5 subtypes) with §79 exception handling |
-| Lexical | paronyms (*одеть ↔ надеть*), preposition/conjunction confusion sets |
-| Structural | word omission/insertion with grammaticality guards |
+| Punctuation | dep-tree-classified comma deletion/insertion/pairing (10+12+5 subtypes incl. asyndetic §116 and vocative §101), dash deletion (5 subtypes) with §79 exception handling, dash↔comma substitution |
+| Lexical | paronyms (*одеть ↔ надеть*), preposition/conjunction confusion sets, pleonasms, collocations, свой/себя/н-pronoun confusions |
+| Structural | word omission/insertion with grammaticality guards, dropped repeated prepositions (§207), mixed participle/который coordination (§211–212) |
 
 Morphological corruption is driven by **empirical confusion matrices**
 extracted from the Russian Learner Corpus (N=2,760 case confusions) —
@@ -114,13 +114,12 @@ learners' actual substitution probabilities, not uniform noise.
 
 ## Presets: how often each error fires
 
-| Preset | Source |
-|--------|--------|
-| `rulec` | RULEC-GEC L2/heritage learner essay distribution |
-| `gera` | GERA school-text distribution (punctuation-heavy) |
-| `gera_bidir` | gera with direction-balanced punctuation (SFT) |
-| `lorugec` | uniform over the 48 LoRuGEC benchmark rules |
-| `balanced` | flat coverage |
+`rulec` (default; RULEC-GEC L2/heritage learner essays), `gera` (GERA
+native school texts, punctuation-heavy), `gera_bidir`, `lorugec`
+(uniform over the 48 LoRuGEC rules), `balanced`, plus `profile_*`
+presets for single-category runs. What each is for:
+[docs → Getting started](https://synterr-nlp.github.io/synterr/getting-started/#choosing-a-preset);
+`synterr list-presets -l ru` is authoritative.
 
 ## Backends
 
@@ -138,7 +137,7 @@ Every handler has been audited against the underlying grammar reference,
 including live-repro adversarial review of its outputs; the invariant
 suite (`tests/test_core/test_weight_invariants.py`) structurally
 prevents the "config silently ignored" bug class; per-rule benchmark
-coverage is live-verified sentence by sentence
+coverage was live-verified sentence by sentence in June 2026
 ([docs/research/LORUGEC_COVERAGE.md](docs/research/LORUGEC_COVERAGE.md)).
 1,300+ tests.
 

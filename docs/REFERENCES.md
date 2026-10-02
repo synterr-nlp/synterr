@@ -39,7 +39,7 @@ Literature and resources used in synterr development.
 - *48 grammar rules with 348 val + 612 test sentences (no train — eval only)*
 - *Rules from Rozental, teacher manuals, educational standards*
 - *Very challenging: Qwen2.5-7B gets 44% F0.5, YandexGPT-5 gets 83%*
-- **synterr connection**: LORuGEC identifies *which rules are hard* — synterr can use this to prioritize handler development. Consider adding `lorugec` schema with their 48-rule taxonomy.
+- **synterr connection**: synterr ships a 48-rule LoRuGEC map (`synterr.lorugec`), the `lorugec` preset (uniform over the 48 rules), and uses the map as the built-in target set of `synterr generate-targeted`. Per-rule coverage: [`docs/research/LORUGEC_COVERAGE.md`](research/LORUGEC_COVERAGE.md).
 
 ### GEC Models
 
@@ -99,10 +99,12 @@ Literature and resources used in synterr development.
 
 | Tool | Use in synterr | Notes |
 |------|----------------|-------|
-| **stanza** | Default backend | Stanford NLP, best accuracy (~92 sent/s) |
-| **natasha** | Fast backend | Slovnet models (~500 sent/s) |
+| **stanza** | Default backend | Stanford NLP, best accuracy |
+| **natasha** | Fast backend | Slovnet models |
 | **spaCy** | Alternative | ru_core_news_* models |
 | **pymorphy3** | Inflection | All backends use for word generation |
+
+Throughput per backend: see the Backends table in the [README](../README.md#backends).
 
 ### Dependency Parsing
 
@@ -201,7 +203,6 @@ Literature and resources used in synterr development.
 - **RuERRANT** — ERRANT extended for Russian error annotation
   - Fork of Cambridge ERRANT with Russian support via spaCy ru_core_news_lg
   - Repo: https://github.com/Askinkaty/errant
-  - Cloned to: `../ruerrant` (sibling checkout)
 - **ReLCo** — Semi-automatically annotated learner corpus from Revita platform
   - Paper: Katinskaia et al. (2022) https://aclanthology.org/2022.lrec-1.88/
   - Repo: https://github.com/Askinkaty/Russian_learner_corpus_ReLCo

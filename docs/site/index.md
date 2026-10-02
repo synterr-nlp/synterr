@@ -6,9 +6,9 @@ Synterr corrupts clean text with linguistically-motivated errors and labels
 each one with the rule it violates. The output is training data for GEC
 models, with two properties most synthetic-corruption tools don't have:
 
-- **Every error has a defensible label.** Each corruption maps to a
-  Rozental § paragraph (or RLC tag, or ERRANT tag). You can filter,
-  re-weight, and audit by rule.
+- **Every error has a defensible label.** Corruptions map to Rozental
+  § paragraphs (or RLC or ERRANT tags). You can filter, re-weight, and
+  audit by rule.
 - **Every error has a syntactic justification.** Government, agreement,
   and punctuation handlers use dependency-tree heuristics to fire on the
   right syntactic positions, not arbitrary tokens.
