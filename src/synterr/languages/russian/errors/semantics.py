@@ -156,7 +156,7 @@ def _load_collocations() -> dict[str, list[dict[str, str]]]:
 
 
 class PleonasmHandler:
-    """Insert redundant words to create pleonasm errors.
+    """Insert a redundant word next to its core word to create a pleonasm.
 
     Example: "автобиография" → "своя автобиография" (insert redundant modifier).
     """
@@ -320,32 +320,21 @@ class PleonasmHandler:
     ) -> bool:
         word = entry["word"]
         pos = entry.get("pos", "before")
-        # C3 (2026-07 audit): a multiword insertion ("в первый раз") lands as
-        # a single element of the corrupted-token list carrying one $DELETE
-        # tag; re-splitting the joined sentence on whitespace downstream then
-        # desyncs the token/tag counts (one tag, three surface tokens). The
-        # ErrorResult contract has no span-aware way to emit per-token tags
-        # for an insertion (mirrors the single-token filler filter in
-        # WordInsertionHandler, structural.py), so these entries are never
-        # selected. They stay in pleonasms.json as documentation of the
-        # attested pattern but are permanently inert until span-aware output
-        # lands.
+        # C3 (2026-07 audit): a multiword insertion ("в первый раз") would be
+        # one corrupted-token element carrying one $DELETE tag but several
+        # whitespace tokens downstream, desyncing token/tag counts (same as
+        # WordInsertionHandler's single-token filler filter). Such entries
+        # stay in pleonasms.json as documentation but are never selected.
         if " " in word:
             return True
         if self._redundant_present(tokens, idx, word, pos):
             return True
         if pos == "after" and self._after_insert_blocked(tokens, idx, word):
             return True
-        # C2 (2026-07 audit): a sentence-initial capitalized core needs two
-        # edits to reconstruct from a corruption that both capitalizes the
-        # inserted word and lowercases the core ("Ветеран выступил" ->
-        # "Старый ветеран выступил") — but only one $DELETE fix tag is
-        # emitted, on the inserted word. Deleting it restores "ветеран
-        # выступил" (lowercase), not the original "Ветеран выступил": the
-        # core's capitalization is unrecoverable from the single edit. Skip
-        # rather than emit an uncorrectable corruption (mirrors
-        # DoubleComparativeHandler's `if word[:1].isupper(): return None` in
-        # morphological.py).
+        # C2 (2026-07 audit): before a sentence-initial capitalized core the
+        # corruption would also need to lowercase the core, which the single
+        # $DELETE on the inserted word cannot restore — skip (as
+        # DoubleComparativeHandler does for capitalized comparatives).
         if pos == "before" and idx == 0 and tokens[idx].text[:1].isupper():
             return True
         return False
@@ -417,7 +406,7 @@ class PleonasmHandler:
             return False
         if self._core_blocked(tokens, idx, lemma):
             return False
-        # At least one entry must not already be present adjacently.
+        # At least one entry must pass _entry_blocked.
         entries = self.pleonasms.get(lemma) or []
         return any(not self._entry_blocked(tokens, idx, e) for e in entries)
 
@@ -439,8 +428,8 @@ class PleonasmHandler:
         if self._core_blocked(tokens, idx, lemma):
             return None
 
-        # Only consider entries whose redundant word isn't already adjacent
-        # and whose insertion point is safe.
+        # Only consider entries whose redundant word isn't already in the
+        # phrase and whose insertion point is safe.
         usable = [e for e in entries if not self._entry_blocked(tokens, idx, e)]
         if not usable:
             return None
@@ -466,10 +455,7 @@ class PleonasmHandler:
             return None
 
         if pos == "before":
-            # Sentence-initial capitalized cores are filtered out by
-            # _entry_blocked (C2, 2026-07 audit) — a single $DELETE tag can't
-            # also restore the core's original capitalization, so entries
-            # reaching this branch at idx == 0 always have a lowercase core.
+            # _entry_blocked (C2) already refused capitalized cores at idx 0.
             sentence.insert(idx, redundant)
             return ErrorResult(
                 error_type="pleonasm_pleonasm",

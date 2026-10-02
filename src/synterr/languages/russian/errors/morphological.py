@@ -107,10 +107,7 @@ def _under_negated_predicate(
     """True when ``token``'s dep-arc head is a negated VERB/AUX predicate.
 
     Used by NounCaseErrorHandler (audit fix M5/C7) to keep the Acc<->Gen
-    alternation under negation out of its random-case-flip territory —
-    ``_has_neg_particle`` is defined below alongside NegGenitiveErrorHandler
-    but is a plain module-level function, so the forward reference resolves
-    fine at call time.
+    alternation under negation out of its random-case-flip territory.
     """
     if token.head_idx is None:
         return False
@@ -123,9 +120,9 @@ def _under_negated_predicate(
 class NounCaseErrorHandler(WeightedSubtypeMixin):
     """Change noun case to create morphological error.
 
-    Arc-aware subtypes (phase 2 of the dep-arc plan): the noun's own dep_rel
-    deterministically decides the subtype, so subtype weights act as enable
-    gates rather than sampling weights (same as CommaDeleteHandler) — a
+    Arc-aware subtypes: the noun's own dep_rel deterministically decides
+    the subtype, so subtype weights act as enable gates rather than
+    sampling weights (same as CommaDeleteHandler) — a
     preset that zeroes a subtype makes the handler skip nouns classifying
     into it instead of leaking them under another label.
 
@@ -136,7 +133,7 @@ class NounCaseErrorHandler(WeightedSubtypeMixin):
     - ``noun_case_other``: any other dep-attached noun (appos, conj, root, …)
 
     No dep info → no fire: without an arc there is no classification
-    evidence, and pre-split behavior was already dep-gated.
+    evidence.
     """
 
     name = "noun_case"
@@ -1216,16 +1213,13 @@ class VerbTenseErrorHandler:
 _PREP_E_U_TRIGGERS = {"в", "во", "на"}
 
 # Curated whitelist (audit fix M6/C8): pymorphy tags loc2 on far more nouns
-# than have a genuinely nonnormative -е locative (an open blocklist let
-# through "на краю" -> "на крае", an accepted literary variant, and "на
-# полу" -> "на поле", a homograph collision with the unrelated common noun
-# "поле" — see _is_dominant_lemma_reading for the runtime version of that
-# check). This list keeps only lexemes verified against pymorphy where the
-# -е form is both reliably wrong in the "в/на X" spatial frame and not the
-# more probable reading of a different lemma. Nouns whose -е form is a
+# than have a genuinely nonnormative -е locative ("на крае" is an accepted
+# literary variant; "на поле" for "на полу" collides with the noun "поле" —
+# see _is_dominant_lemma_reading for the runtime check). Only lexemes whose
+# -е form is reliably wrong in the "в/на X" spatial frame and not the more
+# probable reading of a different lemma are listed. Nouns whose -е form is a
 # legitimate variant or idiom (ряд "в ряде случаев", мозг, аэропорт, сок,
-# цех, год-adjacent "лёд/мёд", ...) are deliberately excluded, not merely
-# unlisted.
+# цех, лёд, мёд, ...) are deliberately excluded, not merely unlisted.
 _PREP_E_U_WHITELIST = {
     "лес",
     "снег",
@@ -1255,9 +1249,7 @@ def _is_dominant_lemma_reading(surface: str, lemma: str) -> bool:
     against. The failure mode is a *dominated* reading, where the intended
     lemma is far down pymorphy's ranking and a completely different, more
     salient word wins (полу -> поле: "пол" scores ~0.01 against "поле"
-    (field) at ~0.47). ``get_morph_analyzer()`` is defined later in this module (shared
-    with the о/а-iterative and short-form handlers) but, like those, is only
-    called at apply time, once the module is fully loaded.
+    (field) at ~0.47).
     """
     own_best = 0.0
     other_best = 0.0
@@ -1275,7 +1267,7 @@ class NounCasePrepErrorHandler:
 
     Nouns like лес/берег/снег take a special second-locative ("местный")
     ending -у after в/на (в лесу, на берегу). Substituting the standard -е
-    locative (в лесе, на берегу→берегe) is a real error for these nouns.
+    locative (в лесе, на береге) is a real error for these nouns.
     """
 
     name = "noun_case_prep"
@@ -1364,7 +1356,7 @@ _ADJ_GOVERNMENT_LEMMAS = {
     "похожий",
 }
 
-# dep_rels marking a predicate (root or copular predicate complement).
+# dep_rels marking a predicate (root or parataxis clause head).
 _PREDICATE_DEPRELS = {"root", "parataxis"}
 
 # dep_rels of a complement the short adjective governs.
@@ -1391,9 +1383,9 @@ class AdjFormErrorHandler:
         parse = _get_pymorphy_parse(token)
         if parse is None or "ADJS" not in str(parse.tag):
             return False
-        # §159: the full nominative form "такой способностью не обладает"
-        # (cannot govern) only when a complement is actually present. Without
-        # one, full vs short predicate is a stylistic choice ("Он очень
+        # §159: the full form cannot govern a complement, so short → full is
+        # an error only when a complement is actually present. Without one,
+        # full vs short predicate is a stylistic choice ("Он очень
         # способный" is correct), so a governed complement is always required.
         if not self._has_complement(tokens, idx):
             return False
@@ -1503,11 +1495,9 @@ class DoubleComparativeHandler:
         sentence.insert(idx, "более")
         modified.add(idx)
         # Insertion shape (audit fix M4/C6), mirroring WordInsertionHandler:
-        # this corrupts by inserting a token, not by replacing the
-        # comparative, so original/corrupted/span must describe the
-        # inserted "более" alone — the old original=word/corrupted=f"более
-        # {word}" shape read as a substitution of the comparative itself,
-        # breaking downstream token/span consumers.
+        # original/corrupted/span describe the inserted "более" alone, not a
+        # substitution of the comparative, which downstream token/span
+        # consumers would misread.
         return ErrorResult(
             error_type="adj_double_comparative",
             category=self.category,
@@ -1579,10 +1569,9 @@ class NumeralDeclensionHandler:
     ) -> str | None:
         """If token is an oblique general cardinal, return its Nom/Acc form.
 
-        Returns None when the token is not a declinable cardinal, is not in an
-        oblique case, or already equals its nominative form (indeclinable
-        numerals like сорок/девяносто/сто share their oblique/nominative
-        surface forms and so produce no error).
+        Returns None when the token is not in an oblique case, is a dative
+        governed by distributive по, is not a pymorphy NUMR, or already
+        equals its nominative form.
         """
         token = tokens[idx]
         if token.get_feature("Case") not in _OBLIQUE_CASES:
@@ -1666,9 +1655,8 @@ class NumeralDeclensionHandler:
                 new_lower = self._polutora_citation_form(tokens, idx, rng)
             else:
                 new_lower = rng.choice(_POLTORA_SUBSTITUTIONS[text_lower])
-            # match_capitalization (audit fix M3/C5): the old first-char-only
-            # transfer clobbered all-caps sources ("ПОЛТОРА" -> "Полутора"
-            # instead of "ПОЛУТОРА").
+            # match_capitalization keeps all-caps sources all-caps
+            # ("ПОЛТОРА" -> "ПОЛУТОРА", not "Полутора") (audit fix M3/C5).
             new_word = match_capitalization(word, new_lower)
 
             # §164 groups полтораста with полтора/полторы (two-form declension),
@@ -1701,7 +1689,7 @@ class NumeralDeclensionHandler:
 # nouns/adverbs and verbs that take a partitive object. Corrupting the
 # standard -а/-я genitive to -у/-ю under one of these heads would land on an
 # accepted (if colloquial) variant rather than an error, so such contexts are
-# skipped — only the residual, non-partitive government contexts fire
+# skipped — only non-partitive contexts fire
 # ("история народа" -> "история народу").
 _PARTITIVE_QUANTITY_HEADS = {
     "стакан",
@@ -1829,20 +1817,21 @@ class NounCaseGenPartitiveHandler:
 
 
 # =============================================================================
-# Instrumental plural -ями/-(ь)ми variant (дверями <-> дверьми, §155)
+# Instrumental plural -ями/-(ь)ми variant (костьми <-> костями, §155)
 # =============================================================================
 
 
 class NounCaseInstrPlHandler:
     """Corrupt the instrumental-plural -ями/-(ь)ми variant (Rozental §155).
 
-    A small set of third-declension nouns (дверь, лошадь, дочь, плеть, кость)
-    alternate between a neutral -ями instrumental plural and a stylistically
-    marked -(ь)ми form. Substituting the marked form in neutral prose reads as
-    an error (дверями -> дверьми); for кость the polarity flips inside the
-    fixed idiom "лечь костьми", where -ьми is itself the norm and -ями is the
-    error — encoded per-lexeme via the ``idiom_reversed``/``idiom_triggers``
-    fields in the data file.
+    Lexicon-driven (``instr_pl_variants.json``): each entry pairs a norm
+    -ями form with a marked -(ь)ми form, and the default corruption is
+    norm -> marked. The lexicon currently holds only кость: дверьми/
+    лошадьми/дочерьми are fully normative variants, so corrupting to them
+    creates no error. кость is ``idiom_reversed``: inside the fixed idiom
+    "лечь костьми" (an ``idiom_triggers`` lemma immediately before the noun)
+    -ьми is the norm and the corruption goes костьми -> костями; outside the
+    idiom it goes костями -> костьми.
     """
 
     name = "noun_case_instr_pl"
@@ -2133,8 +2122,7 @@ class NegGenitiveErrorHandler:
 # a heuristic (non-dictionary) parse of an out-of-vocabulary marked form can
 # still guess the wrong transitivity/adjectivization flag even when the verb
 # form itself is a legitimate, well-formed word — comparing on those flags
-# would produce false negatives, not false positives, so stripping them only
-# trades recall for precision in this handler's favor.
+# would only produce false negatives, so they are left out of the comparison.
 _VERB_TAG_IGNORED_GRAMMEMES = {"tran", "intr", "perf", "impf", "Adjx"}
 
 
@@ -2186,8 +2174,7 @@ def _verb_iterative_lexicon() -> dict[str, dict]:
 
 
 class VerbIterativeSuffixHandler:
-    """Corrupt the о/а alternation in iterative-suffix imperfective verbs
-    (Rozental §172.2).
+    """Corrupt the о/а root vowel of -ивать/-ывать imperfectives (Rozental §172.2).
 
     A closed set of -ивать/-ывать imperfectives has a contested root vowel.
     Some (обусловливать, узаконивать, приурочивать, ...) resist the
@@ -2320,9 +2307,9 @@ def _poss_lexeme_variant(
 
 
 class AdjPossessiveFormHandler:
-    """Corrupt possessive-adjective oblique declension (Rozental §162):
-    full pronominal ending -> short colloquial ending (маминого -> мамина,
-    маминому -> мамину).
+    """Corrupt an -ин possessive's full oblique ending to the short one (Rozental §162).
+
+    маминого -> мамина, маминому -> мамину.
 
     -ин possessive adjectives (мамин, папин, бабушкин, ...) have two
     competing declension patterns in the masc/neut genitive and dative
@@ -2417,7 +2404,8 @@ def _adj_short_en_enen_lexicon() -> dict[str, dict]:
 
 
 class AdjShortEnEnenHandler:
-    """Corrupt the masc short-form -ен/-енен variant (Rozental §160):
+    """Corrupt a masc short adjective -ен into the marked -енен (Rozental §160).
+
     свойствен -> свойственен.
 
     A closed set of -ственный/-твенный quality adjectives has two competing

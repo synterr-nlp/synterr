@@ -1,12 +1,10 @@
 """Syntax-level handlers (sy_ family, Rozental Part III §176–213).
 
-First inhabitants of the SYNT block: the generator historically stopped at
-morphology/punctuation, leaving the sy_ tags annotation-only. General word
-order (§178–182) stays out deliberately — Russian word order is free and
-§178–182 describe *default* orders with inversion as a legitimate device,
-so blanket reordering would emit marked-but-grammatical variants (the
-«marked variant ≠ error» trap). Only mechanically decidable norms live
-here.
+General word order (§178–182) stays out deliberately — Russian word order
+is free and §178–182 describe *default* orders with inversion as a
+legitimate device, so blanket reordering would emit marked-but-grammatical
+variants (the «marked variant ≠ error» trap). Only mechanically decidable
+norms live here.
 """
 
 from __future__ import annotations
@@ -65,14 +63,13 @@ class PrepRepeatHandler(SubtypeGateMixin):
     from a non-first conjunct («и в машинах, и сырье») is the error this
     handler produces.
 
-    The complementary case is already guarded elsewhere: in BARE
-    coordination («по почерку и по количеству») the repetition is
+    In BARE coordination («по почерку и по количеству») the repetition is
     optional, so deleting it yields grammatical shared-case coordination —
-    word_omission explicitly refuses those sites (audit C14). This handler
-    fires only when a repeating «и»/«ни» pattern makes the repetition
-    obligatory, and additionally requires the comma before this conjunct's
-    conjunction (the correctly-written §87 repeating-union shape), so the
-    two handlers partition the preposition-coordination space cleanly.
+    word_omission refuses every repeated preposition in coordination (audit
+    C14). This handler fires only when a repeating «и»/«ни» pattern makes
+    the repetition obligatory, and additionally requires the comma before
+    this conjunct's conjunction (the correctly-written §87 repeating-union
+    shape).
     """
 
     name = "prep_repeat"
@@ -214,14 +211,14 @@ class ParallelMixHandler(SubtypeGateMixin):
     it from the correct two-который shape: «N, который V1 …, и который
     V2 …» → «N, V1-щий …, и который V2 …».
 
-    Gates: the first «который» must be the nominative subject of its
-    relative clause (only that configuration converts to an ACTIVE
-    participle without argument surgery), adjacent to its verb (MVP —
+    Gates: the first «который» must follow a comma and be the subject
+    (nsubj) of its relative clause (only that configuration converts to an
+    ACTIVE participle without argument surgery), adjacent to its verb (MVP —
     intervening adverbs would need reordering), V1 present-imperfective
     or past (the norm has no present-perfective participle, §211.1), a
     second который-clause coordinated via conj on V1, and a real
     participle obtainable from pymorphy with full agreement (case,
-    number, gender, accusative animacy) against the head noun. Any
+    number, singular gender, accusative animacy) against the head noun. Any
     failure skips.
     """
 

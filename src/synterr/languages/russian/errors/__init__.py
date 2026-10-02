@@ -101,6 +101,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         NounNumberErrorHandler(),
         NounNumberGenPlHandler(),
         NegGenitiveErrorHandler(),
+        # Morphological - lexicon-driven adjective/verb form variants
         AdjPossessiveFormHandler(),
         AdjShortEnEnenHandler(),
         VerbIterativeSuffixHandler(),
@@ -147,6 +148,7 @@ def get_all_handlers() -> list[ErrorHandler]:
         # Syntax (sy_ family)
         PrepRepeatHandler(),
         ParallelMixHandler(),
+        # Structural (word insertion)
         WordInsertionHandler(),
     ]
 

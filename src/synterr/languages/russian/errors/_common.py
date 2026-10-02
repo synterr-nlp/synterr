@@ -26,9 +26,9 @@ if TYPE_CHECKING:
 # language resources (paronyms, collocations, ...).
 DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "russian"
 
-# Finite predicate POS. Short-form participle predicates ("приглашено",
-# "убеждён") are VERB/VerbForm=Part in stanza's SynTagRus tagset, so they
-# fall out of _is_predicate_token too.
+# Predicate POS. Short-form participle predicates ("приглашено", "убеждён")
+# are VERB/VerbForm=Part in stanza's SynTagRus tagset, so they pass this POS
+# check too; _is_predicate_token then admits them via Variant=Short.
 FINITE_POS = frozenset({"VERB", "AUX"})
 
 # UD Animacy → pymorphy grammeme. The inflector has no animacy map, but the

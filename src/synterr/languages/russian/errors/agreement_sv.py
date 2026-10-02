@@ -12,21 +12,20 @@ Tense/Person so the flip cannot drift into an unrelated error.
 
 All five REQUIRE dependency-parse info: without an arc there is no subject to
 find and no trigger evidence, so ``can_apply`` is False whenever the
-predicate token itself carries no ``dep_rel`` (guards against running with
-``use_depparse=False``, mirroring the existing agreement handlers in
-``morphological.py``; see ``_has_dep_info`` for why this checks ``dep_rel``
-alone and not ``head_idx`` too — root predicates legitimately have no head).
+predicate token itself carries no ``dep_rel`` (i.e. under
+``use_depparse=False``; see ``_has_dep_info`` for why this checks
+``dep_rel`` alone and not ``head_idx`` too — root predicates legitimately
+have no head).
 
-Irreducible ambiguity (see module docstrings below for the per-handler
+Irreducible ambiguity (see the class docstrings below for the per-handler
 detail): Russian genuinely allows both singular ("semantic"/notional) and
 plural ("grammatical"/formal) agreement with quantity subjects in many
 contexts (Rozental documents this explicitly for §183-185). Each handler
 below restricts to the sub-case Rozental and descriptive grammars treat as
 the *marked*/erroneous variant, skipping the genuinely-optional cases
-entirely (precision over recall, matching the project's spelling/punctuation
-handlers) — but a residual validity ceiling below 100% should be expected
-when this family is annotated, and is treated as an accepted, documented
-finding rather than a bug.
+entirely (precision over recall) — but a residual validity ceiling below
+100% should be expected when this family is annotated, and is treated as an
+accepted, documented finding rather than a bug.
 """
 
 from __future__ import annotations
@@ -125,8 +124,7 @@ def _corrupt_predicate_number(
     Russian gives no morphological signal for *which* gender belongs there
     (plural forms are gender-neutral), so a singular target requires an
     explicit ``ref_gender`` — without one this returns None (precision-first
-    skip, same idiom as ``AdjNumberErrorHandler._head_is_indeclinable``'s
-    sibling checks in morphological.py).
+    skip).
     """
     parse = _get_pymorphy_parse(token)
     if parse is None:
@@ -158,12 +156,12 @@ def _corrupt_predicate_number(
 
 
 # =============================================================================
-# ag_sv_collective (§183) — большинство/ряд/часть/множество/меньшинство
+# ag_sv_collective (§183) — большинство/множество/меньшинство
 # =============================================================================
 
 # Collective-quantifier nouns explicitly covered by §183. Deliberately
 # narrower than morphological.py's _COLLECTIVE_QUANTIFIER_LEMMAS (which also
-# blocks masса/половина/много/несколько/тысяча/... for VerbPersonNumber's
+# blocks масса/половина/много/несколько/тысяча/... for VerbPersonNumber's
 # purposes) — this handler's trigger is specifically the §183 collective
 # class, not every quantity word.
 # часть/ряд excluded: their lexical senses (воинская часть, ряд домов "row")
@@ -255,8 +253,7 @@ class AgrSvCollectiveErrorHandler:
 
 # Value class 2-4: the numeral's own lemma directly carries the value class
 # even in compounds (compounds like "двадцать два" attach via the LAST
-# numeral word, which is the nsubj's nummod head — see the "Пять студентов"
-# fixture convention already established in morphological.py's tests). The
+# numeral word, which is the nsubj's nummod dependent). The
 # normative default here is PLURAL ("два студента пришли"); a singular
 # predicate is the attested, marked error — the reverse of the 5+ class.
 _COUNTING_2_4_LEMMAS = frozenset({"два", "две", "три", "четыре"})
@@ -440,8 +437,9 @@ class AgrSvApproximateErrorHandler:
 
     §185: около/свыше/более/больше + Gen ("Около ста человек пришло").
     Anchored on the subject being Gen-cased (the quantity-phrase signature)
-    with one of the four markers attached somewhere in its immediate
-    dependents — a purely positional match would over-fire on unrelated
+    with one of the four markers attached to the subject, to its nummod
+    numeral, or to the predicate (see ``_find_approx_quantifier``) — a
+    purely positional match would over-fire on unrelated
     Gen-cased subjects, so the marker + Gen-case pairing is required
     together. Bidirectional (sg↔pl), same both-acceptable-variant ceiling
     as §183/§184: the singular target always takes the impersonal default
@@ -503,7 +501,7 @@ class AgrSvApproximateErrorHandler:
 
 
 # =============================================================================
-# ag_sv_compound (§186-189) — special subjects: кто, comitative, acronym
+# ag_sv_compound (§186-189) — special subjects: кто, acronym
 # =============================================================================
 
 
@@ -528,8 +526,9 @@ def _is_acronym_subject(token: AnalyzedToken) -> bool:
 
 
 class AgrSvCompoundErrorHandler:
-    """Corrupt subject-verb agreement for three §186-189 special-subject
-    triggers, each independently sufficient (first match wins):
+    """Corrupt subject-verb agreement with a кто or acronym subject (§186-189).
+
+    Two triggers, each independently sufficient (first match wins):
 
     - **кто-clause** (§187): "те, кто пришёл" — кто always takes a
       singular predicate regardless of its antecedent's number, so the
@@ -537,15 +536,14 @@ class AgrSvCompoundErrorHandler:
       the real, extremely common learner/native error of agreeing with the
       semantically-plural antecedent instead of the syntactic кто subject.
       Direction: sing → plur.
-    The comitative subcase («брат с сестрой пришли» → «пришёл») was REMOVED
-    after audit (2026-07-07): §186 licenses BOTH agreements — plural for
-    joint agents, singular for the accompaniment reading — so the collapse
-    to singular yields correct Russian, and the trigger also over-fired on
-    non-agent «с»-modifiers («концерты с участием музыкантов»).
     - **acronym/indeclinable subject** (§189): a past-tense predicate whose
       gender should track the acronym's core-noun gender is instead
       flipped to a different, wrong gender (e.g. МГУ + masc-correct
       "объявил" → neut "объявило"). Number is left untouched.
+
+    The comitative subcase («брат с сестрой пришли» → «пришёл») is not
+    generated (audit 2026-07-07): §186 licenses BOTH agreements, so the
+    singular is correct Russian.
     """
 
     name = "agr_sv_compound"
@@ -661,11 +659,10 @@ class AgrSvCoordinatedErrorHandler:
     """Corrupt subject-verb agreement with coordinated preposed subjects.
 
     §190: "Брат и сестра пришли" — plural is close to obligatory when both
-    conjuncts precede the predicate. The ordering guard is the whole trick
-    (explicitly required by the capsule spec): if the predicate instead
-    precedes the subjects ("Пришли брат и сестра" / "Пришёл брат и сестра"),
-    singular becomes acceptable again, so that order is skipped entirely —
-    only fires when the predicate follows both conjuncts.
+    conjuncts precede the predicate. If the predicate instead precedes the
+    subjects ("Пришли брат и сестра" / "Пришёл брат и сестра"), singular
+    becomes acceptable again, so that order is skipped entirely — only
+    fires when the predicate follows both conjuncts.
 
     Direction: plur → sing, with the target gender taken from the *nearer*
     conjunct (the second subject, adjacent to the verb) — proximity

@@ -38,9 +38,9 @@ def _repeated_prep_in_coordination(tokens: Sequence[AnalyzedToken], idx: int) ->
     preposition across conjuncts. Dep-tree check: the ADP's head is its
     governed nominal; if that nominal is a ``conj`` dependent of an earlier
     nominal which already has a ``case`` child with the same lemma, the
-    preposition is redundant. Adjacency fallback (no dep info): the same
-    preposition text appears earlier in the sentence, before a coordinating
-    conjunction, within a short scan window.
+    preposition is redundant. Adjacency fallback (no dep info): an earlier
+    ADP with the same lemma sits before a coordinating conjunction within
+    ``_REPEATED_PREP_SCAN_CAP`` tokens, with no PUNCT/VERB/SCONJ between.
     """
     token = tokens[idx]
     lemma = (token.lemma or token.text).lower()

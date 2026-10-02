@@ -1,4 +1,4 @@
-"""Russian lexical error handlers - paronyms, ..."""
+"""Russian lexical error handlers - paronyms, prepositions, conjunctions, pronouns."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _all_confusion_candidates(groups: dict[str, list[str]], word: str) -> list[s
 
 
 class ParonymErrorHandler(MorphAnalyzerMixin):
-    """Replace word from paronyms list to one from its paronyms"""
+    """Replace a word with one of its paronyms, inflected to the original's form."""
 
     name = "paronym"
     subtypes = ["paronym"]
@@ -213,9 +213,9 @@ def _governed_case(tokens: Sequence[AnalyzedToken], idx: int) -> str | None:
 # Transport lexemes and boarding/riding verbs where в and на are both
 # standard, interchangeable choices (Rozental treats the в/на split here as
 # convention, not error: "сесть в поезд" / "сесть на поезд", "ехать в
-# автобусе" / "ехать на автобусе" are both attested norm). Swapping под these
-# verbs would corrupt already-correct text into a non-error, so the в<->на
-# swap is skipped whenever both conditions hold (C11, 2026-07 audit).
+# автобусе" / "ехать на автобусе" are both attested norm). Swapping under these
+# verbs would corrupt already-correct text into a non-error, so в/на get no
+# swap candidates whenever both conditions hold (C11, 2026-07 audit).
 _TRANSPORT_NOUN_LEMMAS = {
     "поезд",
     "автобус",
@@ -268,8 +268,7 @@ class PrepositionErrorHandler:
 
     Groups in ``prepositions.json`` are *confusion* sets, not synonym sets:
     every swap must yield a genuine error (attested learner confusion like
-    в/на, из/с, or a different-government pair like благодаря/из-за where the
-    unreinflected complement exposes the error). Synonymous prepositions with
+    в/на, из/с). Synonymous prepositions with
     identical government (у ~ при ~ около ~ возле, через ~ сквозь — Rozental
     §199) are excluded: swapping them produces correct Russian, which would
     teach a GEC model to rewrite valid text.
@@ -488,23 +487,15 @@ class PronounSvoyErrorHandler(MorphAnalyzerMixin):
     same referent ("Я нашёл свою книгу" -> "Я нашёл мою книгу"). Only this
     direction (свой -> personal) is generated.
 
-    The reverse direction (personal possessive -> свой) was deliberately not
-    implemented. It only constitutes an error when the personal possessive is
-    *not* coreferent with the subject ("Он взял его книгу" [чужую] -> "Он взял
-    свою книгу" *changes what book is meant* rather than merely miscasing a
-    reference) — detecting non-coreference reliably needs discourse-level
-    entity tracking this handler has no access to (dep parse gives syntactic
-    subjects, not discourse antecedents). Firing on ordinary "он ... его X"
-    sentences where the possessor already is the subject (a redundant but
-    common construction, itself sometimes flagged as the *same* §168.2 error in
-    the other direction) would corrupt already-correct-enough text into a
-    meaning change instead of a graded grammaticality error. Precision over
-    recall: skip rather than guess at coreference.
+    The reverse direction (personal possessive -> свой) is not generated:
+    whether "Он взял его книгу" is an error depends on coreference ("his own"
+    vs someone else's book), which a dependency parse cannot decide — the
+    swap would change meaning rather than create a grammaticality error.
 
-    Guards: skips when no subject is determinable, when свой's own head noun
-    is one of a small idiom list (§168.2 does not cover lexicalized свой), and
-    when the target possessive fails to inflect (declinable branch only —
-    его/её/их never inflect).
+    Guards: skips when no subject is determinable or mappable to a person/
+    gender, when свой's own head noun is one of a small idiom list (§168.2
+    does not cover lexicalized свой), and when the target possessive fails
+    to inflect (declinable branch only — его/её/их never inflect).
     """
 
     name = "pronoun_svoy"
@@ -633,14 +624,14 @@ class PronounSvoyErrorHandler(MorphAnalyzerMixin):
 
 
 # ---------------------------------------------------------------------------
-# Pronoun confusion: reflexive себя/себе/собой -> personal pronoun (§168)
+# Pronoun confusion: reflexive себя/себе/собой -> personal pronoun (§168.1)
 # ---------------------------------------------------------------------------
 
 
-# Set phrases where себя/собой is lexicalized rather than a productive
-# reflexive argument: swapping in a personal pronoun would not read as the
-# target case-selection error, just as broken idiom. Checked by neighboring
-# lemma (works identically with or without depparse) rather than a parse.
+# Verbs whose себя/собой argument is lexicalized rather than a productive
+# reflexive slot (чувствовать себя, вести себя, позволить себе): swapping in
+# a personal pronoun would not read as the target error, just as broken
+# idiom. Matched against себя's dep head, so this check needs depparse.
 _SEBYA_FRAME_VERB_LEMMAS = frozenset(
     {
         "чувствовать",
@@ -656,6 +647,9 @@ _SEBYA_FRAME_VERB_LEMMAS = frozenset(
     }
 )
 
+# Verbs forming preposition + себя frames (принять на себя, выйти из себя,
+# дать знать о себе). Matched against себя's dep head or, without depparse,
+# by a short leftward lemma scan.
 _SEBYA_PREP_FRAME_VERBS = frozenset(
     {
         "принять",
@@ -700,7 +694,7 @@ def _is_sebya_set_phrase(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     if gov_lemma in _SEBYA_FRAME_VERB_LEMMAS:
         return True
     # preposition + себя frames: «на себя», «из себя», «о себе» governed by
-    # a frame verb anywhere leftward in the clause
+    # a frame verb (dep head, or within four tokens left of the preposition)
     if prev1 in ("на", "из", "о", "об") and gov_lemma in _SEBYA_PREP_FRAME_VERBS:
         return True
     if prev1 in ("на", "из", "о", "об"):
@@ -742,7 +736,7 @@ def _sebya_subject(tokens: Sequence[AnalyzedToken], idx: int) -> AnalyzedToken |
 
 
 class PronounSebyaErrorHandler(MorphAnalyzerMixin):
-    """Reflexive себя/себе/собой -> personal pronoun confusion (§168, RLC Ref).
+    """Reflexive себя/себе/собой -> personal pronoun confusion (§168.1, RLC Ref).
 
     The textbook L2 error: a reflexive pronoun coreferent with the clause
     subject gets replaced by the personal pronoun matching that subject's
@@ -752,10 +746,11 @@ class PronounSebyaErrorHandler(MorphAnalyzerMixin):
     subject's person/number/gender — the same referent, wrong pronoun class.
 
     Guards: subject must be identifiable via the nsubj dep-tree arc (or, with
-    no dep info, a clause-initial personal pronoun); a small set-phrase
-    blocklist (так себе, само собой, сам по себе, между собой, прийти/
-    приходить в себя) is excluded since себя there is lexicalized, not a
-    referential slot; and a subject we can't map to person/gender (relative/
+    no dep info, a clause-initial personal pronoun); set phrases (так себе,
+    само собой, сам по себе, между собой, прийти/приходить в себя) and
+    lexicalized verb frames (чувствовать себя, вести себя, выйти из себя,
+    ...) are excluded since себя there is not a referential slot; and a
+    subject we can't map to person/gender (relative/
     interrogative/indefinite pronouns) skips rather than guesses.
     """
 
@@ -992,7 +987,7 @@ class ConjunctionErrorHandler:
 
 
 # ---------------------------------------------------------------------------
-# н-insertion/deletion on 3rd-person pronouns after prepositions (§169-170)
+# н-insertion/deletion on 3rd-person pronouns after prepositions (§167)
 #
 # Standard Russian augments the oblique forms of он/она/оно/они with a
 # prothetic н- when (and only when) they are governed by a true preposition:
@@ -1026,7 +1021,7 @@ _N_AUGMENTED_TO_BARE: dict[str, str] = {
     "ней": "ей",  # Dat/Ins fem
     "нему": "ему",  # Dat masc/neut
     "них": "их",  # Gen/Acc plural
-    "ним": "им",  # Ins masc/neut
+    "ним": "им",  # Ins masc/neut, Dat plural
     "ними": "ими",  # Ins plural
     "нею": "ею",  # Ins fem, alternative form
 }
@@ -1061,10 +1056,9 @@ def _n_form_comparative_neighbor(tokens: Sequence[AnalyzedToken], idx: int) -> b
     "лучше него" / "лучше его" (better than him) are both acceptable -- the
     pronoun here is governed by the comparative itself (no true preposition
     is involved at all), so this is not the target error in either
-    direction. In practice a comparative head is never tagged ADP, so the
-    "governed by a true preposition" requirement in _resolve already
-    excludes this construction; this check is kept as an explicit,
-    parser-independent guard per spec.
+    direction. A comparative head is not tagged ADP, so _resolve's
+    preposition requirement usually excludes this already; this check is
+    the parser-independent guard.
     """
     if idx - 1 < 0:
         return False
@@ -1089,14 +1083,14 @@ def _n_form_case_governor(
 
 
 class PronounNFormErrorHandler:
-    """3rd-person pronoun н-augment confusion after prepositions (§169-170,
-    RLC Ref).
+    """3rd-person pronoun н-augment confusion after prepositions (§167, RLC Ref).
 
     Direction (a) -- drop н after an ordinary preposition: "у него" -> "у
     его", "с ней" -> "с ей", "к ним" -> "к им", "без неё" -> "без её". Fires
-    only when a true preposition (any ADP attached via dep_rel='case', or --
+    only when a preposition (a dep_rel='case' dependent of the pronoun, or --
     without depparse -- an ADP immediately to the left) governs the pronoun,
-    and that governor is not one of the exception words below.
+    and that governor is neither one of the exception words below nor a
+    Loc-governing о/об/обо/при.
 
     Direction (b) -- hyper-correction after benefactive/adversative
     secondary prepositions that take Dative but never trigger the augment:

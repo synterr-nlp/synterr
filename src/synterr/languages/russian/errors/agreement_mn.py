@@ -1,7 +1,8 @@
 """Modifier-noun agreement error handlers (Rozental §191-197 grab-bag).
 
-Three narrow, high-precision cases carved out of the §191-197 range (the rest
-is deferred — see module docstrings below for the exact scope of each):
+Three narrow, high-precision cases carved out of the §191-197 range plus
+§148 (the rest is deferred — see the class docstrings below for the exact
+scope of each):
 
 - ``AgrMnAppositionErrorHandler`` (subtype ``ag_mn_apposition``, §195-196):
   declinable toponym appositions — "в городе Москве" -> "в городе Москва".
@@ -10,7 +11,7 @@ is deferred — see module docstrings below for the exact scope of each):
   form recreates the classic non-agreement error, restricted to a small
   agreeing-class lexicon (город/село/деревня/хутор/река) so the un-corrupted
   sentence is unambiguously "correct per the rule".
-- ``AgrMnCompoundTermErrorHandler`` (subtype ``ag_mn_compound_term``, §197):
+- ``AgrMnCompoundTermErrorHandler`` (subtype ``ag_mn_compound_term``, §148):
   hyphenated noun-noun compounds ("в вагоне-ресторане" -> "в вагоне-ресторан")
   where stanza's tokenizer splits the compound into NOUN + PUNCT("-") + NOUN
   and the second noun is dep-attached (appos/parataxis) to the first; both
@@ -25,10 +26,9 @@ is deferred — see module docstrings below for the exact scope of each):
 
 All three require dependency-parse info (``use_depparse=True`` on the
 analyzer); with no dep arc there is no classification evidence at all, so
-``can_apply`` is unconditionally False. Precision-first throughout: every
-handler skips on syncretism, unknown/indeclinable words, composite names, and
-any morphological ambiguity rather than emit a doubtful example (see each
-class's docstring for its specific accepted-risk notes).
+``can_apply`` is unconditionally False. Precision-first throughout: each
+handler skips doubtful cases rather than emit a doubtful example (see each
+class's docstring for its specific guards and accepted-risk notes).
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def _normalize_lemma(lemma: str) -> str:
 
 @lru_cache(maxsize=1)
 def _hyphen_compound_lexicon() -> frozenset[tuple[str, str]]:
-    """Curated allowlist of §197 both-halves-decline hyphenated compounds.
+    """Curated allowlist of §148 both-halves-decline hyphenated compounds.
 
     Fallback for ``AgrMnCompoundTermErrorHandler``'s fused-dictionary gate:
     pymorphy3's strict dictionary lacks most real hyphenated compound nouns
@@ -159,19 +159,12 @@ class AgrMnAppositionErrorHandler:
       nominative form (a pymorphy inflection round-trip) — i.e. it really is
       declined right now, evidence that agreement is actually in force here.
 
-    The round-trip check is used instead of comparing the UD ``Case``
-    features of the toponym and its head: against the real stanza backend,
-    rare/OOV proper nouns frequently get the *wrong* UD ``Case`` (e.g. a
-    genuinely declined "Зеленогорске" tagged ``Case=Nom`` despite its own
-    pymorphy parse correctly reading ``loct``), so requiring the two Case
-    features to match silently drops good examples. ``parse.is_known`` is
-    the compensating precision guard: without it, an OOV toponym for which
-    pymorphy has to *guess* a paradigm by suffix (e.g. "Мзымта" analyzed as
-    genitive of a fictitious "Мзымт") could round-trip into a bogus
-    correction; requiring a dictionary-confirmed parse (which covers the
-    large majority of real city/river names — even fairly obscure ones are
-    typically in OpenCorpora's Geox/Name lexicon) keeps that class of error
-    out.
+    The round-trip check replaces comparing the UD ``Case`` of toponym and
+    head: stanza often mis-tags rare proper nouns (a declined
+    "Зеленогорске" tagged ``Case=Nom``). ``parse.is_known`` is the
+    compensating guard: a suffix-guessed paradigm for an OOV toponym
+    ("Мзымта" read as genitive of a fictitious "Мзымт") would round-trip
+    into a bogus correction.
 
     Accepted risk: §197 also excludes "малоизвестные" (obscure/rare) city and
     especially river names from agreement on frequency grounds the handler
@@ -258,7 +251,7 @@ class AgrMnAppositionErrorHandler:
 
 
 # =============================================================================
-# ag_mn_compound_term (§197): hyphenated compound-noun agreement
+# ag_mn_compound_term (§148): hyphenated compound-noun agreement
 # =============================================================================
 
 # dep_rels observed (real stanza backend) attaching the second half of a
@@ -277,18 +270,12 @@ class AgrMnCompoundTermErrorHandler:
     second half creates the common learner error of only inflecting the
     first part.
 
-    Scope note: stanza's tokenizer is inconsistent about whether a given
-    hyphenated compound is one token or three (compared "вагон-ресторан",
-    which splits into NOUN + PUNCT("-") + NOUN in context, against
-    "купе-люкс", which stays fused as a single token whose pymorphy parse is
-    ambiguous about where the compound boundary falls). Only the three-token
-    shape is handled here — it has an unambiguous dep arc (the second NOUN's
-    head is exactly the first NOUN, two positions back across the hyphen
-    PUNCT) and both halves are independently checked against the pymorphy
-    dictionary. The single-token fused shape is out of scope: pymorphy has
-    no reliable way to say which half of a fused hyphenated lexeme carries
-    the corrupted ending, so attempting it would trade precision for a
-    modest coverage gain.
+    Scope: stanza tokenizes some hyphenated compounds as three tokens
+    (вагон-ресторан → NOUN + PUNCT("-") + NOUN) and others as one
+    ("купе-люкс"). Only the three-token shape is handled — the second
+    NOUN's head is exactly the first NOUN, two positions back across the
+    hyphen. In a fused token pymorphy cannot reliably say which half carries
+    the ending, so that shape is skipped.
 
     Guards: both halves must be dictionary-known words (``word_is_known``,
     strict — rejects indeclinable brand names spelled with a hyphen); both
@@ -296,7 +283,7 @@ class AgrMnCompoundTermErrorHandler:
     proper nouns are excluded); head must be in an oblique case; the fused
     surface must either be a dictionary-known hyphenated lexeme itself
     (вагон-ресторан, школа-интернат) or the head/second-half lemma pair must
-    be in a curated allowlist of common §197 both-halves-decline compounds
+    be in a curated allowlist of common §148 both-halves-decline compounds
     (``synterr/data/russian/hyphen_compounds.json`` — инженер-строитель,
     диван-кровать, кресло-качалка, ...), since pymorphy's strict dictionary
     lacks most real hyphenated compounds even when both halves independently
@@ -338,9 +325,9 @@ class AgrMnCompoundTermErrorHandler:
             return False
         # The three-token NOUN "-" NOUN shape also matches an explanatory
         # dash typed as ASCII hyphen («работе - поиску пострадавших»), which
-        # is not a §197 compound. Require either the fused surface to be a
+        # is not a §148 compound. Require either the fused surface to be a
         # dictionary-known hyphenated lexeme (вагоне-ресторане ✓ — audit,
-        # 2026-07-07), or the lemma pair to be in the curated §197
+        # 2026-07-07), or the lemma pair to be in the curated §148
         # both-halves-decline allowlist (pymorphy's strict dictionary lacks
         # most real compounds — инженер-строитель, диван-кровать,
         # словарь-справочник, ... — audit finding, 2026-07-12); compounds
@@ -458,21 +445,13 @@ class AgrMnNumeralAdjErrorHandler:
     noun ("два новых дома" -> "два новые дома"; "две новые книги" -> "две
     новых книги"), producing the classic cross-over error.
 
-    Detection deliberately keys off the adjective's *surface form* via a
-    pymorphy inflection round-trip (does the current word equal its own
-    genitive-plural or nominative-plural inflection?) rather than the
-    dep-parse UD ``Case`` feature or the pymorphy parse's own case grammeme.
-    Both are unreliable here against the real stanza backend: the UD feature
-    reflects the numeral phrase's *syntactic* case (e.g. "Acc" for a direct
-    object) rather than the adjective's written ending, and the pymorphy
-    parse's case grammeme is itself frequently syncretic ("-ых"/"-их" is
-    simultaneously genitive-plural, locative-plural, and animate-accusative-
-    plural for most adjectives, so the specific grammeme the backend
-    happened to attach is close to arbitrary). Comparing surface forms
-    sidesteps all of that: a numeral phrase in a genuinely oblique case
-    (e.g. Instrumental "двумя новыми домами") produces an adjective form
-    that equals *neither* target inflection and is correctly excluded
-    without any separate case check on the numeral itself.
+    Detection keys off the adjective's *surface form* via a pymorphy
+    round-trip (does the word equal its own genitive-plural or
+    nominative-plural inflection?): the UD ``Case`` reflects the phrase's
+    syntactic case (e.g. Acc for a direct object), and the pymorphy case
+    grammeme is syncretic for "-ых"/"-их". An oblique numeral phrase
+    ("двумя новыми домами") matches neither target form and is excluded
+    without a separate case check.
 
     Guards: adjective must be plural, non-syncretic with its target, and not
     a pronominal (Apro), participle (PRTF/PRTS), or possessive (Poss on -ин/
@@ -485,8 +464,7 @@ class AgrMnNumeralAdjErrorHandler:
     the general fem rule) is handled with a small denylist of the two nouns
     Rozental names explicitly; it is not exhaustive. Common-gender nouns,
     ordinal-adjective agreement (третий), and postposed/preposed-definition
-    word-order variants (§193's other sub-rules) are out of scope, per the
-    capsule spec ("ship ONLY the clean §193 case").
+    word-order variants (§193's other sub-rules) are out of scope.
     """
 
     name = "agr_mn_numeral_adj"

@@ -5,7 +5,7 @@ Covers LoRuGEC rules:
 - Rule 36: Правописание сложных прилагательных (compound adjectives: merge vs hyphen)
 - Rule 44: Правописание числительного пол- (пол- prefix spelling)
 
-Rozental §41-44 (Part I, Chapter IX).
+Rozental §42–44 (hyphen, compound adjectives) and §46 (пол-), Part I.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 # Regex: digit(s) + dash + Cyrillic adjective/ordinal suffix
 _NUM_DASH_ADJ_RE = re.compile(r"^(\d[\d\s/]*)-([а-яёА-ЯЁ]{3,})$")
 
-# Regex: Latin letter(s) + dash + Cyrillic word
+# Regex: Latin or Greek letter(s) + dash + Cyrillic word
 _LETTER_DASH_CYRILLIC_RE = re.compile(r"^([A-Za-zα-ωΑ-Ω]+)-([а-яёА-ЯЁ]{3,})$")
 
 # Ordinal suffixes for numeral compounds: "5-го", "70-й", "35-м"
@@ -45,7 +45,7 @@ _ORDINAL_SUFFIX_RE = re.compile(r"^(\d+)-((?:го|й|я|е|х|м|му|ми|ю))$
 # Rule 44: пол- prefix
 # пол + consonant (not л) → merged: полвека
 # пол + vowel/л/proper noun → dash: пол-лимона, пол-яблока, пол-Москвы
-# Error: swap between merged/dashed/separate forms
+# Error: swap merged ↔ dashed
 # =============================================================================
 
 _VOWELS_LOWER = set("аеёиоуыэюя")
@@ -66,7 +66,8 @@ _POL_MERGED_RE = re.compile(r"^пол([а-яё]{2,})$", re.IGNORECASE)
 # NOTE: only coordinate ("X и Y") compounds belong here. Subordinate compounds
 # whose normative spelling is SOLID (молочнокислый ← молочная кислота,
 # народнохозяйственный ← народное хозяйство, плодоовощной) live in
-# _MERGED_COMPOUNDS below — listing them here inverted the error direction.
+# _MERGED_COMPOUNDS_RAW below — listing them here would invert the error
+# direction.
 _HYPHENATED_COMPOUNDS: set[str] = {
     "военно-полевой",
     "военно-морской",
@@ -110,7 +111,7 @@ _HYPHENATED_COMPOUNDS: set[str] = {
 # Stems for inflected-form matching: strip the 2-char nominative ending
 # (военно-полевой → военно-полев). A stem match alone is not enough — the
 # remainder must be a real adjectival ending (see _ADJ_ENDINGS), so the
-# nouns юго-восток/северо-запад (§43, стороны света) no longer match the
+# nouns юго-восток/северо-запад (§43, стороны света) do not match the
 # adjective stems юго-восточн-/северо-западн- and are not mislabeled as
 # compound_adj.
 _HYPHENATED_COMPOUND_STEMS: frozenset[str] = frozenset(

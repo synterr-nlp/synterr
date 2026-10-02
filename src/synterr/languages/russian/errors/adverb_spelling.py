@@ -6,7 +6,7 @@ Rozental §53–58.
 Common error direction: writing a solid adverb as two words, or vice versa.
 Examples:
 - "наутро" (solid) → "на утро" (separate) — error
-- "на лету" (separate) → "налету" (solid) — error
+- "перенесли на утро" (separate) → "перенесли наутро" (solid) — error
 - "по-русски" (hyphen) → "по русски" (separate) — error
 """
 
@@ -105,8 +105,7 @@ _SOLID_TO_SEPARATE: dict[str, tuple[str, str]] = {
     "наутро": ("на", "утро"),
     "наяву": ("на", "яву"),
     # NOT listed: отовсюду — ото- + всюду is a §56 п.1 prefix+adverb
-    # formation (cf. донельзя, навсегда); learners do not split these,
-    # and the old ("от", "овсюду") cut landed inside the prefix.
+    # formation (cf. донельзя, навсегда); learners do not split these.
     "отчасти": ("от", "части"),
     "поблизости": ("по", "близости"),
     "поверх": ("по", "верх"),
@@ -258,7 +257,7 @@ _SPLITTABLE_POS: frozenset[str] = frozenset({"ADV", "ADP", "PART"})
 
 # ── Direction-symmetric ambiguity guards for solid→separate (audit B12) ─────
 # The merge direction is guarded by _NO_MERGE / _MERGE_BLOCKED_LEMMAS / a
-# dep-tree NP check; the split direction had no equivalent, so it emitted
+# dep-tree NP check; the split direction needs the mirror guards, or it emits
 # sanctioned Russian as "errors". Two symmetric guard classes:
 
 # §53 прим. / §56 п.7 прим.2: direction/place/time words whose SEPARATE
