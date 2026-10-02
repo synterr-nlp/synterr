@@ -648,8 +648,8 @@ _SEBYA_FRAME_VERB_LEMMAS = frozenset(
 )
 
 # Verbs forming preposition + себя frames (принять на себя, выйти из себя,
-# дать знать о себе). Matched against себя's dep head or, without depparse,
-# by a short leftward lemma scan.
+# дать знать о себе). Matched against себя's dep head and, independently,
+# by a short leftward lemma scan (the scan runs with or without depparse).
 _SEBYA_PREP_FRAME_VERBS = frozenset(
     {
         "принять",

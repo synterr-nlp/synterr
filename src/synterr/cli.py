@@ -689,9 +689,8 @@ def cmd_generate_sft(
 
     \b
     The default target set ships with synterr (the 48 LoRuGEC rules as
-    63 entries with directional variants; weighted by item counts from a
-    local LORuGEC.xlsx if one is found, else uniform). Supply your own
-    with --targets:
+    63 entries with directional variants, weighted uniformly). Supply
+    your own with --targets:
       {"rules": {"my rule": {"handler": "spelling",
                              "subtype": "vowel_reduction",
                              "weight": 10}}}

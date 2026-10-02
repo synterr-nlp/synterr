@@ -72,7 +72,7 @@ uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
 This produces `{"src": corrupted, "tgt": clean, "rule": rule_name}`
 JSONL plus a `.dist.json` sidecar with per-rule counts. The built-in
 target set covers the 48 LoRuGEC benchmark rules (63 generation rules
-once bidirectional ones are split by direction), empirically weighted;
+once bidirectional ones are split by direction), weighted uniformly;
 supply your own with `--targets targets.json`. The same logic produced
 the training data for our BEA 2026 paper (see
 [Reproducibility](reproducibility.md)).

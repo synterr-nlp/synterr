@@ -3,11 +3,14 @@
 > **Status:** pre-implementation design note, kept for background. It
 > sketches how a taxonomy tag becomes a generative function; the shipped
 > handlers differ. Government errors are `noun_case` (dep-arc subtypes,
-> RLC confusion matrices) and `neg_genitive`; agreement errors are the
+> RLC confusion matrices), `noun_case_prep`, `noun_case_gen_partitive`
+> and `neg_genitive`; agreement errors are the
 > `adj_*`, `verb_person_number`, `agr_sv_*` and `agr_mn_*` handlers;
 > inflection uses pymorphy3 (not pymorphy2). There is **no** general
-> aspect handler (only `verb_iterative_suffix`, §172.2), and no
-> paradigm-class (`Infl`) or derivational (`Morph`) handler. The Rozental
+> aspect handler (only `verb_iterative_suffix`, §172.2) and no
+> derivational (`Morph`) handler; paradigm-class (`Infl`) errors are covered
+> only by narrow subtypes (`noun_case_other`, `noun_case_instr_pl`,
+> `adj_short_full`, `adj_double_comparative`, `adj_possessive_form`). The Rozental
 > "rules" below are paraphrases, not quotations. Current inventory:
 > `synterr list-errors -l ru`.
 

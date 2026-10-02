@@ -131,7 +131,7 @@ class ErrorResult:
     error_type: str     # Тип ошибки: "noun_case"
     category: str       # Категория: "SPELL", "MORPH", "PUNCT", "OTHER"
     start_idx: int      # Начало (индекс токена, включительно)
-    end_idx: int        # Конец (не включительно)
+    end_idx: int        # Конец (номинально не включительно; удаления, вставки и замены знака на месте ставят end_idx == start_idx)
     original: str       # Оригинал: "книгу"
     corrupted: str      # С ошибкой: "книга"
     fix_tag: str        # Тег исправления: "$TRANSFORM_CASE_Acc"

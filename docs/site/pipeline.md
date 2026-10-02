@@ -192,8 +192,8 @@ Where `generate` produces *training* data (many errors per sentence,
 weighted by preset), `minimal-pairs` produces *evaluation* data: **one
 corruption per record** — a correct sentence and its single-handler
 corruption, held as a contrast pair. Each record carries the
-`correct`/`incorrect` sentences and spans, the `handler` and its
-`contrast` subtype, the schema's L1 tag (`phenomenon`), the fine-grained
+`correct`/`incorrect` sentences and spans, the `handler`, the emitted
+error type (`contrast`, e.g. `spelling_keyboard`), the schema's L1 tag (`phenomenon`), the fine-grained
 L2 tag (`l2`), the Rozental §§ it instantiates (`paras`), and the
 `l2_applicability` field described above.
 

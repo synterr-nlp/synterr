@@ -64,9 +64,11 @@ class ErrorResult:
             "spelling_vowel_reduction")
         category: Detection category (SPELL, MORPH, PUNCT, OTHER)
         start_idx: Start token index (inclusive)
-        end_idx: End token index (exclusive). Usually start_idx + 1; some
-            handlers emit two-token spans, and deletions (``$APPEND_x`` on
-            the preceding token) may set end_idx == start_idx.
+        end_idx: End token index. Nominally exclusive (start_idx + 1 for a
+            one-token replacement; some handlers emit two-token spans), but
+            deletions (``$APPEND_x`` on the preceding token), insertions,
+            and in-place punctuation swaps set end_idx == start_idx —
+            treat start_idx as the anchor of the edit.
         original: Original text
         corrupted: Corrupted text
         fix_tag: GECToR correction tag (e.g., "$REPLACE_word", "$TRANSFORM_CASE_Nom")

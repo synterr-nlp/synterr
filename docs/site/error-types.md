@@ -31,7 +31,7 @@ A 5-handler French proof-of-concept exists on the same architecture
 | `noun_case` | Wrong case on a governed/subject/other noun (dep-arc gated: obl/nmod/iobj/obj, nsubj, appos/conj/…) | *на столе* → *на стол* |
 | `noun_case_prep` | Second locative -у vs standard -е (§152) | *в лесу* → *в лесе* |
 | `noun_case_gen_partitive` | Partitive genitive -а/-у (§150) | *история народа* → *народу* |
-| `noun_case_instr_pl` | Instrumental plural -ями/-ьми (§155) | *дверями* → *дверьми* |
+| `noun_case_instr_pl` | Instrumental plural -ями/-ьми (§155); lexicon holds only кость | *лечь костьми* → *лечь костями* |
 | `noun_number` | Singular ↔ plural | *книга* → *книги* |
 | `noun_number_gen_pl` | Nonstandard genitive plural (§154) | *носков* → *носок* |
 | `neg_genitive` | Acc↔Gen under negation, dep-arc (§201) | *не читал книгу* ↔ *книги* |
