@@ -19,6 +19,8 @@ clauses of §§79–116 (see synterr-internal/BIDIRECTIONAL_COMMA_DESIGN.md):
 - comma_homogeneous_conj (§86 п.1): comma before a SINGLE и/да/или/либо
   joining two non-clausal homogeneous members ("яблоки, и груши"). Exact
   complement of comma_clause_junction's clausality gate.
+- comma_paired_conj (§87.5 прим./§87.7): comma inside a tight «A и B и C»
+  noun-phrase chain ("соль, и перец и масло").
 - comma_subj_pred (no § licenses it): comma between a heavy subject NP and
   its immediately following predicate ("Прибывшие участники, разместились").
 - comma_pseudo_parenthetical (§99 п.2 Прим.): bracketing words from the
@@ -27,9 +29,9 @@ clauses of §§79–116 (see synterr-internal/BIDIRECTIONAL_COMMA_DESIGN.md):
 - comma_after_odnako (§99 п.7): sentence-initial «однако» = «но», takes no
   comma; the error inserts one ("Однако, переговоры продолжились").
 - comma_compound_conj_split (§108 Прим.): comma inside non-splittable
-  compound conjunctions ("в то время, как"). SENTENCE-INITIAL only —
-  annotation-driven precision gate (native pass 2026-07, 4/14 real):
-  mid-sentence расчленение can be licensed by stress on a correlate.
+  compound conjunctions ("в то время, как"). SENTENCE-INITIAL only
+  (annotation-driven precision gate): mid-sentence расчленение can be
+  licensed by stress on a correlate.
 - comma_x_ne_x (§90 п.4): comma inside «X не X» / «X так X» repetition
   constructions ("работа, не работа").
 
@@ -76,9 +78,9 @@ _PUNCT_CHARS = frozenset(",;:—–-«»\"'()[]…!?.")
 _KAK_APPOSITIVE_HEAD_POS = {"NOUN", "PROPN", "ADJ", "NUM"}
 
 # =============================================================================
-# Frozen phraseological expressions from Rozental §87 п.5
-# These are the ONLY repeated-conjunction patterns where comma is wrong.
-# Format: frozenset of the content words between the conjunctions.
+# Frozen phraseological expressions from Rozental §87 п.5: repeated-conjunction
+# idioms where a comma is wrong.
+# Format: conjunction → list of (word after 1st conjunction, word after 2nd).
 # =============================================================================
 
 _FROZEN_PHRASES: dict[str, list[tuple[str, ...]]] = {
@@ -165,7 +167,7 @@ _CORRELATIVES = {"то", "так", "но"}
 # =============================================================================
 # Indivisible (цельные по смыслу) expressions (§87 п.4, §90, §114 п.1)
 # No comma inside these. Error = inserting a comma.
-# Format: tuple of words, comma insertion point (index in tuple where comma goes).
+# Format: tuple of words; the comma position is assigned in _INDIVISIBLE_INDEX.
 # =============================================================================
 
 # Expressions with "как" that should NOT have a comma before "как"
@@ -241,11 +243,12 @@ _INDIVISIBLE_FIXED: list[tuple[str, ...]] = [
 ]
 
 # Build lookup: first word → list of (full_phrase, comma_position)
-# comma_position = index before which to insert comma (usually between words 0 and 1)
+# comma_position = index before which to insert comma: always 1 (between the
+# first and second word) for multi-word phrases; _default_pos is unused.
 _INDIVISIBLE_INDEX: dict[str, list[tuple[tuple[str, ...], int]]] = {}
 
 for _phrases, _default_pos in [
-    (_INDIVISIBLE_KAK, 0),  # comma before the phrase or within it
+    (_INDIVISIBLE_KAK, 0),
     (_INDIVISIBLE_PRONOUN, 0),
     (_INDIVISIBLE_FIXED, 0),
 ]:
@@ -381,7 +384,7 @@ def _is_clausal_head(token: AnalyzedToken, tokens: Sequence[AnalyzedToken]) -> b
 def _can_insert_clause_junction(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     """Insertion candidate for §104/§109: cc joining two clauses, no comma.
 
-    Triggers when a coordinating conjunction (и/а/но/да/или/либо) sits at
+    Triggers when a coordinating conjunction from _COORDINATING sits at
     position `idx`, has dep_rel=cc, its head is a `conj`-attached clausal
     element, and there's no comma immediately before it.
 
@@ -496,7 +499,7 @@ def _can_insert_homogeneous_conj(tokens: Sequence[AnalyzedToken], idx: int) -> b
     The clausality gate is the exact inverse of _can_insert_clause_junction:
     clausal conj heads (ССП / homogeneous clauses) belong to
     comma_clause_junction; non-clausal ones (plain homogeneous members)
-    belong here. Together the two subtypes partition the cc-space.
+    belong here.
     """
     if idx == 0:
         return False
@@ -548,9 +551,9 @@ def _can_insert_paired_conj(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
     union (§87 would demand commas there), so the no-comma tight-group
     reading is the only normative parse. Accepted risk: a dirty source
     that itself omitted required repeating-union commas gets its error
-    reinforced rather than injected — same risk class as the other
-    Jul-2 insert subtypes, mitigated by the exactly-three-conjuncts
-    gate (real repeating unions run longer more often than pairs do).
+    reinforced rather than injected — mitigated by the
+    exactly-three-conjuncts gate (real repeating unions run longer more
+    often than pairs do).
 
     Gates, in order: the token is a lowercase «и» with dep_rel=cc whose
     head is a non-clausal conj; the coordination has EXACTLY three
@@ -723,14 +726,11 @@ def _match_compound_sconj(
 ) -> tuple[tuple[str, ...], int] | None:
     """Match a non-splittable compound conjunction starting at `idx`.
 
-    SENTENCE-INITIAL only. Annotation-driven precision gate (native-speaker
-    pass 2026-07, 4/14 real): every real_error verdict was sentence-initial
-    («Даже, если пуля пройдет…»), while every mid-sentence split after a
-    preceding clause + comma («…играть, даже, если бы…») was judged
-    ambiguous — mid-sentence, расчленение союза can be licensed by stress
-    on the correlate (§108 п.1). Sentence-initially there is no preceding
-    correlate, so the split is unambiguously wrong. Shared by detection and
-    apply, so the two can never diverge.
+    SENTENCE-INITIAL only (native annotation judged only sentence-initial
+    splits «Даже, если…» real errors): mid-sentence, расчленение союза can
+    be licensed by stress on the correlate (§108 п.1); sentence-initially
+    there is no preceding correlate. Shared by detection and apply, so the
+    two can never diverge.
     """
     if not _is_sentence_initial(tokens, idx):
         return None
@@ -771,17 +771,13 @@ def _kak_concludes_compound_sconj(
     tokens: Sequence[AnalyzedToken], kak_idx: int
 ) -> bool:
     """`kak_idx` is the trailing «как» of a non-splittable compound
-    conjunction from _COMPOUND_SCONJ («в то время как», «тогда как», «даже
-    если»-family whose last word is «как», …), at ANY position in the
-    sentence — not just sentence-initial (audit A10).
+    conjunction from _COMPOUND_SCONJ («в то время как», «между тем как»,
+    «тогда как», «словно как»), at ANY position in the sentence (audit A10).
 
-    Distinct from `_match_compound_sconj`, whose sentence-initial gate
-    governs only which SITE fires `comma_compound_conj_split` (the
-    annotation-driven precision restriction on that subtype's own error
-    generation): a mid-sentence "тогда как" is still a non-splittable
-    conjunction, so `comma_before_kak` must never treat its «как» as a
-    standalone appositive/comparative site, whether or not
-    `comma_compound_conj_split` is licensed to fire there.
+    Unlike `_match_compound_sconj`, no sentence-initial gate: that gate
+    restricts only where `comma_compound_conj_split` fires, while a
+    mid-sentence "тогда как" is still a non-splittable conjunction whose
+    «как» `comma_before_kak` must never treat as a standalone site.
     """
     for compound, _comma_pos in _COMPOUND_SCONJ:
         if compound[-1] != "как":
@@ -879,7 +875,7 @@ def _pseudo_parenthetical_insert_pos(
 
 
 def _can_insert_after_odnako(tokens: Sequence[AnalyzedToken], idx: int) -> bool:
-    """§99 п.7: sentence-initial «однако» = противительный союз «но», no comma.
+    """§99 п.7: sentence-initial (or post-semicolon) «однако» = «но», no comma.
 
     The error inserts one (the English-calqued "However," comma). Only
     mid-/end-clause «однако» is вводное — that position is dual-function
@@ -937,14 +933,15 @@ class CommaInsertHandler(WeightedSubtypeMixin):
     - comma_between_conjunctions: insert comma between adjacent conjunctions
     - comma_in_indivisible: insert comma inside indivisible expressions
     - comma_clause_junction: insert comma before clause-joining cc (§104/§109)
-    - comma_homogeneous_conj: comma before single и between homogeneous members (§86)
+    - comma_homogeneous_conj: comma before single и/да/или/либо between
+      homogeneous members (§86)
     - comma_paired_conj: commas into tight «A и B и C» NP chains (§87.5 прим./§87.7)
     - comma_subj_pred: comma between heavy subject NP and predicate
     - comma_pseudo_parenthetical: bracket never-вводные words (§99 п.2 Прим.)
     - comma_after_odnako: comma after sentence-initial однако (§99 п.7)
     - comma_compound_conj_split: split non-splittable compound conjunctions
       (§108; sentence-initial only)
-    - comma_x_ne_x: comma inside «X не X» repetitions (§90)
+    - comma_x_ne_x: comma inside «X не X» / «X так X» repetitions (§90)
     """
 
     name = "comma_insert"
@@ -985,8 +982,7 @@ class CommaInsertHandler(WeightedSubtypeMixin):
     def _detect_subtypes(self, tokens: Sequence[AnalyzedToken], idx: int) -> list[str]:
         """All subtypes whose trigger fires at `idx`.
 
-        Shared by can_apply and apply so the two can never diverge (the
-        subtype-extraction bug class of June 2026).
+        Shared by can_apply and apply so the two can never diverge.
         """
         token = tokens[idx]
         text_lower = token.text.lower()

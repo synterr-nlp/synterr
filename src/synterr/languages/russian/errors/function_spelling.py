@@ -1,15 +1,15 @@
 """Russian function word spelling handler.
 
-Covers Rozental §59–72 (sp_function L1 tag):
-- не/ни attachment/detachment with nouns, adjectives, verbs, participles
+Covers Rozental §59–72 (sp_function L1 tag) and §47 negative pronouns (sp_pos):
+- не/ни attachment/detachment with nouns, adjectives, adverbs, verbs
 - Conjunction split/merge: чтобы/что бы, также/так же, зато/за то, etc.
-- Particle spelling: -таки hyphen errors
+- Particle spelling: -таки hyphen removal
+- не↔ни swap in negative pronouns (некого/никого)
 
-This handler changes_length=True because split/merge operations add/remove tokens.
+changes_length=True because split/merge operations add/remove tokens.
 
-Known validity ceiling (audit B11, 2026-07): a small number of the split/merge
-pairs are grammatical in BOTH spellings depending on semantics, not just a
-single "correct" form corrupted to a "wrong" one. Concretely:
+Known validity ceiling (audit B11): a few split/merge pairs are grammatical in
+BOTH spellings depending on semantics:
 - отчего / от чего — "Отчего ты грустишь?" (adverb, "why") vs "От чего
   зависит результат?" (prep + pronoun, "from what") are both correct; the
   handler cannot always tell which sense is intended from POS alone.
@@ -17,11 +17,9 @@ single "correct" form corrupted to a "wrong" one. Concretely:
   большой, а маленький" (contrastive negation of "большой") are both
   grammatical; antithesis/contrast context can make the separate spelling
   the *correct* one.
-These pairs are kept (the 2,724-item native annotation pass rated this
-handler 100% real_error on sampled output; the ambiguous contexts above are
-rare in running text), but a
-future maintainer adding stronger context guards should know these two
-semantic-ambiguity classes are the known false-positive source.
+These pairs are kept because the ambiguous contexts are rare in running text
+(native annotation rated sampled output 100% real_error); they are the known
+false-positive source for any future context guard.
 """
 
 from __future__ import annotations
@@ -53,11 +51,9 @@ def _transfer_case_split(original: str, parts: Sequence[str]) -> list[str]:
     """Distribute original's capitalization shape across split-off parts.
 
     - Full-caps source ("ЧТОБЫ", len>1): every part is fully uppercased
-      ("что", "бы") -> ("ЧТО", "БЫ"). Prevents the all-caps-destruction bug
-      where only the first letter of the first part got capitalized
-      ("ЧТОБЫ" -> "Что бы").
+      ("что", "бы") -> ("ЧТО", "БЫ"), never "Что бы".
     - Title-case source ("Чтобы"): only the first letter of the first part
-      is capitalized, as before.
+      is capitalized.
     - Otherwise: parts are returned unchanged.
     """
     if _is_full_upper(original):
@@ -75,7 +71,7 @@ def _transfer_case_merge(originals: Sequence[str], merged: str) -> str:
     - If every constituent original token is itself full-caps (len>1), the
       merged word is fully uppercased ("ЧТО" + "БЫ" -> "ЧТОБЫ").
     - Else if the first original token starts with an uppercase letter, only
-      the first letter of the merged word is capitalized (as before).
+      the first letter of the merged word is capitalized.
     - Otherwise the merged word is returned unchanged (already lowercase).
     """
     if originals and all(_is_full_upper(o) for o in originals):
@@ -180,7 +176,7 @@ class FunctionSpellingHandler(WeightedSubtypeMixin):
     - ne_detachment: Split "неword" → "не word" (incorrect separate writing)
     - conjunction_split: Split solid conjunction: "чтобы" → "что бы"
     - conjunction_merge: Merge separate words: "что бы" → "чтобы"
-    - taki_hyphen: Remove or misplace -таки hyphen
+    - taki_hyphen: Remove the -таки hyphen: "всё-таки" → "всё таки"
     - neg_pronoun_ne_ni: не↔ни confusion in negative pronouns (§47):
       "некого" ↔ "никого" depending on whether the clause has a negated verb
     """
@@ -319,8 +315,8 @@ class FunctionSpellingHandler(WeightedSubtypeMixin):
 
     @staticmethod
     def _is_finite_verb(token: AnalyzedToken) -> bool:
-        """Finite verb: a VERB that is not an infinitive (§47 needs a real
-        negated predicate, not 'некого спросить')."""
+        """A VERB whose VerbForm is not Inf (participles and gerunds pass too);
+        §47 needs a negated predicate, not 'некого спросить'."""
         if token.pos != "VERB":
             return False
         verb_form = token.features.get("VerbForm")
@@ -329,8 +325,9 @@ class FunctionSpellingHandler(WeightedSubtypeMixin):
     def _clause_has_negated_finite_verb(
         self, tokens: Sequence[AnalyzedToken], idx: int
     ) -> bool:
-        """Conservative §47 gate: is there a «не» particle within ~3 tokens of a
-        finite verb anywhere in the clause?
+        """Conservative §47 gate: is there a «не» particle within 3 tokens of a
+        non-infinitive verb anywhere in the sentence? (``idx`` is unused; no
+        clause segmentation.)
 
         "никого не видел" → True  (correct pronoun is ни-)
         "некого спросить" → False (no negated finite verb; correct pronoun is не-)
@@ -354,7 +351,7 @@ class FunctionSpellingHandler(WeightedSubtypeMixin):
         """не↔ни confusion in negative pronouns (§47).
 
         Direction is chosen so the result is the *wrong* spelling:
-        - negated finite verb in clause → correct is ни- → corrupt ни→не
+        - negated verb in sentence → correct is ни- → corrupt ни→не
         - otherwise (impersonal/infinitive) → correct is не- → corrupt не→ни
         """
         original = sentence[idx]
@@ -592,7 +589,6 @@ class FunctionSpellingHandler(WeightedSubtypeMixin):
                 fix_tag=f"$MERGE_{original}",
             )
 
-        # Standalone "таки" after verb/adv/particle → should have been hyphenated
-        # We can't easily fix this direction (would need to check prev word),
-        # so skip standalone таки for now
+        # Standalone "таки" is not corrupted (can_apply still accepts it):
+        # telling the hyphenated from the separate spelling needs the previous word.
         return None
