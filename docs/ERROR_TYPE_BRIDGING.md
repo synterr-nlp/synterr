@@ -1,3 +1,16 @@
+# Bridging error taxonomies to generation (early design note)
+
+> **Status:** pre-implementation design note, kept for background. It
+> sketches how a taxonomy tag becomes a generative function; the shipped
+> handlers differ. Government errors are `noun_case` (dep-arc subtypes,
+> RLC confusion matrices) and `neg_genitive`; agreement errors are the
+> `adj_*`, `verb_person_number`, `agr_sv_*` and `agr_mn_*` handlers;
+> inflection uses pymorphy3 (not pymorphy2). There is **no** general
+> aspect handler (only `verb_iterative_suffix`, §172.2), and no
+> paradigm-class (`Infl`) or derivational (`Morph`) handler. The Rozental
+> "rules" below are paraphrases, not quotations. Current inventory:
+> `synterr list-errors -l ru`.
+
 ## Zaliznjak's Grammatical Dictionary
 
 **Зализняк А.А. "Грамматический словарь русского языка: Словоизменение"** (1977, 4th ed. 2003)
@@ -57,7 +70,7 @@ error_gen_pl = "гостов"  # ❌ wrong but morphologically regular
 
 ## The Bridging Problem
 
-You're right to be confused — I gave you two things:
+Two different resources are in play:
 1. **RLC taxonomy** = labels for *what kind of error* it is
 2. **Rozental rules** = prescriptive norms for *what's correct*
 
@@ -66,8 +79,6 @@ But neither directly tells you **how to generate errors**. The bridge is:
 ```
 RLC Tag  →  Linguistic Rule (from Rozental)  →  Inversion Strategy  →  Generative Function
 ```
-
-Let me make this explicit:
 
 ### Bridge Table: RLC → Rule → Generation
 
@@ -84,7 +95,7 @@ Let me make this explicit:
 
 ### Concrete Example: Generating a **Gov** Error
 
-**Rule from Rozental:** 
+**Rule (paraphrase):**
 > Глагол "помогать" требует дательного падежа: помогать кому? — помогать другу.
 
 **Inversion:**
@@ -110,7 +121,7 @@ def generate_gov_error(sentence, verb="помогать"):
 
 ### Concrete Example: Generating an **Asp** Error
 
-**Rule from Rozental:**
+**Rule (paraphrase):**
 > После глаголов "начать", "продолжать", "кончить" употребляется инфинитив НСВ.
 
 **Inversion:**
@@ -141,7 +152,7 @@ def generate_asp_error(sentence):
 
 ### Concrete Example: Generating an **Infl** Error
 
-**Rule from Zaliznjak:**
+**Rule (paraphrase, Zaliznjak):**
 > Существительные класса 3a (мягкий согласный) образуют Gen.Pl с окончанием "-ей": гость → гостей.
 
 **Inversion:**
@@ -214,7 +225,7 @@ def generate_infl_error(word, target_form="gen_pl"):
 
 ---
 
-## What You Actually Need to Build
+## Resources such a design needs
 
 | Resource | Source | Format | Purpose |
 |----------|--------|--------|---------|

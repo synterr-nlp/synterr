@@ -2,7 +2,8 @@
 
 The review viewer with ~30 preloaded synthetic errors — the same tool we
 use for human verification of generated data. Every example carries its
-handler type, §-level schema tag, and applicability rating; the
+handler type and, where the `rozental` schema maps that subtype, its
+§-level tag and applicability rating; the
 annotation buttons (or keys ++1++–++4++) record a verdict per example.
 
 <a href="../demo/viewer.html" target="_blank" rel="noopener"><strong>Open

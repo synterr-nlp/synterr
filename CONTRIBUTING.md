@@ -1,7 +1,7 @@
 # Contributing to synterr
 
 Thanks for your interest. This guide covers everyday development.
-For architecture details see [`CLAUDE.md`](CLAUDE.md). The Russian-language
+For architecture see the [docs site](https://synterr-nlp.github.io/synterr/architecture/). The Russian-language
 guide ([`docs/CONTRIBUTING.ru.md`](docs/CONTRIBUTING.ru.md)) goes deeper into
 adding error handlers.
 
@@ -19,7 +19,7 @@ Quick smoke test:
 
 ```bash
 uv run synterr corrupt -l ru -e spelling "Мама мыла раму."
-uv run pytest
+make check
 ```
 
 ## Workflow
@@ -35,24 +35,25 @@ gh pr create
 
 PRs need:
 - Tests (every new handler or behavior change)
-- `uv run pytest` green
-- `uv run ruff check src tests` clean
-- `uv run ruff format --check src tests` clean
-- `uv run mypy` clean (covers `src/synterr/core` + `src/synterr/schemas`)
+- `make check` green — ruff check, ruff format `--check`, mypy (scoped to
+  `src/synterr/core` + `src/synterr/schemas`), and the fast test suite
+- `make test-slow` green if you touched handlers (real-stanza tests)
 
-CI runs all of the above on every PR.
+CI runs `make lint`, `make test`, and `make test-slow` on every PR;
+`make check-full` runs all of that plus the strict docs build.
 
 ## Adding an error handler (Russian)
 
-See [`CLAUDE.md`](CLAUDE.md) for the `ErrorHandler` protocol contract. The
-short version:
+The `ErrorHandler` protocol contract lives in
+`src/synterr/core/protocol.py`. The short version:
 
 1. Implement the protocol in a new file under
    `src/synterr/languages/russian/errors/`.
 2. Register in `src/synterr/languages/russian/errors/__init__.py`.
 3. Add a default weight in `src/synterr/configs/russian/rulec.yaml`.
-4. Add schema mappings in `src/synterr/schemas/data/rlc.yaml` (and
-   `rozental.yaml` if applicable).
+4. Add schema mappings for its subtypes in `src/synterr/schemas/data/`
+   (`rozental.yaml`, `rlc.yaml`, `errant.yaml`); `synterr coverage`
+   shows what is still unmapped.
 5. Add tests under `tests/test_languages/test_russian/`.
 
 The Russian guide has fully-worked examples and idiom-level guidance.

@@ -71,9 +71,14 @@ uv run synterr generate-targeted -i corpus.txt -o train.jsonl \
 
 This produces `{"src": corrupted, "tgt": clean, "rule": rule_name}`
 JSONL plus a `.dist.json` sidecar with per-rule counts. The built-in
-target set covers 48 Rozental-derived rules, empirically weighted;
-supply your own with `--targets targets.json`. This command built the
-training data for our BEA 2026 paper.
+target set covers the 48 LoRuGEC benchmark rules (63 generation rules
+once bidirectional ones are split by direction), empirically weighted;
+supply your own with `--targets targets.json`. The same logic produced
+the training data for our BEA 2026 paper (see
+[Reproducibility](reproducibility.md)).
+
+`generate-targeted` detokenizes its output with sacremoses, which ships
+in the `gen` extra: install `synterr[russian,gen]` to use it.
 
 ### 3. Use the Python API
 
@@ -93,11 +98,12 @@ print(result.to_jsonl())  # rich JSON with rule labels
 
 | Preset | Use when |
 |--------|----------|
-| `rulec` | Calibrated to RULEC-GEC L2 / heritage learner distribution |
-| `gera` | Calibrated to GERA German-Russian learner distribution |
-| `balanced` | Equal weights across error types |
-| `lorugec` | Coverage-mode, designed for the LoRuGEC benchmark |
-| `profile_punct`, `profile_spelling`, `profile_morph` | Single-category isolation, useful for ablations |
+| `rulec` (default) | Calibrated to RULEC-GEC L2 / heritage learner distribution |
+| `gera` | Calibrated to GERA, native Russian school texts (punctuation-heavy) |
+| `gera_bidir` | `gera` with comma deletion/insertion rebalanced in both directions |
+| `balanced` | Hand-tuned spread across error types |
+| `lorugec` | Coverage-mode, uniform over the 48 LoRuGEC benchmark rules |
+| `profile_punct`, `profile_spelling`, `profile_morph`, `profile_structural` | Single-category isolation, useful for ablations and profiling |
 
 ```bash
 uv run synterr list-presets -l ru

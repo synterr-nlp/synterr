@@ -44,8 +44,9 @@ Why subtypes starve: precision gates. Handlers refuse to corrupt when
 the result wouldn't be a recoverable error — `verb_tense` needs a
 temporal anchor (*вчера/завтра*), `noun_number` needs an agreement
 witness, dash deletion skips contexts where Rozental permits both
-variants. On plain news text `verb_tense` applies in ~3 of 1000
-sentences. That's correct behavior; fix the *corpus*, not the gate.
+variants. On plain news text `verb_tense` emits about 25 times per 1k
+sentences (survey defaults, 2,000 Lenta sentences). That's correct
+behavior; fix the *corpus*, not the gate.
 
 ## Stage 2 — mine-pools: feed the starving classes
 
@@ -71,12 +72,11 @@ Two design points worth knowing:
   the handlers.
 - **Pools are recall-oriented.** A pool only needs to contain
   *candidates*; the handler's own `can_apply` does the precise filtering
-  at generation time. Measured effect: `verb_tense` fires at 10.5/1k on
-  raw news vs ~1700/1k on its mined pool. Same story for
-  `agr_sv_collective` (§183): its bare-collective-subject trigger fired
-  0 times in 10k news sentences, but a mined pool yields a full
-  per-class sample — news prose almost never writes «Большинство
-  проголосовало» without a genitive dependent, which is exactly the
+  at generation time. Measured effect (survey defaults): `verb_tense`
+  emits ~25/1k on raw Lenta news vs ~2,300/1k on its mined pool. Same
+  story for `agr_sv_collective` (§183): it never fired on 2,000 news
+  sentences, but emits ~260/1k on its mined pool — news prose almost
+  never writes «Большинство проголосовало» without a genitive dependent, which is exactly the
   configuration where only one agreement is normative.
 
 To verify a pool feeds its class, survey it: `synterr survey -i
@@ -91,7 +91,7 @@ uv run synterr generate -l ru --preset rulec --schema rozental \
 
 - `--preset` controls **how often** each error type fires (corpus-derived
   weights: `rulec` = L2 learner essays, `gera` = native school texts,
-  `lorugec` = benchmark-rule uniform, `balanced` = flat).
+  `lorugec` = benchmark-rule uniform, `balanced` = hand-tuned spread).
 - `--schema` controls **what the errors are called** (see below).
 - `--seed` makes the run reproducible.
 
@@ -151,7 +151,7 @@ authoritative.
 
 Related flags elsewhere in the pipeline:
 
-- `synterr corrupt --schema rlc -e Gov` uses the schema in the *other
+- `synterr corrupt --schema rlc -e Gov --depparse` uses the schema in the *other
   direction* — to resolve a schema tag to the handlers that produce it.
   `corrupt` output itself always shows handler-owned labels only.
 - `synterr survey` and `synterr mine-pools` are schema-free by design:
@@ -170,9 +170,12 @@ the *learner* population, rated per fine-grained tag:
 - **none** — no bridge: either a native-only phenomenon or a
   learner-only error Rozental has no § for (word omission/insertion)
 
-A few basic-agreement subtypes (`adj_case`, `verb_tense`, …) carry an L1
-tag but no L2 tag — Rozental's fine-grained level has no slot for basic
-agreement errors — so they emit no applicability field.
+A few subtypes (`noun_case_subject`, `verb_tense`, `conjunction`,
+`comma_subj_pred`) carry an L1 tag but no L2 tag — Rozental's
+fine-grained level has no slot for them — so they emit no
+`schema_l2_tag` or applicability field. Subtypes with no mapping at all
+in the chosen schema (e.g. `spelling_keyboard` under `rozental`) emit no
+`schema_*` fields.
 
 Filtering a corpus by population is therefore a one-liner: keep
 `full` for native-style data, `full`+`partial` for learner-style data,
@@ -188,10 +191,11 @@ uv run synterr minimal-pairs -l ru -i sents.txt -o pairs.jsonl \
 Where `generate` produces *training* data (many errors per sentence,
 weighted by preset), `minimal-pairs` produces *evaluation* data: **one
 corruption per record** — a correct sentence and its single-handler
-corruption, held as a contrast pair. Each record carries the L1
-phenomenon tag (handler-level), the fine-grained L2 tag, the Rozental §§
-the corruption instantiates, and the `l2_applicability` field described
-above.
+corruption, held as a contrast pair. Each record carries the
+`correct`/`incorrect` sentences and spans, the `handler` and its
+`contrast` subtype, the schema's L1 tag (`phenomenon`), the fine-grained
+L2 tag (`l2`), the Rozental §§ it instantiates (`paras`), and the
+`l2_applicability` field described above.
 
 That labeling supports two different benchmark views over the same
 emitted file:

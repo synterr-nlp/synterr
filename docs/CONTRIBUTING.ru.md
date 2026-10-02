@@ -24,20 +24,25 @@
 
 ```bash
 # Клонируем репозиторий
-git clone https://github.com/mechanicpanic/synterr.git
+git clone https://github.com/synterr-nlp/synterr.git
 cd synterr
 
 # Устанавливаем все зависимости (включая dev и russian)
 uv sync --all-extras
 
-# Проверяем, что всё работает
-uv run pytest -v
-uv run ruff check src tests
+# Проверяем, что всё работает (ruff + mypy + быстрые тесты)
+make check
 ```
 
 ### Полезные команды
 
 ```bash
+# Гейт целиком: ruff check + ruff format --check + mypy + быстрые тесты
+make check
+
+# Медленные тесты с настоящим stanza
+make test-slow
+
 # Запуск тестов
 uv run pytest -v
 
@@ -69,25 +74,27 @@ synterr/
 │   │   ├── protocol.py       # Протоколы и dataclass'ы
 │   │   ├── registry.py       # Реестр языков
 │   │   └── pipeline.py       # Пайплайн генерации ошибок
-│   ├── schemas/              # Лингвистические схемы (НОВОЕ!)
+│   ├── discovery.py          # survey / mine-pools
+│   ├── sft.py                # generate-targeted
+│   ├── lorugec.py            # Карта правил LoRuGEC
+│   ├── schemas/              # Лингвистические схемы
 │   │   ├── loader.py         # Загрузчик схем
-│   │   └── data/
-│   │       ├── synterr.yaml  # Дефолтная схема
-│   │       └── rlc.yaml      # RLC таксономия (35 тегов)
+│   │   └── data/             # rozental.yaml, rlc.yaml, errant.yaml, synterr.yaml
 │   ├── configs/              # YAML конфигурации (веса, параметры)
-│   │   └── russian/          # Пресеты для русского
-│   ├── analysis/             # Анализ бенчмарков
+│   │   └── russian/          # Пресеты для русского (rulec, gera, lorugec, …)
+│   ├── data/russian/         # Лексиконы и словари хендлеров (JSON)
+│   ├── analysis/             # Анализ M2-корпусов (analyze-distribution)
 │   └── languages/            # Поддержка языков
+│       ├── french/           # Французский PoC (5 хендлеров)
 │       └── russian/          # Русский язык
-│           ├── analyzer.py   # Морфологический анализ (stanza)
+│           ├── analyzer.py   # Морфологический анализ
+│           ├── backends/     # stanza (по умолчанию), natasha, spacy
 │           ├── inflector.py  # Словоизменение (pymorphy3)
-│           ├── resources.py  # Словари, списки слов
-│           └── errors/       # Обработчики ошибок
-│               ├── spelling.py      # Орфографические
-│               └── morphological.py # Морфологические
-├── tests/                    # Тесты
-├── data/                     # Ресурсы (JSON, etc.)
-└── configs/                  # Пользовательские конфиги
+│           ├── resources.py  # Загрузка лексиконов
+│           └── errors/       # Обработчики ошибок (+ _common.py — общие хелперы и миксины)
+├── tests/                    # Тесты (test_core/, test_languages/)
+├── scripts/                  # Сборка корпусов, бандлы ревью, справочник доков
+└── data/                     # Артефакты v4 и отчёты (корпуса не трекаются)
 ```
 
 ### Схемы vs Конфиги
@@ -114,15 +121,17 @@ class AnalyzedToken:
     pos: str            # Часть речи (Universal POS): "NOUN"
     features: dict      # Морф. признаки: {"Case": "Acc", "Number": "Sing"}
     idx: int            # Индекс в предложении
+    dep_rel: str | None # Отношение зависимости (только с depparse)
+    head_idx: int | None  # Индекс вершины (только с depparse)
     extra: dict         # Дополнительно (pymorphy parse, etc.)
 
 # ErrorResult — результат применения ошибки
 @dataclass
 class ErrorResult:
     error_type: str     # Тип ошибки: "noun_case"
-    category: str       # Категория: "MORPH", "SPELL", "OTHER"
-    start_idx: int      # Начало (индекс токена)
-    end_idx: int        # Конец
+    category: str       # Категория: "SPELL", "MORPH", "PUNCT", "OTHER"
+    start_idx: int      # Начало (индекс токена, включительно)
+    end_idx: int        # Конец (не включительно)
     original: str       # Оригинал: "книгу"
     corrupted: str      # С ошибкой: "книга"
     fix_tag: str        # Тег исправления: "$TRANSFORM_CASE_Acc"
@@ -130,7 +139,7 @@ class ErrorResult:
 # ErrorHandler — протокол обработчика ошибок
 class ErrorHandler(Protocol):
     name: str              # Имя: "noun_case"
-    subtypes: list[str]    # Подтипы для маппинга на схему (НОВОЕ!)
+    subtypes: list[str]    # Подтипы для маппинга на схему
     category: str          # Категория: "MORPH"
     changes_length: bool   # Меняет ли длину предложения?
 
@@ -138,8 +147,9 @@ class ErrorHandler(Protocol):
         """Можно ли применить ошибку к токену idx?"""
         ...
 
-    def apply(self, tokens, sentence, idx, modified) -> ErrorResult | None:
-        """Применить ошибку. Вернуть ErrorResult или None."""
+    def apply(self, tokens, sentence, idx, modified, rng=None) -> ErrorResult | None:
+        """Применить ошибку. Вернуть ErrorResult или None.
+        rng — random.Random пайплайна: все случайные выборы делай через него."""
         ...
 ```
 
@@ -190,6 +200,8 @@ russian = "synterr.languages.russian:RussianLanguage"
 **Файл:** `src/synterr/languages/russian/errors/my_error.py`
 
 ```python
+import random
+
 from synterr.core.protocol import AnalyzedToken, ErrorResult
 
 class MyErrorHandler:
@@ -218,6 +230,7 @@ class MyErrorHandler:
         sentence: list[str],
         idx: int,
         modified: set[int],
+        rng: random.Random | None = None,  # пайплайн всегда передаёт rng=
     ) -> ErrorResult | None:
         """Применяем ошибку."""
         token = tokens[idx]
@@ -278,9 +291,11 @@ weights:
   my_error: 0.05  # <-- Добавь вес
 ```
 
-### Шаг 4: Добавь маппинг в схему (опционально)
+### Шаг 4: Добавь маппинг в схемы
 
-Если хочешь, чтобы твой обработчик маппился на теги RLC схемы:
+Чтобы подтипы обработчика получали теги схем (`--schema`), добавь их в
+`mappings` каждой схемы: `rozental.yaml`, `rlc.yaml`, `errant.yaml`.
+Пример для RLC:
 
 **Файл:** `src/synterr/schemas/data/rlc.yaml`
 
@@ -291,7 +306,7 @@ mappings:
     primary: Lex  # Или другой подходящий тег
 ```
 
-Проверь покрытие: `uv run synterr coverage --lang ru --schema rlc`
+Проверь покрытие: `uv run synterr coverage --lang ru --schema rlc` (и так же для `rozental`, `errant`)
 
 ### Шаг 5: Напиши тесты
 
@@ -358,19 +373,16 @@ uv run pytest --cov=src/synterr --cov-report=html
 ### Перед коммитом ОБЯЗАТЕЛЬНО:
 
 ```bash
-# Проверка линтера
-uv run ruff check src tests
+# Автоформатирование и автоисправление линтера
+make format
 
-# Автоисправление
-uv run ruff check --fix src tests
-
-# Форматирование
-uv run ruff format src tests
+# Гейт: ruff check + ruff format --check + mypy + быстрые тесты
+make check
 ```
 
 ### Основные правила
 
-1. **Типизация** — используй type hints везде:
+1. **Типизация** — используй type hints (mypy проверяет `core/` и `schemas/`):
    ```python
    def process(text: str, count: int = 10) -> list[str]:
        ...
@@ -401,7 +413,7 @@ uv run ruff format src tests
 ### Перед началом работы
 
 ```bash
-# Обновись с main
+# Обновись с master
 git checkout master
 git pull origin master
 

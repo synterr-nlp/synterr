@@ -1,13 +1,14 @@
 # Error types (Russian)
 
 **49 handlers, 110 subtypes** across four detection categories (`SPELL`,
-`MORPH`, `PUNCT`, `OTHER`). The full subtype lists and Rozental §
-mappings are in
-[`CLAUDE.md`](https://github.com/synterr-nlp/synterr/blob/master/CLAUDE.md);
+`MORPH`, `PUNCT`, `OTHER`). The full subtype lists are in
+[Reference → Handlers and subtypes](reference/handlers.md) and the
+schema mappings in [Reference → Schemas](reference/schemas.md);
 `uv run synterr list-errors -l ru` is the live, authoritative listing.
-LoRuGEC rule coverage is verified sentence-by-sentence in
+LoRuGEC rule coverage was verified sentence-by-sentence on 2026-06-13 in
 [`docs/research/LORUGEC_COVERAGE.md`](https://github.com/synterr-nlp/synterr/blob/master/docs/research/LORUGEC_COVERAGE.md)
-(37/48 FULL, 11/48 PARTIAL, 0/48 NONE).
+(then 37/48 FULL, 11/48 PARTIAL, 0/48 NONE; the audit predates the
+handlers and subtypes added since).
 
 A 5-handler French proof-of-concept exists on the same architecture
 (`src/synterr/languages/french/`, stanza `fr_sequoia` backend) — see
@@ -28,7 +29,7 @@ A 5-handler French proof-of-concept exists on the same architecture
 | Handler | What it does | Example |
 |---------|--------------|---------|
 | `noun_case` | Wrong case on a governed/subject/other noun (dep-arc gated: obl/nmod/iobj/obj, nsubj, appos/conj/…) | *на столе* → *на стол* |
-| `noun_case_prep` | Second locative -у vs standard -е (§ second locative) | *в лесу* → *в лесе* |
+| `noun_case_prep` | Second locative -у vs standard -е (§152) | *в лесу* → *в лесе* |
 | `noun_case_gen_partitive` | Partitive genitive -а/-у (§150) | *история народа* → *народу* |
 | `noun_case_instr_pl` | Instrumental plural -ями/-ьми (§155) | *дверями* → *дверьми* |
 | `noun_number` | Singular ↔ plural | *книга* → *книги* |
@@ -39,15 +40,12 @@ A 5-handler French proof-of-concept exists on the same architecture
 | `adj_possessive_form` | Possessive-adjective oblique variants (§162) | *маминого* → *мамина* |
 | `adj_short_en_enen` | Short-form -ен/-енен (§160) | *свойствен* → *свойственен* |
 | `adj_double_comparative` | Insert pleonastic «более» before a synthetic comparative (length-changing) | *лучше* → *более лучше* |
-| `verb_person_number` | Verb conjugation against `nsubj` | *они читает* → *они читают* |
+| `verb_person_number` | Verb conjugation against an overt `nsubj` | *они читают* → *они читаем* |
 | `verb_tense` | Past / present / future swap (finite forms only) | *читал* → *читает* |
 | `verb_iterative_suffix` | о/а iterative suffix (§172.2) | *обусловливать* → *обуславливать* |
 | `numeral_declension` | Numeral declension, incl. полтора | *полтора часа* → *полутора часа* |
-| `pronoun_svoy` | свой → personal possessive (§167) | *нашёл свою книгу* → *мою книгу* |
-| `pronoun_sebya` | себя → personal pronoun (§168) | *купил себе* → *купил ему* |
-| `pronoun_n_form` | н-augment after prepositions (§169–170) | *у него* → *у его* |
 | `agr_sv_collective`, `agr_sv_counting`, `agr_sv_approximate`, `agr_sv_compound`, `agr_sv_coordinated` | Subject–verb agreement flips, dep-arc (§183–190) | collective/numeral/compound subjects |
-| `agr_mn_apposition`, `agr_mn_compound_term`, `agr_mn_numeral_adj` | Modifier–noun agreement: toponyms, hyphen compounds, два/три/четыре + adjective (§193–197) | — |
+| `agr_mn_apposition`, `agr_mn_compound_term`, `agr_mn_numeral_adj` | Modifier–noun agreement: toponyms, hyphen compounds, два/три/четыре + adjective (§148, §191–197) | — |
 
 ## Lexical — `OTHER`
 
@@ -58,6 +56,9 @@ A 5-handler French proof-of-concept exists on the same architecture
 | `conjunction` | Wrong conjunction |
 | `pleonasm` | Tautological phrases (*главный приоритет*) |
 | `collocation` | Lexical compatibility violations |
+| `pronoun_svoy` | свой → personal possessive, *нашёл свою книгу* → *мою книгу* (§168.2) |
+| `pronoun_sebya` | себя → personal pronoun, *купил себе* → *купил ему* (§168.1) |
+| `pronoun_n_form` | н-augment after prepositions, *у него* → *у его* (§167) |
 
 ## Structural — `OTHER`
 
@@ -65,6 +66,8 @@ A 5-handler French proof-of-concept exists on the same architecture
 |---------|--------------|
 | `word_omission` | Drop a function word (preposition or conjunction) |
 | `word_insertion` | Insert a filler word (discourse marker, particle) |
+| `prep_repeat` | Drop an obligatory repeated preposition under repeating и/ни: *и в машинах, и в сырье* → *и в машинах, и сырье* (§207) |
+| `parallel_mix` | Coordinate a participial phrase with a который-clause (§211–212) |
 
 ## Punctuation — `PUNCT`
 
@@ -75,6 +78,7 @@ A 5-handler French proof-of-concept exists on the same architecture
 | `comma_insert` | Add a spurious comma (12 subtypes, incl. bidirectional: homogeneous_conj §86, subj_pred, pseudo_parenthetical §99, after_odnako §99, compound_conj_split §108, x_ne_x §90) |
 | `dash_delete` | Delete a required dash (5 subtypes: subj_pred, asyndetic, apposition, ellipsis §80, other) |
 | `dash_to_comma` | Substitute dash → comma at sentence-final appositions (§93, non-length-changing) |
+| `comma_to_dash` | Replace an asyndetic-clause comma with a spurious dash (§116; insert-direction mirror of `dash_delete:dash_asyndetic`) |
 
 ## Schema mapping cheat sheet
 
